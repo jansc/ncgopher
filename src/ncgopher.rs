@@ -263,11 +263,11 @@ impl NcGopher {
                         }),
                 )
                 .leaf("About", |s| {
-                    s.add_layer(Dialog::info(
-                        ";               ncgopher v0.1.1\n\
+                    s.add_layer(Dialog::info(format!(
+                        ";               ncgopher v{}\n\
                          ;     A Gopher client for the modern internet\n\
                          ; (c) 2019-2020 by Jan Schreiber <jan@mecinus.com>\n\
-                         ;               gopher://jan.bio"))
+                         ;               gopher://jan.bio", env!("CARGO_PKG_VERSION"))))
                 }),
         );
     }
