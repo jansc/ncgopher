@@ -759,9 +759,15 @@ impl NcGopher {
                 UiMessage::OpenUrl(url, content_type) => {
                     match content_type {
                         ContentType::Binary => {
-                            let download_path = "/home/jans".to_string();
-                            self.fetch_binary_file(url, download_path);
-                        }
+                            match dirs::home_dir() {
+                                Some(dir) => {
+                                    self.fetch_binary_file(url, dir.into_os_string().into_string().unwrap());
+                                },
+                                None => {
+                                    self.set_message("Could not find download dir");
+                                }
+                            };
+                        },
                         _ => {
                             self.open_gopher_address(url, content_type);
                         }
