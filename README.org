@@ -33,10 +33,6 @@ repository, =cd= to the =ncgopher= directory and run
     cargo run
     #+END_EXAMPLE
 
-However, before you run =ncgopher=, create a directory called
-=.config/ncgopher= in you home directory (applies to Unix/Linux/BSD,
-etc).  This will be fixed soon!
-
 ** Key bindings
 
 During alpha, the keybindings are not configurable and many operations

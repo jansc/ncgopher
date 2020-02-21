@@ -1,5 +1,6 @@
 use std::env;
 use std::path::Path;
+use std::fs;
 use dirs;
 use config::{ConfigError, Config, File};
 
@@ -17,6 +18,21 @@ pub struct Settings {
 impl Settings {
     pub fn new() -> Result<Self, ConfigError> {
         let mut s = Config::new();
+
+        // Create config dir if necessary
+        match dirs::config_dir() {
+            Some(mut dir) => {
+                dir.push(env!("CARGO_PKG_NAME"));
+                let dir = dir.into_os_string().into_string().unwrap();
+                if !Path::new(&dir).exists() {
+                    match fs::create_dir_all(dir.clone()) {
+                        Err(why) => warn!("Could not create config dir: {}", why),
+                        Ok(()) => ()
+                    }
+                }
+            },
+            None => { println!("Could not determine config dir"); }
+        };
 
         let confdir: String = match dirs::config_dir() {
             Some(mut dir) => {
