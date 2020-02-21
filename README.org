@@ -47,6 +47,7 @@ are still not implemented.
 | g          | Open new URL                   |
 | b          | Navigate back                  |
 | q          | Close application              |
+| s          | Save current page              |
 |------------+--------------------------------|
 
 ** Debugging
