@@ -1,0 +1,49 @@
+#+TITLE: NcGopher release notes
+
+* Roadmap
+** alpha
+*** DONE [#A] Implement query handler
+*** DONE [#A] Download of binary files
+*** DONE [#A] Refactor: Get rid of server/port/path - use url::URL
+*** DONE [#A] Error handling for URLs
+*** NEXT [#B] Refactor: Move non-ui functions to controller
+*** TODO [#B] Implement open history entries [3/6]
+    - [X] Open URL from history-menu
+    - [ ] Add count to history
+    - [ ] Handle duplicate history entries (not nesassary)
+    - [ ] Implement show all history dialog
+    - [X] Write history to file
+    - [X] Read history from file on startup
+*** DONE [#B] Implement simple bookmark handling [2/2]
+    Bookmark: Name, Url, Last visited, Tags?
+    - [X] Write bookmarks to file
+    - [X] Read bookmark from file on startup
+*** TODO [#B] Implement settings dialog [0/5]
+    - [ ] Set homepage
+    - [ ] Default directory for downloads
+    - [ ] Search engines (maybe later?)
+    - [ ] Read config from file (https://github.com/mehcode/config-rs)
+    - [ ] Write configuration to file
+    How to handle config-file changes? Overwrite existing config-file?
+    Possible solution: create config-auto, and use config to extend config-auto
+    Ignore config-filechanges while running for now
+*** DONE [#B] Implement download of files (text/gophermap)
+*** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
+*** DONE [#C] Write README.org
+** post-alpha
+*** TODO Better keyboard navigation
+*** TODO Handle tags for bookmarks
+*** TODO Configurable keys
+*** TODO Persistent history
+*** TODO [#C] Themes
+*** TODO Implement reload of page
+*** TODO mailcap handling
+*** TODO Reading list (ala Safari)
+*** TODO Auto moka pona (rss-like?), maybe rss support
+*** TODO Bookmarks [0/1]
+    - [ ] Export bookmarks to gophermap/txt
+** Some day? beta, etc
+*** Open local file (gophermap/textfile)
+*** Gemini support
+*** Caching
+*** Download gopherhole for offline reading

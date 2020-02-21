@@ -1,0 +1,26 @@
+[package]
+name = "ncgopher"
+version = "0.1.1"
+authors = ["Jan Schreiber <jan@mecinus.com>"]
+edition = "2018"
+license = "MIT"
+description = "An ncurses gopher client for the modern internet"
+readme = "README.org"
+homepage = "https://github.com/jansc/ncgopher"
+repository = "https://github.com/you/grrs"
+keywords = ["cli", "gopher", "client"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+cursive = "^0.14"
+unicode-width = "^0.1.5"
+url = "^2.1.0"
+chrono = "^0.4.9"
+lazy_static = "^1.4.0"
+clap = ""
+log = "^0.4"
+dirs = "^2.0.2"
+config = "^0.9"
+serde_derive = "^1.0.8"
+serde = {version = "^1.0.8", features = ["derive"]}
+toml = "0.5.6"

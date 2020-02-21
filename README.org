@@ -1,0 +1,69 @@
+#+TITLE: NcGopher README
+
+* ncgopher
+
+=ncgopher= is a gopher client for the modern internet. It uses ncurses
+and is written in Rust.
+
+The software is still in alpha, and it is also my first application
+written in Rust. Expect lots of bugs and badly written Rust code.
+
+** gopher
+
+Gopher was developed in 1991 at the University of Minnesota, and named
+after the school's mascot. Gopher is a menu-driven interface that
+allows a user to browse for text information served off of various
+gopher servers.
+
+** Screenshot
+
+Obligatory screenshot:
+
+#+CAPTION: Screenshot of NcGopher
+#+NAME:   screenshot1
+[[./screenshots/ncgopher.png]]
+
+** Installation
+
+=ncgopher= has no fancy installation process right now. Clone the
+repository, =cd= to the =ncgopher= directory and run
+
+    #+BEGIN_EXAMPLE
+    cargo build
+    cargo run
+    #+END_EXAMPLE
+
+However, before you run =ncgopher=, create a directory called
+=.config/ncgopher= in you home directory (applies to Unix/Linux/BSD,
+etc).  This will be fixed soon!
+
+** Key bindings
+
+During alpha, the keybindings are not configurable and many operations
+are still not implemented.
+
+|------------+--------------------------------|
+| Key        | Command                        |
+|------------+--------------------------------|
+| Arrow keys | Move around in text            |
+| Enter      | Open the link under the cursor |
+| Esc        | Go to menubar                  |
+| g          | Open new URL                   |
+| b          | Navigate back                  |
+| q          | Close application              |
+|------------+--------------------------------|
+
+** Debugging
+
+If the application crashes, I'd be interested in a backtrace. Start
+the application with ~RUST_BACKTRACE=1 cargo run~.  There is also a
+debug view that can be activated with the =~=-key.
+
+
+** License
+
+=ncgopher= is licensed under the BSD 2-clause license.
+
+Copyright (c) 2020, Jan Schreiber. Parts of the status bar
+implementation are Copyright (c) 2019, Henrik Friedrichsen
+
