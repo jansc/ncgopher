@@ -590,16 +590,15 @@ impl NcGopher {
                     .button("Ok", |app| {
                         let name = app.call_on_name("name", |view: &mut EditView| {
                             view.get_content()
-                        })
-                            .unwrap();
-                        NcGopher::open_url_action(app, name.as_str()) }
-                    )
+                        }).unwrap();
+                        NcGopher::open_url_action(app, name.as_str())
+                    })
             );
         } // drop lock on app before calling trigger:
         self.trigger();
     }
 
-    fn open_url_action(app: &mut Cursive, name: &str ) {
+    fn open_url_action(app: &mut Cursive, name: &str) {
         app.pop_layer();
         app.with_user_data(|userdata: &mut UserData|
             userdata.ui_tx.read().unwrap()
@@ -623,6 +622,7 @@ impl NcGopher {
                     .title("Enter filename:")
                     .content(
                         EditView::new()
+                            .on_submit(NcGopher::save_as_action)
                             .with_name("name")
                             .fixed_width(50),
                     )
@@ -632,17 +632,8 @@ impl NcGopher {
                     .button("Ok", move |app| {
                         let name = app.call_on_name("name", |view: &mut EditView| {
                             view.get_content()
-                        });
-                        if let Some(n) = name {
-                            app.pop_layer();
-                            app.with_user_data(|userdata: &mut UserData|
-                                userdata.controller_tx.read().unwrap()
-                                .send(ControllerMessage::SavePageAs(n.to_string())).unwrap()
-                            );
-                        } else {
-                            app.pop_layer(); // Close search dialog
-                            app.add_layer(Dialog::info("No filename given!"))
-                        }
+                        }).unwrap();
+                        NcGopher::save_as_action(app, name.as_str())
                     }),
             );
             app.call_on_name("name", |v: &mut EditView| {
@@ -652,6 +643,17 @@ impl NcGopher {
         self.trigger();
     }
 
+    fn save_as_action(app: &mut Cursive, name: &str) {
+        app.pop_layer();
+        if !name.is_empty() {
+            app.with_user_data(|userdata: &mut UserData|
+                               userdata.controller_tx.read().unwrap()
+                               .send(ControllerMessage::SavePageAs(name.to_string())).unwrap()
+            );
+        } else {
+            app.add_layer(Dialog::info("No filename given!"))
+        }
+    }
 
     fn add_to_bookmark_menu(&mut self, b: Bookmark) {
         info!("add_to_bookmark_menu()");
