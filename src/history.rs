@@ -87,12 +87,22 @@ impl History {
     pub fn add(&mut self, entry: HistoryEntry) {
         info!("Adding entry to history: {:?}", entry);
         self.stack.push(entry.clone());
-        self.entries.push(entry.clone());
+        // Check if the element already exists in history
+        match self.entries.iter().position(|e| e.url == entry.url) {
+            Some(p) => {
+                let mut item = self.entries.remove(p);
+                info!("removed item {:?}", item);
+                item.visited_count = item.visited_count + 1;
+                self.entries.insert(0, item);
+            },
+            None => {
+                self.entries.insert(0, entry.clone());
+            }
+        }
         match self.write_history_to_file() {
             Err(why) => warn!("Could not write history file: {}", why),
             Ok(()) => ()
         }
-        // TODO: Save to history file
     }
 
     pub fn clear(&mut self) {
@@ -116,7 +126,7 @@ impl History {
         let mut res = Vec::<HistoryEntry>::new();
         let count = cmp::min(num_items, self.entries.len());
         for i in 0..count {
-            res.push(self.entries[i].clone());
+            res.insert(0, self.entries[i].clone());
         }
         res
     }

@@ -46,6 +46,7 @@ pub enum ControllerMessage {
     SavePageAs(String),
     SetContent(Url, String, ContentType),
     ShowMessage(String),
+    RedrawHistory,
     FetchUrl(Url, ContentType, String),
     FetchBinaryUrl(Url, String),
 }
@@ -144,6 +145,8 @@ impl Controller {
                 ControllerMessage::AddToHistory(url.clone()))
                 .unwrap();
             tx_clone.send(
+                ControllerMessage::RedrawHistory).unwrap();
+            tx_clone.send(
                 ControllerMessage::SetContent(gopher_url.clone(), s.to_string(), content_type))
                 .unwrap();
         });
@@ -238,11 +241,7 @@ impl Controller {
             timestamp: Local::now(),
             visited_count: 1,
         };
-        // TODO: Strip all history items that are equal to h.url
-        /*match*/ self.history.lock().unwrap().add(h.clone()); /* {
-            Err(why) => panic!("couldn't write history: {}", why),
-            Ok(_) => (),
-        }*/
+        self.history.lock().unwrap().add(h.clone());
         h
     }
 
@@ -420,6 +419,18 @@ impl Controller {
                     },
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);
+                    },
+                    ControllerMessage::RedrawHistory => {
+                        info!("Controller: Clearing history");
+                        self.ui.read().unwrap().ui_tx.read().unwrap()
+                            .send(UiMessage::ClearHistoryMenu).unwrap();
+                        let entries = self.history.lock().unwrap().get_latest_history(10);
+                        for entry in entries {
+                            info!("Controller: readding entry {:?}", entry);
+                            self.ui.read().unwrap().ui_tx.read().unwrap()
+                                .send(UiMessage::AddToHistoryMenu(entry))
+                                .unwrap();
+                        }
                     }
                 };
             }
