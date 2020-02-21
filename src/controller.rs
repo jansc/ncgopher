@@ -41,6 +41,7 @@ pub enum ControllerMessage {
     BinaryWritten(String, usize),
     ClearHistory,
     NavigateBack,
+    ReloadCurrentPage,
     RequestAddBookmarkDialog,
     RequestSaveAsDialog,
     SavePageAs(String),
@@ -354,6 +355,18 @@ impl Controller {
                         self.clear_history();
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::ClearHistoryMenu).unwrap();
+                    },
+                    ControllerMessage::ReloadCurrentPage => {
+                        let current_url: Url;
+                        let current_content_type: ContentType;
+                        {
+                            let guard = self.current_url.lock().unwrap();
+                            current_url = guard.clone();
+                            let guard = self.current_content_type.lock().unwrap();
+                            current_content_type = guard.clone();
+                        }
+                        self.ui.read().unwrap().ui_tx.read().unwrap()
+                            .send(UiMessage::OpenUrl(current_url, current_content_type)).unwrap();
                     },
                     ControllerMessage::RequestAddBookmarkDialog => {
                         let current_url: Url;

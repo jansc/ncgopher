@@ -130,6 +130,11 @@ impl NcGopher {
                 userdata.controller_tx.read().unwrap().send(ControllerMessage::NavigateBack)
             );
         });
+        app.add_global_callback('r', |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.controller_tx.read().unwrap().send(ControllerMessage::ReloadCurrentPage)
+            );
+        });
         app.add_global_callback('s', |app| {
             app.with_user_data(|userdata: &mut UserData|
                 userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSaveAsDialog).unwrap()

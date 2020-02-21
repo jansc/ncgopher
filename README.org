@@ -48,6 +48,7 @@ are still not implemented.
 | b          | Navigate back                  |
 | q          | Close application              |
 | s          | Save current page              |
+| r          | Reload current page            |
 |------------+--------------------------------|
 
 ** Debugging
