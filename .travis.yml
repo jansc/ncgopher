@@ -8,10 +8,36 @@ jobs:
   allow_failures:
     - rust: nightly
   fast_finish: true
-cache: cargo
+
+# Cache `cargo install`ed tools, but don't cache the project's `target`
+# directory (which ends up over-caching and filling all disk space!)
+cache:
+  directories:
+    - /home/travis/.cargo
+
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
+
+
+DEPLOY_TO_GITHUB: &DEPLOY_TO_GITHUB
+  before_deploy:
+    - git config --local user.name "Jan Schreiber"
+    - git config --local user.email "jan@mecinus.com"
+    - name="ncgopher-$TRAVIS_TAG-$TARGET"
+    - mkdir $name
+    - cp target/$TARGET/release/ncgopher $name/
+    - cp README.org LICENSE $name/
+    - tar czvf $name.tar.gz $name
+  deploy:
+    provider: releases
+    api_key: $GH_TOKEN
+    file: ncgopher-$TRAVIS_TAG-$TARGET.tar.gz
+    skip_cleanup: true
+    on:
+      branch: master
+      tags: true
+
 matrix:
   include:
   - name: Linux Binary
