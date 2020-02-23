@@ -1,5 +1,5 @@
 language: rust
-sudo: false
+sudo: true
 rust:
   - stable
   - beta
@@ -43,7 +43,9 @@ matrix:
   - name: Linux Binary
     env: TARGET=x86_64-unknown-linux-musl
     rust: stable
-    before_script: rustup target add $TARGET
+    before_script:
+      - sudo apt-get -y install libncurses5-dev
+      - rustup target add $TARGET
     script: cargo build --release --target $TARGET --locked
     <<: *DEPLOY_TO_GITHUB
 
