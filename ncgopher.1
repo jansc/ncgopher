@@ -1,0 +1,88 @@
+.TH NCGOPHER 1
+.SH NAME
+ncgopher \- A gopher client for the modern internet.
+.SH SYNOPSIS
+.B ncgopher
+[\fBoptions\fR]
+.IR [url]
+.SH DESCRIPTION
+.B ncgopher
+is an ncurses gopher client written in Rust meant to
+be run in a terminal.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help\fR
+Show help and available options and exit.
+.TP
+.BR \-v ", " \-\-version\fR
+Print the version number of ncgopher and exit.
+.TP
+.BR [url]\fR
+Gopher URL to open on startup.
+.SH FILES
+The configuration is placed into the the users XDG
+configuration directory. On most systems this is
+.B ~/.config/ncgopher
+Three files are created in this directory the first
+time ncgopher is run:
+
+ - config
+ - history
+ - bookmarks
+.SH BUGS
+Expect plenty. Please report bugs on this page:
+
+https://github.com/jansc/ncgopher/issues
+.SH KEYBOARD COMMANDS
+.TP
+.B
+Arrow keys
+Move around in text
+.TP
+.B
+Enter
+Open the link under the cursor
+.TP
+.B
+Esc
+Go to menubar
+.TP
+.B
+g
+Open new URL
+.TP
+.B
+b
+Navigate back
+.TP
+.B
+q
+Close application
+.TP
+.B
+s
+Save current page
+.TP
+.B
+r
+Reload current page
+
+.SH LINKS
+The source code of \fNncgopher\fP is available at github:
+.TP
+.B
+Source code repository
+https://github.com/jansc/ncgopher
+.TP
+.B
+Bug reports
+https://github.com/jansc/ncgopher/issues
+.SH AUTHORS
+.B ncgopher
+was written by Jan Schreiber with moral support from the
+kind people on #gopher at the tilde IRC channel.
+.SH LICENSE
+.B ncgopher
+is licensed under the BSD 2-Clause License. See the file
+.B LICENSE
+for more information.
