@@ -27,6 +27,4 @@ toml = "0.5.6"
 [dependencies.cursive]
 version = "0.14"
 default-features = false
-
-[features]
-default = ["cursive/pancurses-backend"]
+features = ["pancurses-backend"]

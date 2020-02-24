@@ -44,9 +44,9 @@ matrix:
     env: TARGET=x86_64-unknown-linux-musl
     rust: stable
     before_script:
-      - sudo apt-get -y install libncurses5 libncursesw5 libncurses5-dev libncursesw5-dev clang libclang-dev llvm-dev git
       - rustup target add $TARGET
-    script: cargo build --release --target $TARGET --locked
+      - sudo apt-get -y install libncurses5 libncursesw5 libncurses5-dev libncursesw5-dev git
+    script: cargo build --verbose --release --target $TARGET --locked
     addons:
       apt:
         packages:
