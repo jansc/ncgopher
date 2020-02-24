@@ -12,7 +12,6 @@ keywords = ["cli", "gopher", "client"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-cursive = "^0.14"
 unicode-width = "^0.1.5"
 url = "^2.1.0"
 chrono = "^0.4.9"
@@ -24,3 +23,10 @@ config = "^0.9"
 serde_derive = "^1.0.8"
 serde = {version = "^1.0.8", features = ["derive"]}
 toml = "0.5.6"
+
+[dependencies.cursive]
+version = "0.14"
+default-features = false
+
+[features]
+default = ["cursive/pancurses-backend"]
