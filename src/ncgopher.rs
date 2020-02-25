@@ -33,7 +33,7 @@ pub enum UiMessage {
     OpenQueryDialog(Url),
     OpenQueryUrl(Url, String),
     OpenUrl(Url, ContentType),
-    OpenURL(String),
+    OpenUrlFromString(String),
     PageSaved(Url, ContentType, String), 
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ContentType),
@@ -624,7 +624,7 @@ impl NcGopher {
         app.pop_layer();
         app.with_user_data(|userdata: &mut UserData|
             userdata.ui_tx.read().unwrap()
-            .send(UiMessage::OpenURL(name.to_string())).unwrap()
+            .send(UiMessage::OpenUrlFromString(name.to_string())).unwrap()
         );
     }
 
@@ -687,7 +687,7 @@ impl NcGopher {
                 info!("Adding bm to bookmark menu");
                 let b3 = b2.clone();
                 app.with_user_data(|userdata: &mut UserData|
-                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenURL(b3.url.to_string())).unwrap()
+                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(b3.url.to_string())).unwrap()
                 );
             });
         }
@@ -709,7 +709,7 @@ impl NcGopher {
             tree.insert_leaf(3, h.title.as_str(), move |app| {
                 let h3 = h2.clone();
                 app.with_user_data(|userdata: &mut UserData|
-                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenURL(h3.url.to_string())).unwrap()
+                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(h3.url.to_string())).unwrap()
                 );
             });
         }
@@ -798,7 +798,7 @@ impl NcGopher {
                         }
                     }
                 },
-                UiMessage::OpenURL(url) => {
+                UiMessage::OpenUrlFromString(url) => {
                     self.open_gopher_url_string(url);
                 },
                 UiMessage::ShowMessage(msg) => {
