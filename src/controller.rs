@@ -44,6 +44,7 @@ pub enum ControllerMessage {
     ReloadCurrentPage,
     RequestAddBookmarkDialog,
     RequestSaveAsDialog,
+    RequestSettingsDialog,
     SavePageAs(String),
     SetContent(Url, String, ContentType),
     ShowMessage(String),
@@ -385,6 +386,11 @@ impl Controller {
                         }
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::ShowSaveAsDialog(current_url)).unwrap();
+                    },
+                    ControllerMessage::RequestSettingsDialog => {
+                        //let settings = self.settings.read().unwrap();
+                        self.ui.read().unwrap().ui_tx.read().unwrap()
+                            .send(UiMessage::ShowSettingsDialog).unwrap();
                     },
                     ControllerMessage::SavePageAs(filename) => {
                         let url: Url;

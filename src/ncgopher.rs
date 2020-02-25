@@ -13,6 +13,8 @@ use crate::controller::ControllerMessage;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{HistoryEntry};
 use crate::bookmarks::{Bookmark};
+//use crate::settings::Settings;
+use crate::SETTINGS;
 use crate::ui::layout::Layout;
 use crate::ui::statusbar::StatusBar;
 use crate::ui;
@@ -39,6 +41,8 @@ pub enum UiMessage {
     ShowURLDialog,
     ShowSaveAsDialog(Url),
     ShowSearchDialog(Url),
+    ShowSettingsDialog,
+    Trigger,
 }
 
 #[derive(Clone)]
@@ -194,8 +198,10 @@ impl NcGopher {
                         userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSaveAsDialog).unwrap()
                     );
                 })
-                .leaf("Settings...", |s| {
-                    s.add_layer(Dialog::info("Settings not implemented"))
+                .leaf("Settings...", |app| {
+                    app.with_user_data(|userdata: &mut UserData|
+                        userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSettingsDialog).unwrap()
+                    );
                 })
                 .delimiter()
                 .leaf("Quit", |s| s.quit())
@@ -214,7 +220,6 @@ impl NcGopher {
                             app.with_user_data(|userdata: &mut UserData| {
                                 userdata.controller_tx.read().unwrap().send(ControllerMessage::ClearHistory).unwrap()
                             });
-
                         })
                     );
                 })
@@ -377,69 +382,27 @@ impl NcGopher {
             }
             for l in gophermap {
                 let entry = l.clone();
-                match entry.item_type {
-                    ItemType::Dir => {
-                        let mut formatted = StyledString::new();
-                        let dir_label = format!("[MAP]  {}", entry.label());
-                        formatted.append(StyledString::styled(dir_label, Effect::Italic));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::File => {
-                        let mut formatted = StyledString::new();
-                        let file_label = format!("[FILE] {}", entry.label());
-                        formatted.append(StyledString::styled(file_label, Effect::Italic));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::Binary => {
-                        let mut formatted = StyledString::new();
-                        let bin_label = format!("[BIN]  {}", entry.label());
-                        formatted.append(StyledString::styled(bin_label, Effect::Bold));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::Gif => {
-                        let mut formatted = StyledString::new();
-                        let gif_label = format!("[GIF]  {}", entry.label());
-                        formatted.append(StyledString::styled(gif_label, Effect::Bold));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::Html => {
-                        let mut formatted = StyledString::new();
-                        let www_label = format!("[WWW]  {}", entry.label());
-                        formatted.append(StyledString::styled(www_label, Effect::Italic));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::IndexServer => {
-                        let mut formatted = StyledString::new();
-                        let query_label = format!("[QRY]  {}", entry.label());
-                        formatted.append(StyledString::styled(query_label, Effect::Italic));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::Telnet => {
-                        let mut formatted = StyledString::new();
-                        let telnet_label = format!("[TEL]  {}", entry.label());
-                        formatted.append(StyledString::styled(telnet_label, Effect::Italic));
-                        view.add_item(formatted, l.clone());
-                    }
-                    ItemType::Image => {
-                        let mut formatted = StyledString::new();
-                        let gif_label = format!("[IMG]  {}", entry.label());
-                        formatted.append(StyledString::styled(gif_label, Effect::Bold));
-                        view.add_item(formatted, l.clone());
-                    }
-                    /*ItemType::CsoServer => '2',
-                    ItemType::Error => '3',
-                    ItemType::BinHex => '4',
-                    ItemType::Dos => '5',
-                    ItemType::Uuencoded => '6',
-                    ItemType::Telnet => '8',
-                    ItemType::RedundantServer => '+',
-                    ItemType::Tn3270 => 'T',
-                     */
-                    _ => {
-                        let info_label = format!("       {}", entry.label());
-                        view.add_item(info_label, l.clone());
-                    }
-                }
+                let mut formatted = StyledString::new();
+                let label = match entry.item_type {
+                    ItemType::Dir => {format!("[MAP]  {}", entry.label())}
+                    ItemType::File => {format!("[FILE] {}", entry.label())}
+                    ItemType::Binary => {format!("[BIN]  {}", entry.label())}
+                    ItemType::Gif => {format!("[GIF]  {}", entry.label())}
+                    ItemType::Html => {format!("[WWW]  {}", entry.label())}
+                    ItemType::IndexServer => {format!("[QRY]  {}", entry.label())}
+                    ItemType::Telnet => {format!("[TEL]  {}", entry.label())}
+                    ItemType::Image => {format!("[IMG]  {}", entry.label())}
+                    ItemType::CsoServer => {format!("[CSO]  {}", entry.label())}
+                    ItemType::Error => {format!("[ERR]  {}", entry.label())}
+                    ItemType::BinHex => {format!("[BIN]  {}", entry.label())}
+                    ItemType::Dos => {format!("[DOS]  {}", entry.label())}
+                    ItemType::Uuencoded => {format!("[UU]   {}", entry.label())}
+                    ItemType::RedundantServer => {format!("[RED]  {}", entry.label())}
+                    ItemType::Tn3270 => {format!("[TRM]  {}", entry.label())}
+                    _ => {format!("       {}", entry.label())}
+                };
+                formatted.append(StyledString::styled(label, Effect::Italic));
+                view.add_item(formatted, l.clone());
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
@@ -581,6 +544,55 @@ impl NcGopher {
         self.trigger();
     }
 
+    pub fn show_settings_dialog(&mut self) {
+        let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
+        let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
+        {
+            let mut app = self.app.write().unwrap();
+            app.add_layer(
+                Dialog::new()
+                    .title("Settings")
+                    .content(
+                        LinearLayout::vertical()
+                            .child(TextView::new("Homepage:"))
+                            .child(EditView::new().content(homepage_url).with_name("homepage").fixed_width(50))
+                            .child(TextView::new("Download path:"))
+                            .child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50)
+                            )
+                    )
+                    .button("Cancel", |app| {
+                        app.pop_layer();
+                    })
+                    .button("Apply",  |app| {
+                        let homepage = app.call_on_name("homepage", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
+                        let download = app.call_on_name("download_path", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
+                        app.pop_layer();
+                        if let Ok(_url) = Url::parse(&homepage) {
+                            SETTINGS.write().unwrap().set::<String>("homepage", homepage.clone().to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("download_path", download.clone().to_string()).unwrap();
+                            match SETTINGS.write().unwrap().write_settings_to_file() {
+                                Err(why) => {
+                                    app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
+                                },
+                                Ok(_) => ()
+                            }
+                        } else {
+                            app.add_layer(Dialog::info("Invalid homepage url"));
+                        }
+                        app.with_user_data(|userdata: &mut UserData|
+                                           userdata.ui_tx.read().unwrap()
+                                           .send(UiMessage::Trigger).unwrap()
+                        );
+                    }),
+            );
+        }
+        self.trigger();
+    }
+
 
     pub fn show_url_dialog(&mut self) {
         {
@@ -716,6 +728,7 @@ impl NcGopher {
 
     /// Triggers a rerendring of the UI
     pub fn trigger(&self) {
+        info!("Trigger");
         // send a no-op to trigger event loop processing
         let app = self.app.read().unwrap();
         app.cb_sink()
@@ -799,6 +812,12 @@ impl NcGopher {
                 },
                 UiMessage::ShowSearchDialog(url) => {
                     self.show_search_dialog(url);
+                },
+                UiMessage::ShowSettingsDialog => {
+                    self.show_settings_dialog();
+                },
+                UiMessage::Trigger => {
+                    self.trigger();
                 }
             }
         }

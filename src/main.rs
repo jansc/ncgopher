@@ -5,7 +5,6 @@ extern crate dirs;
 extern crate config;
 extern crate serde;
 
-#[macro_use]
 extern crate serde_derive;
 extern crate toml;
 
@@ -13,9 +12,11 @@ extern crate toml;
 use clap::{App, Arg};
 use cursive::Cursive;
 use url::Url;
+use std::sync::RwLock;
 use std::process::exit;
 use controller::Controller;
 use settings::Settings;
+use lazy_static::lazy_static;
 
 mod ncgopher;
 mod controller;
@@ -26,6 +27,16 @@ mod ui;
 mod settings;
 mod traits;
 
+
+lazy_static! {
+    static ref SETTINGS: RwLock<Settings> = RwLock::new(match Settings::new() {
+        Ok(settings) => {settings},
+        Err(e) => {
+            println!("Could not read settings: {}", e);
+            exit(1);
+        }
+    });
+}
 
 fn main() {
     let app_name = env!("CARGO_PKG_NAME");
@@ -45,16 +56,8 @@ fn main() {
              .index(1))
         .get_matches();
 
-    let settings = match Settings::new() {
-        Ok(settings) => {settings},
-        Err(e) => {
-            println!("Could not read settings: {}", e);
-            exit(1);
-        }
-    };
-
-    //let mut homepage = Url::parse(settings.get::<String>("homepage.url")).unwrap();
-    let mut homepage = Url::parse(settings.homepage.url.as_str()).unwrap();
+    let mut homepage = Url::parse(SETTINGS.read().unwrap().get_str("homepage").expect("Could not find homepage in config").as_str()).unwrap();
+    ////let mut homepage = Url::parse(settings.homepage.url.as_str()).unwrap();
     if let Some(url) = matches.value_of("URL") {
         match Url::parse(url) {
             Ok(url) => homepage = url,

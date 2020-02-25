@@ -49,7 +49,9 @@ impl GopherMapEntry {
         let host = l[2].to_string();
         let port = l[3].parse().unwrap();
         let mut url = Url::parse("gopher://fix.me").unwrap();
-        url.set_host(Some(host.as_str())).unwrap();
+        if !host.is_empty() {
+            url.set_host(Some(host.as_str())).unwrap();
+        }
         url.set_port(Some(port)).unwrap();
         url.set_path(selector.as_str());
         GopherMapEntry {

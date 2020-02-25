@@ -31,8 +31,10 @@
 *** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
 *** DONE [#C] Write README.org
 ** post-alpha
-*** TODO Better keyboard navigation
+*** TODO Better keyboard navigation, emacs/vim key presets
 *** TODO Handle tags for bookmarks
+*** TODO Search in text
+*** TODO Write man page
 *** TODO Configurable keys
 *** TODO Persistent history
 *** TODO [#C] Themes
