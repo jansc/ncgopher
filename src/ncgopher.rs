@@ -383,53 +383,28 @@ impl NcGopher {
             for l in gophermap {
                 let entry = l.clone();
                 let mut formatted = StyledString::new();
-                let label = match entry.item_type {
-                    ItemType::Dir => {format!("[MAP]  {}", entry.label())}
-                    ItemType::File => {format!("[FILE] {}", entry.label())}
-                    ItemType::Binary => {format!("[BIN]  {}", entry.label())}
-                    ItemType::Gif => {format!("[GIF]  {}", entry.label())}
-                    ItemType::Html => {format!("[WWW]  {}", entry.label())}
-                    ItemType::IndexServer => {format!("[QRY]  {}", entry.label())}
-                    ItemType::Telnet => {format!("[TEL]  {}", entry.label())}
-                    ItemType::Image => {format!("[IMG]  {}", entry.label())}
-                    ItemType::CsoServer => {format!("[CSO]  {}", entry.label())}
-                    ItemType::Error => {format!("[ERR]  {}", entry.label())}
-                    ItemType::BinHex => {format!("[BIN]  {}", entry.label())}
-                    ItemType::Dos => {format!("[DOS]  {}", entry.label())}
-                    ItemType::Uuencoded => {format!("[UU]   {}", entry.label())}
-                    ItemType::RedundantServer => {format!("[RED]  {}", entry.label())}
-                    ItemType::Tn3270 => {format!("[TRM]  {}", entry.label())}
-                    _ => {format!("       {}", entry.label())}
-                };
+                let label = format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
                 formatted.append(StyledString::styled(label, Effect::Italic));
                 view.add_item(formatted, l.clone());
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    match entry.item_type {
-                        ItemType::Dir => {
-                            userdata.ui_tx.write().unwrap().send(
-                                UiMessage::OpenUrl(entry.url.clone(), ContentType::Gophermap))
-                                .unwrap();
-                        }
-                        ItemType::File => {
-                            userdata.ui_tx.write().unwrap().send(
-                                UiMessage::OpenUrl(entry.url.clone(), ContentType::Text))
-                                .unwrap();
-                        }
-                        ItemType::Binary | ItemType::BinHex | ItemType::Dos | ItemType::Image=> {
-                            userdata.ui_tx.write().unwrap().send(
-                                UiMessage::OpenUrl(entry.url.clone(), ContentType::Binary))
-                                .unwrap();
-                        }
-                        ItemType::IndexServer => {
-                            userdata.ui_tx.write().unwrap().send(
-                                UiMessage::OpenQueryDialog(entry.url.clone()))
-                                .unwrap();
-                        }
-                        _ => {
-                            
-                        }
+                    if (ItemType::is_download(entry.item_type)) {
+                        userdata.ui_tx.write().unwrap().send(
+                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Binary))
+                            .unwrap();
+                    } else if (ItemType::is_text(entry.item_type)) {
+                        userdata.ui_tx.write().unwrap().send(
+                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Text))
+                            .unwrap();
+                    } else if (ItemType::is_dir(entry.item_type)) {
+                        userdata.ui_tx.write().unwrap().send(
+                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Gophermap))
+                            .unwrap();
+                    } else if (ItemType::is_query(entry.item_type)) {
+                        userdata.ui_tx.write().unwrap().send(
+                            UiMessage::OpenQueryDialog(entry.url.clone()))
+                            .unwrap();
                     }
                 });
             });

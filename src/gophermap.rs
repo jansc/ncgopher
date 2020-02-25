@@ -25,6 +25,30 @@ pub struct GopherMapEntry {
 }
 
 impl GopherMapEntry {
+    /// Converts a Url into a GopherMapEntry
+    pub fn url_into_entry(url: Url) -> GopherMapEntry {
+        // TODO Implement
+        GopherMapEntry {
+            item_type: ItemType::Error,
+            name: String::new(),
+            selector: String::new(),
+            host: String::new(),
+            port: 70,
+            url: url.clone()
+        }
+    }
+    
+    pub fn new(host: String, port: u16, selector: String, item_type: ItemType) -> GopherMapEntry {
+        GopherMapEntry {
+            item_type,
+            name: "".to_string(),
+            selector,
+            host,
+            port,
+            url: Url::parse("gopher://no.host:70").unwrap()
+        }
+    }
+
     /// Parses a raw string into a GopherMapEntry
     pub fn parse(line: String) -> Self {
         let l: Vec<&str> = line.split_terminator("\t").collect();
@@ -62,6 +86,10 @@ impl GopherMapEntry {
             port,
             url
         }
+    }
+
+    pub fn as_url(&self) -> Url {
+        self.url.clone()
     }
 
     pub fn label(self: Self) -> String {
@@ -107,6 +135,18 @@ pub enum ItemType {
     Image,
     /// Item is a HTML link
     Html,
+    /// Item is a document
+    Document,
+    /// Item is a video file
+    Video,
+    /// Item is MIME encoded file
+    MIME,
+    /// Item is a calendar file (ical?)
+    Calendar,
+    /// Item is a sound file
+    Sound,
+    /// Item is inline text or info line
+    Inline,
     /// Item is a non-standard type
     Other(char),
 }
@@ -129,13 +169,78 @@ impl ItemType {
             'g' => ItemType::Gif,
             'I' => ItemType::Image,
             'h' => ItemType::Html,
+            'd' => ItemType::Document,
+            ';' => ItemType::Video,
+            'M' => ItemType::MIME,
+            'c' => ItemType::Calendar,
+            's' => ItemType::Sound,
+            'i' => ItemType::Inline,
             ch => ItemType::Other(ch),
-            // d => Document
-            // ; => Video
-            // M => MIME
-            // c => calendar
-            // s => sound
-            // i => inline text or info line
+        }
+    }
+
+    pub fn as_str(item_type: ItemType) -> String {
+        match item_type {
+            ItemType::File => "[TXT]",
+            ItemType::Dir => "[MAP]",
+            ItemType::CsoServer => "[CSO]",
+            ItemType::Error => "[ERR]",
+            ItemType::BinHex => "[BIN]",
+            ItemType::Dos => "[DOS]",
+            ItemType::Uuencoded => "[UU] ",
+            ItemType::IndexServer => "[QRY]",
+            ItemType::Telnet => "[TEL]",
+            ItemType::Binary => "[BIN]",
+            ItemType::RedundantServer => "[RED]",
+            ItemType::Tn3270 => "[TRM]",
+            ItemType::Gif => "[GIF]",
+            ItemType::Image => "[IMG]",
+            ItemType::Html => "[HTM]",
+            ItemType::Document => "[DOC]",
+            ItemType::Video => "[VID]",
+            ItemType::MIME => "[MME]",
+            ItemType::Calendar => "[CAL]",
+            ItemType::Sound => "[SND]",
+            ItemType::Inline => "     ",
+            ItemType::Other(ch) => "[???]",
+        }.to_string()
+    }
+
+    pub fn is_download(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::BinHex |
+            ItemType::Dos |
+            ItemType::Uuencoded |
+            ItemType::Binary |
+            ItemType::Gif |
+            ItemType::Image |
+            ItemType::Document |
+            ItemType::Video |
+            ItemType::MIME |
+            ItemType::Calendar |
+            ItemType::Sound => true,
+            _ => false
+        }
+    }
+
+    pub fn is_text(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::File => true,
+            _ => false
+        }
+    }
+
+    pub fn is_dir(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::Dir => true,
+            _ => false
+        }
+    }
+
+    pub fn is_query(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::IndexServer => true,
+            _ => false
         }
     }
 }
