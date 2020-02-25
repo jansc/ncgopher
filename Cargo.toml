@@ -3,13 +3,17 @@ name = "ncgopher"
 version = "0.1.1"
 authors = ["Jan Schreiber <jan@mecinus.com>"]
 edition = "2018"
-license = "MIT"
+license = "BSD 2-clause"
 description = "An ncurses gopher client for the modern internet"
 readme = "README.org"
 homepage = "https://github.com/jansc/ncgopher"
 repository = "https://github.com/you/grrs"
 keywords = ["cli", "gopher", "client"]
-categories = ["command-line-utilities"]
+categories = ["command-line-utilities", "gopher", "TUI"]
+exclude = ["screenshots/**"]
+
+[badges.travis-ci]
+repository = "jansc/ncgopher"
 
 [dependencies]
 unicode-width = "^0.1.5"
