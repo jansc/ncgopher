@@ -77,7 +77,9 @@ impl GopherMapEntry {
             url.set_host(Some(host.as_str())).unwrap();
         }
         url.set_port(Some(port)).unwrap();
-        url.set_path(selector.as_str());
+        let mut path = selector.clone();
+        path.insert(0, ch);
+        url.set_path(path.as_str());
         GopherMapEntry {
             item_type,
             name,

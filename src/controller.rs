@@ -111,7 +111,12 @@ impl Controller {
             Some(s) => server = s.to_string(),
             _ => ()
         }
-        let path = gopher_url.path().to_string();
+        let mut path = gopher_url.path().to_string();
+        if (path.len() > 2) {
+            //let x = path[0..1].to_string();
+            // TODO: Sjekk om x[0] == / og x[1] == itemtype
+            path = path[2..].to_string();
+        }
         
         let server_details = format!("{}:{}", server, port).to_string();
         let _server: Vec<_>;
@@ -172,7 +177,12 @@ impl Controller {
             Some(s) => server = s.to_string(),
             _ => ()
         }
-        let path = gopher_url.path().to_string();
+        let mut path = gopher_url.path().to_string();
+        if (path.len() > 2) {
+            //let x = path[0..1].to_string();
+            // TODO: Sjekk om x[0] == / og x[1] == itemtype
+            path = path[2..].to_string();
+        }
         
         let server_details = format!("{}:{}", server, port).to_string();
         let _server: Vec<_>;
