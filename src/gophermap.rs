@@ -26,6 +26,7 @@ pub struct GopherMapEntry {
 
 impl GopherMapEntry {
     /// Converts a Url into a GopherMapEntry
+    /*
     pub fn url_into_entry(url: Url) -> GopherMapEntry {
         // TODO Implement
         GopherMapEntry {
@@ -48,6 +49,7 @@ impl GopherMapEntry {
             url: Url::parse("gopher://no.host:70").unwrap()
         }
     }
+    */
 
     /// Parses a raw string into a GopherMapEntry
     pub fn parse(line: String) -> Self {
@@ -90,9 +92,11 @@ impl GopherMapEntry {
         }
     }
 
+    /*
     pub fn as_url(&self) -> Url {
         self.url.clone()
     }
+    */
 
     pub fn label(self: Self) -> String {
         self.name.clone()
@@ -204,7 +208,7 @@ impl ItemType {
             ItemType::Calendar => "[CAL]",
             ItemType::Sound => "[SND]",
             ItemType::Inline => "     ",
-            ItemType::Other(ch) => "[???]",
+            ItemType::Other(_ch) => "[???]",
         }.to_string()
     }
 

@@ -395,19 +395,19 @@ impl NcGopher {
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    if (ItemType::is_download(entry.item_type)) {
+                    if ItemType::is_download(entry.item_type) {
                         userdata.ui_tx.write().unwrap().send(
                             UiMessage::OpenUrl(entry.url.clone(), ContentType::Binary))
                             .unwrap();
-                    } else if (ItemType::is_text(entry.item_type)) {
+                    } else if ItemType::is_text(entry.item_type) {
                         userdata.ui_tx.write().unwrap().send(
                             UiMessage::OpenUrl(entry.url.clone(), ContentType::Text))
                             .unwrap();
-                    } else if (ItemType::is_dir(entry.item_type)) {
+                    } else if ItemType::is_dir(entry.item_type) {
                         userdata.ui_tx.write().unwrap().send(
                             UiMessage::OpenUrl(entry.url.clone(), ContentType::Gophermap))
                             .unwrap();
-                    } else if (ItemType::is_query(entry.item_type)) {
+                    } else if ItemType::is_query(entry.item_type) {
                         userdata.ui_tx.write().unwrap().send(
                             UiMessage::OpenQueryDialog(entry.url.clone()))
                             .unwrap();
@@ -614,7 +614,7 @@ impl NcGopher {
     /// a status message in the statusbar.
     fn show_current_link_info(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut view: ViewRef<SelectView<GopherMapEntry>>;
+        let view: ViewRef<SelectView<GopherMapEntry>>;
         let v = app.find_name("content");
         if v.is_none() {
             return;
@@ -625,7 +625,7 @@ impl NcGopher {
             Some(id) => id,
             None => 0
         };
-        let item = match view.get_item(cur) {
+        match view.get_item(cur) {
             Some((_, item)) => {
                 if !ItemType::is_inline(item.item_type) {
                     app.with_user_data(|userdata: &mut UserData|

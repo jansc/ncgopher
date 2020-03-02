@@ -112,7 +112,7 @@ impl Controller {
             _ => ()
         }
         let mut path = gopher_url.path().to_string();
-        if (path.len() > 2) {
+        if path.len() > 2 {
             //let x = path[0..1].to_string();
             // TODO: Sjekk om x[0] == / og x[1] == itemtype
             path = path[2..].to_string();
@@ -178,7 +178,7 @@ impl Controller {
             _ => ()
         }
         let mut path = gopher_url.path().to_string();
-        if (path.len() > 2) {
+        if path.len() > 2 {
             //let x = path[0..1].to_string();
             // TODO: Sjekk om x[0] == / og x[1] == itemtype
             path = path[2..].to_string();
