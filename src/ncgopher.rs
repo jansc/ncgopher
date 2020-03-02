@@ -614,7 +614,13 @@ impl NcGopher {
     /// a status message in the statusbar.
     fn show_current_link_info(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut view: ViewRef<SelectView<GopherMapEntry>> = app.find_name("content").unwrap();
+        let mut view: ViewRef<SelectView<GopherMapEntry>>;
+        let v = app.find_name("content");
+        if v.is_none() {
+            return;
+        } else {
+            view = v.unwrap();
+        }
         let cur = match view.selected_id() {
             Some(id) => id,
             None => 0
