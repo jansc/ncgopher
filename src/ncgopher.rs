@@ -1,6 +1,6 @@
 use cursive::Cursive;
 use cursive::menu::MenuTree;
-use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout};
+use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef};
 use cursive::utils::markup::StyledString;
 use cursive::theme::Effect;
 use cursive::event::Key; 
@@ -37,6 +37,7 @@ pub enum UiMessage {
     PageSaved(Url, ContentType, String), 
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ContentType),
+    ShowLinkInfo,
     ShowMessage(String),
     ShowURLDialog,
     ShowSaveAsDialog(Url),
@@ -142,6 +143,11 @@ impl NcGopher {
         app.add_global_callback('s', |app| {
             app.with_user_data(|userdata: &mut UserData|
                 userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSaveAsDialog).unwrap()
+            );
+        });
+        app.add_global_callback('i', |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowLinkInfo).unwrap()
             );
         });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
@@ -604,6 +610,28 @@ impl NcGopher {
     }
 
 
+    /// If the cursor in the current view is on a link, show
+    /// a status message in the statusbar.
+    fn show_current_link_info(&mut self) {
+        let mut app = self.app.write().expect("Could not get write lock on app");
+        let mut view: ViewRef<SelectView<GopherMapEntry>> = app.find_name("content").unwrap();
+        let cur = match view.selected_id() {
+            Some(id) => id,
+            None => 0
+        };
+        let item = match view.get_item(cur) {
+            Some((_, item)) => {
+                if !ItemType::is_inline(item.item_type) {
+                    app.with_user_data(|userdata: &mut UserData|
+                        userdata.ui_tx.read().unwrap()
+                        .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
+                    );
+                }
+            },
+            None => ()
+        };
+    }
+
     fn show_save_as_dialog(&mut self, url: Url) {
         {
             let mut filename = self.get_filename_from_url(url.clone());
@@ -775,6 +803,9 @@ impl NcGopher {
                 },
                 UiMessage::OpenUrlFromString(url) => {
                     self.open_gopher_url_string(url);
+                },
+                UiMessage::ShowLinkInfo => {
+                    self.show_current_link_info()
                 },
                 UiMessage::ShowMessage(msg) => {
                     self.set_message(msg.as_str());

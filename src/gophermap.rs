@@ -245,4 +245,11 @@ impl ItemType {
             _ => false
         }
     }
+
+    pub fn is_inline(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::Inline => true,
+            _ => false
+        }
+    }
 }
