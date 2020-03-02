@@ -61,6 +61,7 @@ are still not implemented.
 | q          | Close application              |
 | s          | Save current page              |
 | r          | Reload current page            |
+| i          | Show link under cursor         |
 |------------+--------------------------------|
 
 ** Debugging
