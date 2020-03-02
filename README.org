@@ -23,6 +23,18 @@ Obligatory screenshot:
 #+NAME:   screenshot1
 [[./screenshots/ncgopher.png]]
 
+
+** Features
+
+ - Ncurses interface
+ - Keyboard command for navigation
+ - Bookmarks support including custom title
+ - History of visited gopher holes
+ - Download of text files and gophermaps (Save as...)
+ - Download of binary files
+ - Menu for easy configuration
+ - Mouse support in some terminals
+
 ** Installation
 
 =ncgopher= has no fancy installation process right now. Clone the

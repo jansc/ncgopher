@@ -18,34 +18,37 @@
     Bookmark: Name, Url, Last visited, Tags?
     - [X] Write bookmarks to file
     - [X] Read bookmark from file on startup
-*** TODO [#B] Implement settings dialog [0/5]
-    - [ ] Set homepage
-    - [ ] Default directory for downloads
+*** DONE [#B] Implement settings dialog [4/5]
+    - [X] Set homepage
+    - [X] Default directory for downloads
     - [ ] Search engines (maybe later?)
-    - [ ] Read config from file (https://github.com/mehcode/config-rs)
-    - [ ] Write configuration to file
+    - [X] Read config from file (https://github.com/mehcode/config-rs)
+    - [X] Write configuration to file
     How to handle config-file changes? Overwrite existing config-file?
     Possible solution: create config-auto, and use config to extend config-auto
     Ignore config-filechanges while running for now
 *** DONE [#B] Implement download of files (text/gophermap)
-*** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
 *** DONE [#C] Write README.org
 ** post-alpha
+*** TODO TLS support
+*** TODO Setting for disabling history recording
 *** TODO Better keyboard navigation, emacs/vim key presets
 *** TODO Handle tags for bookmarks
 *** TODO Search in text
-*** TODO Write man page
+*** TODO Show info about link under cursor
+*** DONE Write man page
 *** TODO Configurable keys
-*** TODO Persistent history
-*** TODO [#C] Themes
+*** DONE Persistent history
 *** TODO Implement reload of page
+*** TODO Caching of gophermaps
 *** TODO mailcap handling
 *** TODO Reading list (ala Safari)
-*** TODO Auto moka pona (rss-like?), maybe rss support
 *** TODO Bookmarks [0/1]
     - [ ] Export bookmarks to gophermap/txt
-** Some day? beta, etc
-*** Open local file (gophermap/textfile)
-*** Gemini support
-*** Caching
-*** Download gopherhole for offline reading
+*** TODO [#C] Themes
+*** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
+** beta, etc
+*** TODO [#A] Gemini support
+*** TODO Auto moka pona (rss-like?), maybe rss support
+*** TODO Open local file (gophermap/textfile)
+*** TODO Download gopherhole for offline reading
