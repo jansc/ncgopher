@@ -2,7 +2,6 @@ use cursive::Cursive;
 use cursive::menu::MenuTree;
 use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef};
 use cursive::utils::markup::StyledString;
-use cursive::theme::Effect;
 use cursive::event::Key; 
 use cursive::traits::*;
 use std::str;
@@ -399,7 +398,7 @@ impl NcGopher {
                 let entry = l.clone();
                 let mut formatted = StyledString::new();
                 let label = format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
-                formatted.append(StyledString::styled(label, Effect::Italic));
+                formatted.append(label);
                 view.add_item(formatted, l.clone());
             }
             view.set_on_submit(|app, entry| {
