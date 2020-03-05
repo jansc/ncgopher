@@ -79,6 +79,15 @@ impl Bookmarks {
         }
     }
 
+    pub fn remove(&mut self, u: Url) {
+        info!("Removing entry to bookmark: {:?}", u);
+        self.entries.retain(|e| e.url != u);
+        match self.write_bookmarks_to_file() {
+            Err(why) => warn!("Could not write bookmarks file: {}", why),
+            Ok(()) => ()
+        }
+    }
+
     pub fn get_bookmarks(&self) -> Vec<Bookmark> {
         let mut res = Vec::<Bookmark>::new();
         for i in 0..self.entries.len() {

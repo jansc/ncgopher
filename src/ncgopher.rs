@@ -30,6 +30,7 @@ pub enum UiMessage {
     AddToHistoryMenu(HistoryEntry),
     BinaryWritten(String, usize),
     ClearHistoryMenu,
+    ClearBookmarksMenu,
     OpenQueryDialog(Url),
     OpenQueryUrl(Url, String),
     OpenUrl(Url, ContentType),
@@ -37,6 +38,7 @@ pub enum UiMessage {
     PageSaved(Url, ContentType, String), 
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ContentType),
+    ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
     ShowMessage(String),
     ShowURLDialog,
@@ -150,6 +152,11 @@ impl NcGopher {
                 userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowLinkInfo).unwrap()
             );
         });
+        app.add_global_callback('a', |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestAddBookmarkDialog).unwrap()
+            );
+        });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
 
         let view: SelectView<GopherMapEntry> = SelectView::new();
@@ -234,8 +241,10 @@ impl NcGopher {
         menubar.add_subtree(
             "Bookmarks",
             MenuTree::new()
-                .leaf("Edit...", |s| {
-                    s.add_layer(Dialog::info("Edit bookmarks not implemented"))
+                .leaf("Edit...", |app| {
+                    app.with_user_data(|userdata: &mut UserData|
+                        userdata.controller_tx.read().unwrap().send(ControllerMessage::RequestEditBookmarksDialog).unwrap()
+                    );
                 }).
                 leaf("Add bookmark", |app| {
                     //app.add_layer(Dialog::info("Add bookmark not implemented"))
@@ -638,6 +647,68 @@ impl NcGopher {
         };
     }
 
+    fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec::<Bookmark>) {
+        let mut view: SelectView<Bookmark> = SelectView::new();
+        for b in bookmarks {
+            view.add_item(format!("{:width$} - {:width$}",
+                                  b.title.clone().as_str(),
+                                  b.url.clone().into_string(), width=10), b);
+        }
+        {
+            let mut app = self.app.write().unwrap();
+            app.add_layer(
+                Dialog::new()
+                    .title("Edit bookmarks")
+                    .content(
+                        LinearLayout::vertical()
+                            .child(view.with_name("bookmarks").scrollable())
+                    )
+                    .button("Delete",  |app| {
+                        let selected = app.call_on_name("bookmarks",
+                                                    |view: &mut SelectView<Bookmark>| {
+                            view.selection()
+                        }).unwrap();
+                        match selected {
+                            None => (),
+                            Some(bookmark) => {
+                                app.call_on_name("bookmarks",
+                                    |view: &mut SelectView<Bookmark>| {
+                                    view.remove_item(view.selected_id().unwrap());
+                                }).unwrap();
+                                let bm = Bookmark {
+                                    title: (*bookmark).title.clone(),
+                                    url: (*bookmark).url.clone(),
+                                    tags: Vec::new()
+                                };
+                                app.with_user_data(|userdata: &mut UserData|
+                                                   userdata.controller_tx.read().unwrap()
+                                                   .send(ControllerMessage::RemoveBookmark(bm)).unwrap()
+                                );
+                            }
+                        }
+                    })
+                    .button("Open",  |app| {
+                        let selected = app.call_on_name("bookmarks",
+                                                    |view: &mut SelectView<Bookmark>| {
+                            view.selection()
+                        }).unwrap();
+                        match selected {
+                            None => (),
+                            Some(b) => {
+                                app.with_user_data(|userdata: &mut UserData|
+                                     userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(b.url.to_string())).unwrap()
+                                );
+                            }
+                        }
+                    })
+                    .button("Close", |app| {
+                        app.pop_layer();
+                    }),
+            );
+        }
+        self.trigger();
+    }
+    
     fn show_save_as_dialog(&mut self, url: Url) {
         {
             let mut filename = self.get_filename_from_url(url.clone());
@@ -735,6 +806,16 @@ impl NcGopher {
         }
     }
 
+    fn clear_bookmarks_menu(&mut self) {
+        let mut app = self.app.write().unwrap();
+        let menutree = app.menubar().find_subtree("Bookmarks");
+        if let Some(tree) = menutree {
+            while tree.len() > 3 {
+                tree.remove(tree.len() - 1);
+            }
+        }
+    }
+
     /// Triggers a rerendring of the UI
     pub fn trigger(&self) {
         info!("Trigger");
@@ -769,6 +850,9 @@ impl NcGopher {
                 },
                 UiMessage::ClearHistoryMenu => {
                     self.clear_history_menu();
+                },
+                UiMessage::ClearBookmarksMenu => {
+                    self.clear_bookmarks_menu();
                 },
                 UiMessage::PageSaved(_url, _content_type, filename) => {
                     self.set_message(format!("Page saved as '{}'.", filename).as_str());
@@ -809,6 +893,9 @@ impl NcGopher {
                 },
                 UiMessage::OpenUrlFromString(url) => {
                     self.open_gopher_url_string(url);
+                },
+                UiMessage::ShowEditBookmarksDialog(bookmarks) => {
+                    self.show_edit_bookmarks_dialog(bookmarks)
                 },
                 UiMessage::ShowLinkInfo => {
                     self.show_current_link_info()

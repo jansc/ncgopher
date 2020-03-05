@@ -42,12 +42,15 @@ pub enum ControllerMessage {
     ClearHistory,
     NavigateBack,
     ReloadCurrentPage,
+    RemoveBookmark(Bookmark),
     RequestAddBookmarkDialog,
+    RequestEditBookmarksDialog,
     RequestSaveAsDialog,
     RequestSettingsDialog,
     SavePageAs(String),
     SetContent(Url, String, ContentType),
     ShowMessage(String),
+    RedrawBookmarks,
     RedrawHistory,
     FetchUrl(Url, ContentType, String),
     FetchBinaryUrl(Url, String),
@@ -239,11 +242,20 @@ impl Controller {
             tags: tags
         };
         self.bookmarks.lock().unwrap().add(b.clone());
+        /*
         let toml = toml::to_string(&self.bookmarks.lock().unwrap().clone()).unwrap();
         info!("TOML={}", toml);
         let toml2 = toml::to_string(&b).unwrap();
         info!("TOML2={}", toml2);
+        */
         b
+    }
+
+    fn remove_bookmark(&mut self, b: Bookmark) {
+        info!("remove_bookmark");
+        self.bookmarks.lock().unwrap().remove(b.url);
+        let tx_clone = self.tx.read().unwrap().clone();
+        tx_clone.send(ControllerMessage::RedrawBookmarks).unwrap();
     }
 
     fn add_to_history(&mut self, url: Url) -> HistoryEntry {
@@ -379,6 +391,10 @@ impl Controller {
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::OpenUrl(current_url, current_content_type)).unwrap();
                     },
+                    ControllerMessage::RemoveBookmark(bookmark) => {
+                        info!("Removing bookmark {}", bookmark.title);
+                        self.remove_bookmark(bookmark);
+                    },
                     ControllerMessage::RequestAddBookmarkDialog => {
                         let current_url: Url;
                         {
@@ -387,6 +403,15 @@ impl Controller {
                         }
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::ShowAddBookmarkDialog(current_url)).unwrap();
+                    },
+                    ControllerMessage::RequestEditBookmarksDialog => {
+                        let v : Vec::<Bookmark>;
+                        {
+                            let guard = self.bookmarks.lock().unwrap();
+                            v = guard.clone().entries;
+                        }
+                        self.ui.read().unwrap().ui_tx.read().unwrap()
+                            .send(UiMessage::ShowEditBookmarksDialog(v)).unwrap();
                     },
                     ControllerMessage::RequestSaveAsDialog => {
                         let current_url: Url;
@@ -448,6 +473,17 @@ impl Controller {
                     },
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);
+                    },
+                    ControllerMessage::RedrawBookmarks => {
+                        info!("Controller: Clearing bookmarks");
+                        self.ui.read().unwrap().ui_tx.read().unwrap()
+                            .send(UiMessage::ClearBookmarksMenu).unwrap();
+                        for entry in self.bookmarks.lock().unwrap().entries.clone() {
+                            info!("Controller: readding entry {:?}", entry);
+                            self.ui.read().unwrap().ui_tx.read().unwrap()
+                                .send(UiMessage::AddToBookmarkMenu(entry))
+                                .unwrap();
+                        }
                     },
                     ControllerMessage::RedrawHistory => {
                         info!("Controller: Clearing history");

@@ -62,6 +62,7 @@ are still not implemented.
 | s          | Save current page              |
 | r          | Reload current page            |
 | i          | Show link under cursor         |
+| a          | Add bookmark for current page  |
 |------------+--------------------------------|
 
 ** Debugging

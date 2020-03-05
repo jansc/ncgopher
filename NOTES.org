@@ -30,16 +30,18 @@
 *** DONE [#B] Implement download of files (text/gophermap)
 *** DONE [#C] Write README.org
 ** post-alpha
-*** TODO TLS support
-*** TODO Setting for disabling history recording
+*** TODO [#A] Bugfix: search not working
+*** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
 *** TODO Better keyboard navigation, emacs/vim key presets
+*** TODO Setting for disabling history recording
+*** TODO TLS support
 *** TODO Handle tags for bookmarks
 *** TODO Search in text
-*** TODO Show info about link under cursor
+*** DONE Show info about link under cursor
 *** DONE Write man page
 *** TODO Configurable keys
 *** DONE Persistent history
-*** TODO Implement reload of page
+*** DONE Implement reload of page
 *** TODO Caching of gophermaps
 *** TODO mailcap handling
 *** TODO Reading list (ala Safari)
@@ -49,6 +51,7 @@
 *** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
 ** beta, etc
 *** TODO [#A] Gemini support
-*** TODO Auto moka pona (rss-like?), maybe rss support
 *** TODO Open local file (gophermap/textfile)
+*** TODO Auto moka pona (rss-like?), maybe rss support
 *** TODO Download gopherhole for offline reading
+*** TODO Setting for encoding
