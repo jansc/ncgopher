@@ -3,7 +3,7 @@ use cursive::menu::MenuTree;
 use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef};
 use cursive::utils::markup::StyledString;
 use cursive::theme::Effect;
-use cursive::event::Key; 
+use cursive::event::{Key}; 
 use cursive::traits::*;
 use std::str;
 use std::sync::{Arc, RwLock};
@@ -24,12 +24,20 @@ extern crate url;
 extern crate log;
 
 
+#[derive(Clone, Debug)]
+pub enum Direction {
+    Next,
+    Previous
+}
+
+
 /// Messages sent between Controller and UI
 pub enum UiMessage {
     AddToBookmarkMenu(Bookmark),
     AddToHistoryMenu(HistoryEntry),
     BinaryWritten(String, usize),
     ClearHistoryMenu,
+    MoveToLink(Direction),
     OpenQueryDialog(Url),
     OpenQueryUrl(Url, String),
     OpenUrl(Url, ContentType),
@@ -150,6 +158,16 @@ impl NcGopher {
                 userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowLinkInfo).unwrap()
             );
         });
+        app.add_global_callback('n' /*Key::Tab*/, |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.ui_tx.read().unwrap().clone().send(UiMessage::MoveToLink(Direction::Next)).unwrap()
+            );
+        });
+        app.add_global_callback('p' /*Event::Shift(Key::Tab)*/, |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.ui_tx.read().unwrap().clone().send(UiMessage::MoveToLink(Direction::Previous)).unwrap()
+            );
+        });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
 
         let view: SelectView<GopherMapEntry> = SelectView::new();
@@ -249,20 +267,20 @@ impl NcGopher {
             "Search",
             MenuTree::new()
                 .leaf("Veronica/2...", |app| {
-                    let url = Url::parse("gopher://gopher.floodgap.com:70/v2/vs").unwrap();
+                    let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
                     app.with_user_data(|userdata: &mut UserData|
                         userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
                     );
                 }).
                 leaf("Gopherpedia...", |app| {
                     // FIXME Add Url to gopherpedia
-                    let url = Url::parse("gopher://gopher.floodgap.com:70/v2/vs").unwrap();
+                    let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
                     app.with_user_data(|userdata: &mut UserData|
                         userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
                     );
                 })
                 .leaf("Gopher Movie Database...", |app| {
-                    let url = Url::parse("gopher://jan.bio:70/cgi-bin/gmdb.py").unwrap();
+                    let url = Url::parse("gopher://jan.bio:70/7/cgi-bin/gmdb.py").unwrap();
                     app.with_user_data(|userdata: &mut UserData|
                         userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
                     );
@@ -638,6 +656,47 @@ impl NcGopher {
         };
     }
 
+    fn move_to_link(&mut self, dir: Direction) {
+        let mut app = self.app.write().expect("Could not get write lock on app");
+        let mut view: ViewRef<SelectView<GopherMapEntry>>;
+        let v = app.find_name("content");
+        if v.is_none() {
+            return;
+        } else {
+            view = v.unwrap();
+        }
+        let cur = match view.selected_id() {
+            Some(id) => id,
+            None => 0
+        };
+        let mut i: usize = 0;
+        match dir {
+            Direction::Next => {
+                i = 0;
+                for (_, row) in view.iter() {
+                    if i > cur && ItemType::is_dir(row.item_type) {
+                        warn!("Scanning row {}", row.url);
+                        break;
+                    }
+                    i = i+1;
+                }
+            },
+            Direction::Previous => {
+                /*
+                i = view.len() - 1;
+                for (_, row) in view.iter().rev() {
+                    if i < cur && ItemType::is_dir(row.item_type) {
+                        warn!("Scanning row {}", row.url);
+                        break;
+                    }
+                    i = i-1;
+                }
+                */
+            }
+        }
+        view.set_selection(i);
+    }
+
     fn show_save_as_dialog(&mut self, url: Url) {
         {
             let mut filename = self.get_filename_from_url(url.clone());
@@ -783,6 +842,10 @@ impl NcGopher {
                         ContentType::Binary => (),
                     }
                     self.set_message(url.as_str());
+                },
+                UiMessage::MoveToLink(direction) => {
+                    warn!("MoveToLink");
+                    self.move_to_link(direction);
                 },
                 UiMessage::OpenQueryDialog(url) => {
                     self.open_query_dialog(url);
