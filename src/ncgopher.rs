@@ -2,7 +2,6 @@ use cursive::Cursive;
 use cursive::menu::MenuTree;
 use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef};
 use cursive::utils::markup::StyledString;
-use cursive::theme::Effect;
 use cursive::event::Key; 
 use cursive::traits::*;
 use std::str;
@@ -168,6 +167,8 @@ impl NcGopher {
         app.add_global_callback('p' /*Event::Shift(Key::Tab)*/, |app| {
             app.with_user_data(|userdata: &mut UserData|
                 userdata.ui_tx.read().unwrap().clone().send(UiMessage::MoveToLink(Direction::Previous)).unwrap()
+            );
+        });
         app.add_global_callback('a', |app| {
             app.with_user_data(|userdata: &mut UserData|
                 userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestAddBookmarkDialog).unwrap()
