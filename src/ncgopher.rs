@@ -677,32 +677,48 @@ impl NcGopher {
             Some(id) => id,
             None => 0
         };
-        let mut i: usize = 0;
+        let mut i: usize = cur;
         match dir {
-            Direction::Next => {
-                i = 0;
-                for (_, row) in view.iter() {
-                    if i > cur && ItemType::is_dir(row.item_type) {
-                        warn!("Scanning row {}", row.url);
+            Direction::Next =>  {
+                i = i + 1; // Start at the element after the current row
+                loop {
+                    if i >= view.len() {
+                        i = 0; // Wrap and start from scratch
+                        continue;
+                    }
+                    let (_, item) = view.get_item(i).unwrap();
+                    if i == cur {
+                        break; // Once we reach the current item, we quit
+                    }
+                    if !ItemType::is_inline(item.item_type) {
                         break;
                     }
-                    i = i+1;
+                    i = i + 1;
                 }
             },
             Direction::Previous => {
-                /*
-                i = view.len() - 1;
-                for (_, row) in view.iter().rev() {
-                    if i < cur && ItemType::is_dir(row.item_type) {
-                        warn!("Scanning row {}", row.url);
+                i = i - 1; // Start at the element before the current row
+                loop {
+                    if i == 0 {
+                        i = view.len() - 1; // Wrap and start from the end
+                        continue;
+                    }
+                    let (_, item) = view.get_item(i).unwrap();
+                    if i == cur {
+                        break; // Once we reach the current item, we quit
+                    }
+                    if !ItemType::is_inline(item.item_type) {
                         break;
                     }
-                    i = i-1;
+                    i = i - 1;
                 }
-                */
             }
         }
         view.set_selection(i);
+        app.with_user_data(|userdata: &mut UserData|
+                           userdata.ui_tx.read().unwrap()
+                           .send(UiMessage::Trigger).unwrap()
+        );
     }
 
     fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec::<Bookmark>) {
