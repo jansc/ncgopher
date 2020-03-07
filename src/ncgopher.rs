@@ -698,7 +698,11 @@ impl NcGopher {
                 }
             },
             Direction::Previous => {
-                i = i - 1; // Start at the element before the current row
+                if i > 0 {
+                    i = i - 1; // Start at the element before the current row
+                } else {
+                    i = view.len() - 1;
+                }
                 loop {
                     if i == 0 {
                         i = view.len() - 1; // Wrap and start from the end
