@@ -1,6 +1,6 @@
 use cursive::Cursive;
 use cursive::menu::MenuTree;
-use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef};
+use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef, ScrollView, NamedView};
 use cursive::utils::markup::StyledString;
 use cursive::event::Key; 
 use cursive::traits::*;
@@ -179,9 +179,10 @@ impl NcGopher {
         let view: SelectView<GopherMapEntry> = SelectView::new();
         let textview: SelectView = SelectView::new();
         let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
+        let scrollable = view.with_name("content").scrollable().with_name("content_scroll");
         let mut layout = Layout::new(status/*, theme*/)
             .view("text", textview.with_name("text").scrollable(), "Textfile")
-            .view("content", view.with_name("content").scrollable(), "Gophermap");
+            .view("content", scrollable, "Gophermap");
         layout.set_view("content");
         app.add_fullscreen_layer(layout.with_name("main"));
 
@@ -715,6 +716,9 @@ impl NcGopher {
             }
         }
         view.set_selection(i);
+        app.call_on_name("content_scroll", |s: &mut ScrollView<NamedView<SelectView<GopherMapEntry>>>| {
+            s.scroll_to_important_area();
+        });
         app.with_user_data(|userdata: &mut UserData|
                            userdata.ui_tx.read().unwrap()
                            .send(UiMessage::Trigger).unwrap()
