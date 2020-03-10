@@ -1,0 +1,21 @@
+* NcGopher Changelog
+
+** [unreleased]
+
+ New features:
+ - New command 'i' to show url below cursor
+ - Implemented simple bookmarks dialog for deleting and opening bookmarks
+ - Wrapped navigtaion. Use 'p' for go to previous url and 'n'
+   for next url
+
+ Bugfixes:
+ - Bugfix: No more italics for all text in gophermaps
+ - Bugfix: Rewrote URL handling, fixed crashes for certain URLs
+
+ Changes:
+ - Removed some unecessary code
+ - Updated README and man-page to reflect new keyboard shortcuts
+
+** 0.1.1 [2020-03-02]
+
+ First public release
