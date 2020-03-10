@@ -30,8 +30,9 @@
 *** DONE [#B] Implement download of files (text/gophermap)
 *** DONE [#C] Write README.org
 ** post-alpha
-*** TODO [#A] Bugfix: search not working
+*** DONE [#A] Bugfix: search not working
 *** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
+*** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
 *** TODO Setting for disabling history recording
 *** TODO TLS support
@@ -39,7 +40,6 @@
 *** TODO Search in text
 *** DONE Show info about link under cursor
 *** DONE Write man page
-*** TODO Configurable keys
 *** DONE Persistent history
 *** DONE Implement reload of page
 *** TODO Caching of gophermaps
