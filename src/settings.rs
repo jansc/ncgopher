@@ -49,7 +49,7 @@ impl Settings {
 
         // Set defaults
         settings.config.set_default("download_path", "Downloads")?;
-        settings.config.set_default("homepage", "gopher://jan.bio:70/")?;
+        settings.config.set_default("homepage", "gopher://jan.bio:70/0/ncgopher/")?;
         settings.config.set_default("debug", false)?;
 
         if Path::new(confdir.as_str()).exists() {
