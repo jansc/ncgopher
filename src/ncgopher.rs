@@ -654,11 +654,31 @@ impl NcGopher {
         };
         match view.get_item(cur) {
             Some((_, item)) => {
+                match item.item_type {
+                    ItemType::Html => {
+                        let mut url = item.url.clone().into_string();
+                        if url.starts_with("URL:") {
+                            url.replace_range(..3, "");
+                            app.with_user_data(|userdata: &mut UserData|
+                                userdata.ui_tx.read().unwrap()
+                                .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
+                            );
+                        } else {
+                            app.with_user_data(|userdata: &mut UserData|
+                                userdata.ui_tx.read().unwrap()
+                                .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
+                            );
+                        }
+                    },
+                    ItemType::Inline => (),
+                    _ => {
+                        app.with_user_data(|userdata: &mut UserData|
+                            userdata.ui_tx.read().unwrap()
+                            .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
+                        );
+                    }
+                }
                 if !ItemType::is_inline(item.item_type) {
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.ui_tx.read().unwrap()
-                        .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
-                    );
                 }
             },
             None => ()

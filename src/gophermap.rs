@@ -74,14 +74,26 @@ impl GopherMapEntry {
         let selector = l[1].to_string();
         let host = l[2].to_string();
         let port = l[3].parse().unwrap();
-        let mut url = Url::parse("gopher://fix.me").unwrap();
-        if !host.is_empty() {
-            url.set_host(Some(host.as_str())).unwrap();
-        }
-        url.set_port(Some(port)).unwrap();
         let mut path = selector.clone();
         path.insert(0, ch);
-        url.set_path(path.as_str());
+
+        let mut url : Url = Url::parse("gopher://fixme:70").unwrap();
+        if item_type == ItemType::Html {
+            if path.starts_with("hURL:") {
+                let mut html_url = path.clone();
+                html_url.replace_range(..5, "");
+                match Url::parse(html_url.as_str()) {
+                    Ok(u) => url = u,
+                    Err(e) => { warn!("Could not parse url {}: {}", e, html_url); }
+                }
+            }
+        } else {
+            if !host.is_empty() {
+                url.set_host(Some(host.as_str())).unwrap();
+            }
+            url.set_port(Some(port)).unwrap();
+            url.set_path(path.as_str());
+        }
         GopherMapEntry {
             item_type,
             name,
