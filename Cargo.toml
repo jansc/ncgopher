@@ -5,6 +5,7 @@ authors = ["Jan Schreiber <jan@mecinus.com>"]
 edition = "2018"
 license = "BSD 2-clause"
 description = "An ncurses gopher client for the modern internet"
+documentation = "https://github.com/jansc/ncgopher/blob/master/README.org"
 readme = "README.org"
 homepage = "https://github.com/jansc/ncgopher"
 repository = "https://github.com/jansc/ncgopher"
