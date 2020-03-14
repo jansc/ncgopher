@@ -1,4 +1,5 @@
 use url::Url;
+use crate::ncgopher::ContentType;
 
 /// A list of Gopher resources.
 /*
@@ -267,5 +268,28 @@ impl ItemType {
             ItemType::Inline => true,
             _ => false
         }
+    }
+
+    /// Returns the ItemType of an url. Defaults to gophermap (ItemType::Dir 1)
+    pub fn from_url(url: Url) -> ItemType {
+        let path = url.path();
+        let mut item_type: ItemType = ItemType::Dir;
+        let mut chars = path.chars();
+        if path.chars().count() > 2 && chars.next().unwrap() == '/' {
+            item_type = ItemType::decode(chars.next().unwrap());
+        }
+        item_type
+    }
+
+    pub fn to_content_type(it: ItemType) -> ContentType {
+        let mut ct = match it {
+            ItemType::Dir => ContentType::Gophermap,
+            ItemType::File => ContentType::Text,
+            _ => ContentType::Text // FIXME: Should be unknown
+        };
+        if ItemType::is_download(it) {
+            ct = ContentType::Binary;
+        }
+        ct
     }
 }

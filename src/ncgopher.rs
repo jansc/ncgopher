@@ -332,10 +332,11 @@ impl NcGopher {
         }
         let res = Url::parse(url.as_str());
         let url : Url;
+        // TODO: Check if URL includes an item type
         match res {
             Ok(res) => {
                 url = res;
-                self.open_gopher_address(url, ContentType::Gophermap);
+                self.open_gopher_address(url.clone(), ItemType::to_content_type(ItemType::from_url(url.clone())));
             },
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());

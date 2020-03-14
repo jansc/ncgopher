@@ -13,10 +13,12 @@
  Bugfixes:
  - Bugfix: No more italics for all text in gophermaps
  - Bugfix: Rewrote URL handling, fixed crashes for certain URLs
+ - Improved error handling when loading content
 
  Changes:
  - Removed some unecessary code
  - Updated README and man-page to reflect new keyboard shortcuts
+ - New default homepage
 
 ** 0.1.1 [2020-03-02]
 
