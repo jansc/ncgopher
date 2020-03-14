@@ -133,7 +133,11 @@ impl NcGopher {
         app.set_autohide_menu(false);
 
         // TODO: Make keys configurable
-        app.add_global_callback('q', |s| s.quit());
+        app.add_global_callback('q', |app| {
+            app.with_user_data(|userdata: &mut UserData|
+                userdata.controller_tx.read().unwrap().send(ControllerMessage::Quit)
+            );
+        });
         app.add_global_callback('g', |app| {
             app.with_user_data(|userdata: &mut UserData|
                 userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowURLDialog).unwrap()

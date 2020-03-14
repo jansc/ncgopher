@@ -49,6 +49,7 @@ pub enum ControllerMessage {
     RequestEditBookmarksDialog,
     RequestSaveAsDialog,
     RequestSettingsDialog,
+    Quit,
     SavePageAs(String),
     SetContent(Url, String, ContentType),
     ShowMessage(String),
@@ -156,7 +157,11 @@ impl Controller {
                                 loop {
                                     match stream.read_to_end(&mut buf) {
                                         Ok(_) => break,
-                                        Err(e) => panic!("encountered IO error: {}", e),
+                                        Err(e) => {
+                                            tx_clone.send(
+                                                ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
+                                                .unwrap();
+                                        }
                                     };
                                 }
                             }, Err(e) => { warn!("Could not open tls stream: {} to {}", e, server_details); }
@@ -177,8 +182,12 @@ impl Controller {
                 loop {
                     match stream.read_to_end(&mut buf) {
                         Ok(_) => break,
-                        Err(e) => panic!("encountered IO error: {}", e),
-                    };
+                        Err(e) => {
+                            tx_clone.send(
+                                ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
+                                .unwrap();
+                        }
+                    }
                 }
             }
             let s = String::from_utf8_lossy(&buf);
@@ -364,13 +373,23 @@ impl Controller {
         let display = path.display();
 
         let mut file = match File::create(&path) {
-            Err(why) => panic!("couldn't open {}: {}", display, why),
+            Err(why) => {
+                self.ui.read().unwrap().controller_tx.read().unwrap()
+                .send(ControllerMessage::ShowMessage(format!("Couldn't open {}: {}", display, why)))
+                    .unwrap();
+                return;
+            }
             Ok(file) => file,
         };
 
         // Read the file contents into a string, returns `io::Result<usize>`
         match file.write_all(content.as_bytes()) {
-            Err(why) => panic!("couldn't write {}: {}", display, why),
+            Err(why) => {
+                self.ui.read().unwrap().controller_tx.read().unwrap()
+                .send(ControllerMessage::ShowMessage(format!("Couldn't open {}: {}", display, why)))
+                    .unwrap();
+                return;
+            },
             Ok(_) => (),
         }
         // `file` goes out of scope, and the [filename] file gets closed
@@ -418,7 +437,8 @@ impl Controller {
 
     /// Run the controller
     pub fn run(&mut self) {
-        while self.ui.write().unwrap().step() {
+        let mut exit = false;
+        while self.ui.write().unwrap().step() && !exit {
             while let Some(message) = self.rx.try_iter().next() {
                 // Handle messages arriving from the UI.
                 match message {
@@ -523,6 +543,9 @@ impl Controller {
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::BinaryWritten(filename, bytes_written)).unwrap();
                     },
+                    ControllerMessage::Quit => {
+                        exit = true;
+                    },
                     ControllerMessage::NavigateBack => {
                         self.navigate_back();
                     },
@@ -533,23 +556,21 @@ impl Controller {
                         self.fetch_binary_url(url, local_path);
                     },
                     ControllerMessage::RedrawBookmarks => {
-                        info!("Controller: Clearing bookmarks");
+                        trace!("Controller: Clearing bookmarks");
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::ClearBookmarksMenu).unwrap();
                         for entry in self.bookmarks.lock().unwrap().entries.clone() {
-                            info!("Controller: readding entry {:?}", entry);
                             self.ui.read().unwrap().ui_tx.read().unwrap()
                                 .send(UiMessage::AddToBookmarkMenu(entry))
                                 .unwrap();
                         }
                     },
                     ControllerMessage::RedrawHistory => {
-                        info!("Controller: Clearing history");
+                        trace!("Controller: Clearing history");
                         self.ui.read().unwrap().ui_tx.read().unwrap()
                             .send(UiMessage::ClearHistoryMenu).unwrap();
                         let entries = self.history.lock().unwrap().get_latest_history(10);
                         for entry in entries {
-                            info!("Controller: readding entry {:?}", entry);
                             self.ui.read().unwrap().ui_tx.read().unwrap()
                                 .send(UiMessage::AddToHistoryMenu(entry))
                                 .unwrap();
