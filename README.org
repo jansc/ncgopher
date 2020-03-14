@@ -34,6 +34,7 @@ Obligatory screenshot:
  - Download of binary files
  - Menu for easy configuration
  - Mouse support in some terminals
+ - TLS support
 
 ** Installation
 

@@ -7,13 +7,17 @@ license = "BSD 2-clause"
 description = "An ncurses gopher client for the modern internet"
 readme = "README.org"
 homepage = "https://github.com/jansc/ncgopher"
-repository = "https://github.com/you/grrs"
+repository = "https://github.com/jansc/ncgopher"
 keywords = ["cli", "gopher", "client"]
-categories = ["command-line-utilities", "gopher", "TUI"]
+categories = ["command-line-utilities", "gopher", "TUI", "cli"]
 exclude = ["screenshots/**"]
 
 [badges.travis-ci]
 repository = "jansc/ncgopher"
+
+[features]
+tls = ["native-tls"]
+default = ["tls"]
 
 [dependencies]
 unicode-width = "^0.1.5"
@@ -28,7 +32,10 @@ serde_derive = "^1.0.8"
 serde = {version = "^1.0.8", features = ["derive"]}
 toml = "0.5.6"
 
+native-tls = { version = "0.2", optional = true }
+
 [dependencies.cursive]
 version = "0.14"
+#git = "https://github.com/gyscos/cursive"
 default-features = false
 features = ["pancurses-backend"]

@@ -2,7 +2,9 @@
 
 ** [unreleased]
 
- New features:
+  New features:
+ - TLS support. ncgopher will automatically try to use TLS when the
+   port number is different than 70. Fallback to a non-TLS connection
  - New command 'i' to show url below cursor
  - Implemented simple bookmarks dialog for deleting and opening bookmarks
  - Wrapped navigtaion. Use 'p' for go to previous url and 'n'

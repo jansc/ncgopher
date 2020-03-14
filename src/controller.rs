@@ -8,7 +8,9 @@ use std::path::Path;
 use cursive::Cursive;
 use chrono::Local;
 use url::Url;
-//use std::process::exit;
+
+#[cfg(feature="tls")]
+use native_tls::TlsConnector;
 
 use crate::ncgopher::{NcGopher, UiMessage, ContentType};
 use crate::gophermap::{GopherMapEntry};
@@ -135,20 +137,49 @@ impl Controller {
 
         thread::spawn(move || {
             // FIXME: Should use _server instead?
-            let mut stream = TcpStream::connect(server_details).expect("Couldn't connect to the server...");
-            // FIXME: Error handling!
-            if !query.is_empty() {
-                write!(stream, "{}\t{}\n", path, query.as_str()).unwrap();
-            } else {
-                write!(stream, "{}\n", path).unwrap();
-            }
-
+            let mut tls = false;
             let mut buf = vec![];
-            loop {
-                match stream.read_to_end(&mut buf) {
-                    Ok(_) => break,
-                    Err(e) => panic!("encountered IO error: {}", e),
-                };
+            if cfg!(feature="tls") {
+                if port != 70 {
+                    if let Ok(connector) = TlsConnector::new() {
+                        let stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
+                        match connector.connect(&server, stream) {
+                            Ok(mut stream) => {
+                                tls = true;
+                                info!("Connected with TLS");
+                                if !query.is_empty() {
+                                    write!(stream, "{}\t{}\n", path, query.as_str()).unwrap();
+                                } else {
+                                    write!(stream, "{}\n", path).unwrap();
+                                }
+
+                                loop {
+                                    match stream.read_to_end(&mut buf) {
+                                        Ok(_) => break,
+                                        Err(e) => panic!("encountered IO error: {}", e),
+                                    };
+                                }
+                            }, Err(e) => { warn!("Could not open tls stream: {} to {}", e, server_details); }
+                        }
+                    } else { info!("Could not establish tls connection"); }
+                }
+            } else {
+                info!("TLS not configured");
+            }
+            if !tls {
+                let mut stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
+                if !query.is_empty() {
+                    write!(stream, "{}\t{}\n", path, query.as_str()).unwrap();
+                } else {
+                    write!(stream, "{}\n", path).unwrap();
+                }
+
+                loop {
+                    match stream.read_to_end(&mut buf) {
+                        Ok(_) => break,
+                        Err(e) => panic!("encountered IO error: {}", e),
+                    };
+                }
             }
             let s = String::from_utf8_lossy(&buf);
             tx_clone.send(
@@ -201,27 +232,54 @@ impl Controller {
 
         thread::spawn(move || {
             // FIXME: Error handling!
+            let mut tls = false;
             let f = File::create(local_filename.clone())
                 .expect(format!("Unable to open file '{}'", local_filename.clone()).as_str());
             let mut bw = BufWriter::new(f);
-            let mut stream = TcpStream::connect(server_details.clone())
-                .expect(format!("Couldn't connect to the server {}", server_details).as_str());
-
-            write!(stream, "{}\n", path).unwrap();
-
-            //let mut buf = Vec::<u8>::new();
             let mut buf = [0u8;1024];
             let mut total_written: usize = 0;
-            loop {
-                let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
-                if bytes_read == 0 {
-                    break;
+            if cfg!(feature="tls") {
+                if port != 70 {
+                    if let Ok(connector) = TlsConnector::new() {
+                        let stream = TcpStream::connect(server_details.clone())
+                            .expect(format!("Couldn't connect to the server {}", server_details).as_str());
+                        match connector.connect(&server, stream) {
+                            Ok(mut stream) => {
+                                tls = true;
+                                info!("Connected with TLS");
+                                write!(stream, "{}\n", path).unwrap();
+                                loop {
+                                    let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
+                                    if bytes_read == 0 {
+                                        break;
+                                    }
+                                    let bytes_written = bw.write(&buf[..bytes_read]).expect("Could not write to file");
+                                    total_written += bytes_written;
+                                    tx_clone.send(
+                                        ControllerMessage::ShowMessage(format!("{} bytes read", total_written)))
+                                        .unwrap();
+                                }
+                            }, Err(e) => { warn!("Could not open tls stream: {} to {}", e, server_details); }
+                        }
+                    } else { info!("Could not establish tls connection"); }
                 }
-                let bytes_written = bw.write(&buf[..bytes_read]).expect("Could not write to file");
-                total_written += bytes_written;
-                tx_clone.send(
-                    ControllerMessage::ShowMessage(format!("{} bytes read", total_written)))
-                    .unwrap();
+            } else {
+                info!("TLS not configured");
+            }
+            if !tls {
+                let mut stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
+                write!(stream, "{}\n", path).unwrap();
+                loop {
+                    let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    let bytes_written = bw.write(&buf[..bytes_read]).expect("Could not write to file");
+                    total_written += bytes_written;
+                    tx_clone.send(
+                        ControllerMessage::ShowMessage(format!("{} bytes read", total_written)))
+                        .unwrap();
+                }
             }
             tx_clone.send(
                 ControllerMessage::BinaryWritten(local_filename.clone(), total_written))
