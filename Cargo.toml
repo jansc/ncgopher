@@ -10,7 +10,7 @@ readme = "README.org"
 homepage = "https://github.com/jansc/ncgopher"
 repository = "https://github.com/jansc/ncgopher"
 keywords = ["cli", "gopher", "client"]
-categories = ["command-line-utilities", "gopher", "TUI", "cli"]
+categories = ["command-line-utilities", "network-programming"]
 exclude = ["screenshots/**"]
 
 [badges.travis-ci]
