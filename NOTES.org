@@ -35,7 +35,8 @@
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
 *** TODO Setting for disabling history recording
-*** TODO TLS support
+*** DONE TLS support
+*** TODO Tor support
 *** TODO Handle tags for bookmarks
 *** TODO Search in text
 *** DONE Show info about link under cursor
