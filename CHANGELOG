@@ -1,6 +1,6 @@
 * NcGopher Changelog
 
-** [unreleased]
+** 0.1.2 [2020-03-14]
 
   New features:
  - TLS support. ncgopher will automatically try to use TLS when the
