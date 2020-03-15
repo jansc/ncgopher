@@ -7,6 +7,7 @@
 *** DONE [#A] Refactor: Get rid of server/port/path - use url::URL
 *** DONE [#A] Error handling for URLs
 *** NEXT [#B] Refactor: Move non-ui functions to controller
+*** TODO Refactor: get rid of contenttype, use itemtype
 *** TODO [#B] Implement open history entries [5/6]
     - [X] Open URL from history-menu
     - [X] Add count to history
@@ -30,19 +31,13 @@
 *** DONE [#B] Implement download of files (text/gophermap)
 *** DONE [#C] Write README.org
 ** post-alpha
-*** DONE [#A] Bugfix: search not working
 *** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
 *** TODO Setting for disabling history recording
-*** DONE TLS support
 *** TODO Tor support
 *** TODO Handle tags for bookmarks
 *** TODO Search in text
-*** DONE Show info about link under cursor
-*** DONE Write man page
-*** DONE Persistent history
-*** DONE Implement reload of page
 *** TODO Caching of gophermaps
 *** TODO mailcap handling
 *** TODO Reading list (ala Safari)
@@ -50,6 +45,12 @@
     - [ ] Export bookmarks to gophermap/txt
 *** TODO [#C] Themes
 *** TODO [#C] Add tracing of UiMessage and ControllerMessage in log
+*** DONE [#A] Bugfix: search not working
+*** DONE TLS support
+*** DONE Write man page
+*** DONE Persistent history
+*** DONE Show info about link under cursor
+*** DONE Implement reload of page
 ** beta, etc
 *** TODO [#A] Gemini support
 *** TODO Open local file (gophermap/textfile)
