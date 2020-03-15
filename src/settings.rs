@@ -46,7 +46,6 @@ impl Settings {
                 dir.push(env!("CARGO_PKG_NAME"));
                 dir.push("config.toml");
                 dir.into_os_string().into_string().unwrap()
-
             },
             None => { String::new() }
         };

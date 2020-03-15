@@ -56,8 +56,10 @@ fn main() {
              .index(1))
         .get_matches();
 
-    let mut homepage = Url::parse(SETTINGS.read().unwrap().get_str("homepage").expect("Could not find homepage in config").as_str()).unwrap();
-    ////let mut homepage = Url::parse(settings.homepage.url.as_str()).unwrap();
+    let mut homepage = Url::parse(SETTINGS.read().unwrap()
+                                  .get_str("homepage")
+                                  .expect("Could not find homepage in config")
+                                  .as_str()).unwrap();
     if let Some(url) = matches.value_of("URL") {
         match Url::parse(url) {
             Ok(url) => homepage = url,

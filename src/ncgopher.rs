@@ -1,6 +1,6 @@
 use cursive::Cursive;
 use cursive::menu::MenuTree;
-use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef, ScrollView, NamedView};
+use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef, ScrollView, NamedView, Checkbox};
 use cursive::utils::markup::StyledString;
 use cursive::event::Key; 
 use cursive::traits::*;
@@ -560,6 +560,8 @@ impl NcGopher {
     pub fn show_settings_dialog(&mut self) {
         let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
         let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
+        let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
+        let darkmode = theme == "darkmode";
         {
             let mut app = self.app.write().unwrap();
             app.add_layer(
@@ -570,7 +572,9 @@ impl NcGopher {
                             .child(TextView::new("Homepage:"))
                             .child(EditView::new().content(homepage_url).with_name("homepage").fixed_width(50))
                             .child(TextView::new("Download path:"))
-                            .child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50)
+                            .child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50))
+                            .child(TextView::new("Dark mode:"))
+                            .child(Checkbox::new().with_name("darkmode")
                             )
                     )
                     .button("Cancel", |app| {
@@ -583,10 +587,20 @@ impl NcGopher {
                         let download = app.call_on_name("download_path", |view: &mut EditView| {
                             view.get_content()
                         }).unwrap();
+                        let darkmode = app.call_on_name("darkmode", |view: &mut Checkbox| {
+                            view.is_checked()
+                        }).unwrap();
                         app.pop_layer();
                         if let Ok(_url) = Url::parse(&homepage) {
                             SETTINGS.write().unwrap().set::<String>("homepage", homepage.clone().to_string()).unwrap();
                             SETTINGS.write().unwrap().set::<String>("download_path", download.clone().to_string()).unwrap();
+                            let mut theme = "lightmode";
+                            if darkmode {
+                                theme = "darkmode";
+                            }
+                            app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
+
                             match SETTINGS.write().unwrap().write_settings_to_file() {
                                 Err(why) => {
                                     app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
@@ -602,6 +616,13 @@ impl NcGopher {
                         );
                     }),
             );
+            app.call_on_name("darkmode", |view: &mut Checkbox| {
+                if darkmode {
+                    view.check();
+                } else {
+                    view.uncheck();
+                }
+            }).unwrap();
         }
         self.trigger();
     }
