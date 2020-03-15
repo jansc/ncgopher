@@ -71,7 +71,7 @@ fn main() {
     //app.set_theme(SETTINGS.read().unwrap().get_theme());
     let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
-    let controller = Controller::new(app, homepage, theme);
+    let controller = Controller::new(app, homepage);
     match controller {
         Ok(mut controller) => controller.run(),
         Err(e) => println!("Error: {}", e),

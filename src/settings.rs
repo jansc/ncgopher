@@ -63,17 +63,16 @@ impl Settings {
 
         if Path::new(confdir.as_str()).exists() {
             // Start off by merging in the "default" configuration file
-            println!("Merging config in file {}", confdir);
             match settings.config.merge(File::with_name(confdir.as_str())) {
-                Ok(_) => { println!("Config read"); },
+                Ok(_) => (),
                 Err(e) => { println!("Could not read config file: {}", e); },
             }
         }
 
-        // Now that we're done, let's access our configuration
-        println!("debug: {:?}", settings.config.get_bool("debug").unwrap());
-        println!("homepage: {:?}", settings.config.get::<String>("homepage").unwrap());
-        println!("theme: {:?}", settings.config.get::<String>("theme").unwrap());
+        // Debug: Now that we're done, let's access our configuration
+        //println!("debug: {:?}", settings.config.get_bool("debug").unwrap());
+        //println!("homepage: {:?}", settings.config.get::<String>("homepage").unwrap());
+        //println!("theme: {:?}", settings.config.get::<String>("theme").unwrap());
 
         // You can deserialize (and thus freeze) the entire configuration as
         //s.try_into()
@@ -123,9 +122,7 @@ impl Settings {
     */
 
     pub fn get_str(&self, key: &str) -> Result<String, ConfigError> {
-        println!("Asking for key {}", key);
         let res = self.config.get_str(key);
-        println!("RES = {:?}", res);
         res
     }
 
