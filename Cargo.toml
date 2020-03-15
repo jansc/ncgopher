@@ -39,4 +39,4 @@ native-tls = { version = "0.2", optional = true }
 version = "0.14"
 #git = "https://github.com/gyscos/cursive"
 default-features = false
-features = ["pancurses-backend"]
+features = ["pancurses-backend", "toml"]

@@ -6,10 +6,15 @@ use std::collections::HashMap;
 use std::fs::File as FsFile;
 use dirs;
 use config::{ConfigError, Config, File, Value};
+//use cursive::theme::{Theme, BorderStyle};
+//use cursive::theme::BaseColor::*;
+//use cursive::theme::Color::*;
+//use cursive::theme::PaletteColor::*; 
 
 pub struct Settings {
     config: Config,
     config_filename: String,
+    themes: HashMap<String, String>,
 }
 
 impl Settings {
@@ -18,6 +23,7 @@ impl Settings {
         let mut settings = Settings {
             config: s,
             config_filename: String::new(),
+            themes: HashMap::new(),
         };
 
         // Create config dir if necessary
@@ -38,7 +44,7 @@ impl Settings {
         let confdir: String = match dirs::config_dir() {
             Some(mut dir) => {
                 dir.push(env!("CARGO_PKG_NAME"));
-                dir.push("config");
+                dir.push("config.toml");
                 dir.into_os_string().into_string().unwrap()
 
             },
@@ -51,18 +57,23 @@ impl Settings {
         settings.config.set_default("download_path", "Downloads")?;
         settings.config.set_default("homepage", "gopher://jan.bio:70/1/ncgopher/")?;
         settings.config.set_default("debug", false)?;
+        settings.config.set_default("theme", "lightmode")?;
+        settings.themes.insert("darkmode".to_string(), include_str!("themes/darkmode.toml").to_string());
+        settings.themes.insert("lightmode".to_string(), include_str!("themes/lightmode.toml").to_string());
 
         if Path::new(confdir.as_str()).exists() {
             // Start off by merging in the "default" configuration file
+            println!("Merging config in file {}", confdir);
             match settings.config.merge(File::with_name(confdir.as_str())) {
-                Ok(_) => (),
-                Err(e) => { warn!("Could not read config file: {}", e); },
+                Ok(_) => { println!("Config read"); },
+                Err(e) => { println!("Could not read config file: {}", e); },
             }
         }
 
         // Now that we're done, let's access our configuration
         println!("debug: {:?}", settings.config.get_bool("debug").unwrap());
         println!("homepage: {:?}", settings.config.get::<String>("homepage").unwrap());
+        println!("theme: {:?}", settings.config.get::<String>("theme").unwrap());
 
         // You can deserialize (and thus freeze) the entire configuration as
         //s.try_into()
@@ -116,5 +127,46 @@ impl Settings {
         let res = self.config.get_str(key);
         println!("RES = {:?}", res);
         res
+    }
+
+    /*
+    // Get custom theme. TODO: Read from config file
+    pub fn get_theme(&self) -> Theme {
+        let mut theme: Theme = Theme::default();
+        theme.shadow = true;
+        theme.borders = BorderStyle::Simple;
+        theme.palette[Background] = Dark(Blue);
+        theme.palette[View] = Light(Black);
+        theme.palette[Primary] = Dark(Blue);
+        theme.palette[Highlight] = Light(Cyan);
+        theme.palette[HighlightInactive] = Dark(Cyan);
+        theme.palette[TitlePrimary] = Dark(Magenta);
+        /*
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+
+    Background,
+    Shadow,
+    View,
+    Primary,
+    Secondary,
+    Tertiary,
+    TitlePrimary,
+    TitleSecondary,
+    Highlight,
+    HighlightInactive,
+        */
+        theme
+    }
+    */
+
+    pub fn get_theme_by_name(&self, name: String) -> &str {
+        self.themes[&name].as_str()
     }
 }
