@@ -793,9 +793,11 @@ impl NcGopher {
     fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec::<Bookmark>) {
         let mut view: SelectView<Bookmark> = SelectView::new();
         for b in bookmarks {
-            view.add_item(format!("{:width$} - {:width$}",
-                                  b.title.clone().as_str(),
-                                  b.url.clone().into_string(), width=10), b);
+            let mut title: String = format!("{:<20}", b.title.clone().as_str());
+            title.truncate(20);
+            let mut url   = format!("{:<50}", b.url.clone().as_str());
+            url.truncate(50);
+            view.add_item(format!("{} | {}", title, url), b);
         }
         {
             let mut app = self.app.write().unwrap();
