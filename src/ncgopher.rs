@@ -306,13 +306,15 @@ impl NcGopher {
                     "Help",
                     MenuTree::new()
                         .leaf("General", |s| {
-                            s.add_layer(Dialog::info("Help message!"))
+                            s.add_layer(Dialog::info(include_str!("help.txt")))
                         })
-                        .leaf("Online", |s| {
-                            let text = "Google it yourself!\n\
-                                        Kids, these days...";
-                            s.add_layer(Dialog::info(text))
-                        }),
+                        .leaf("Online", |app| {
+                            app.with_user_data(|userdata: &mut UserData| {
+                                userdata.ui_tx.write().unwrap().send(
+                                    UiMessage::OpenUrlFromString("gopher://jan.bio/1/ncgopher/".to_string()))
+                                    .unwrap();
+                            });
+                        })
                 )
                 .leaf("About", |s| {
                     s.add_layer(Dialog::info(format!(

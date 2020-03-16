@@ -1,0 +1,15 @@
+|------------+--------------------------------|
+| Key        | Command                        |
+|------------+--------------------------------|
+| Arrow keys | Move around in text            |
+| Enter      | Open the link under the cursor |
+| Esc        | Go to menubar                  |
+| g          | Open new URL                   |
+| b          | Navigate back                  |
+| q          | Close application              |
+| s          | Save current page              |
+| r          | Reload current page            |
+| i          | Show link under cursor         |
+| a          | Add bookmark for current page  |
+|------------+--------------------------------|
+
