@@ -1,5 +1,14 @@
 * NcGopher Changelog
 
+** [unreleased]
+
+  New features:
+  - Darkmode (can be set in config file or settings dialog)
+
+  Bugfixes:
+  - Config file was not read on startup
+  - Error handling for invalid gophermaps
+
 ** 0.1.2 [2020-03-14]
 
   New features:

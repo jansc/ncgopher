@@ -35,6 +35,7 @@ Obligatory screenshot:
  - Menu for easy configuration
  - Mouse support in some terminals
  - TLS support
+ - Darkmode!
 
 ** Installation
 

@@ -34,6 +34,7 @@
 *** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
+**** SPACE to page
 *** TODO Setting for disabling history recording
 *** TODO Tor support
 *** TODO Handle tags for bookmarks
