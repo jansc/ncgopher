@@ -56,15 +56,24 @@ impl GopherMapEntry {
     pub fn parse(line: String) -> Result<Self, &'static str> {
         let l: Vec<&str> = line.split_terminator("\t").collect();
         // Sometimes there are empty lines in a gophermap.
-        // Return an empty gopher entry so ncgopher does no crash
-        // FIXME: Should not have ItemType::File
+        // Ignore these.
+        if l.len() == 0 {
+            return Ok(GopherMapEntry {
+                item_type: ItemType::Inline,
+                name: "".to_string(),
+                selector: "/".to_string(),
+                host: "fixme".to_string(),
+                port: 70,
+                url: Url::parse("gopher://fixme:70").unwrap()
+            });
+        }
         if l.len() <= 3 {
+            // Happens e.g. if a text file is parsed as a gophermap
             return Err("Invalid gophermap entry")
         }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
         let name = l[0][1..].to_string();
-        // FIXME Check l.len() in case of malformed gophermap!
         let selector = l[1].to_string();
         let host = l[2].to_string();
         let port = l[3].parse().unwrap();
@@ -72,7 +81,14 @@ impl GopherMapEntry {
         path.insert(0, ch);
 
         let mut url : Url = Url::parse("gopher://fixme:70").unwrap();
-        if item_type == ItemType::Html {
+        if item_type == ItemType::Telnet {
+            // Telnet URLs have no selector
+            url = Url::parse("telnet://fixme:70").unwrap();
+            if !host.is_empty() {
+                url.set_host(Some(host.as_str())).unwrap();
+            }
+            url.set_port(Some(port)).unwrap();
+        } else if item_type == ItemType::Html {
             if path.starts_with("hURL:") {
                 let mut html_url = path.clone();
                 html_url.replace_range(..5, "");
