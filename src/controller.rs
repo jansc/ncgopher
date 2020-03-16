@@ -411,7 +411,10 @@ impl Controller {
                 continue;
             }
             if l != "." {
-                let gophermap_line = GopherMapEntry::parse(l.to_string());
+                let gophermap_line = match GopherMapEntry::parse(l.to_string()) {
+                    Ok(gl) => gl,
+                    Err(err) => panic!("Invalid gophermap entry: {}", err)
+                };
                 txtlines.push(gophermap_line.label().to_string());
             }
         }

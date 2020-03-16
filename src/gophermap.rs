@@ -53,20 +53,13 @@ impl GopherMapEntry {
     */
 
     /// Parses a raw string into a GopherMapEntry
-    pub fn parse(line: String) -> Self {
+    pub fn parse(line: String) -> Result<Self, &'static str> {
         let l: Vec<&str> = line.split_terminator("\t").collect();
         // Sometimes there are empty lines in a gophermap.
         // Return an empty gopher entry so ncgopher does no crash
         // FIXME: Should not have ItemType::File
-        if l.len() == 0 {
-            return GopherMapEntry {
-                item_type: ItemType::File,
-                name: "".to_string(),
-                selector: "".to_string(),
-                host: "error.host".to_string(),
-                port: 70,
-                url: Url::parse("gopher://no.host:70").unwrap()
-            }
+        if l.len() <= 3 {
+            return Err("Invalid gophermap entry")
         }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
@@ -95,14 +88,14 @@ impl GopherMapEntry {
             url.set_port(Some(port)).unwrap();
             url.set_path(path.as_str());
         }
-        GopherMapEntry {
+        Ok(GopherMapEntry {
             item_type,
             name,
             selector,
             host,
             port,
             url
-        }
+        })
     }
 
     /*

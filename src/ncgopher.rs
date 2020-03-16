@@ -401,6 +401,7 @@ impl NcGopher {
     fn show_gophermap(&mut self, content: String) {
         let mut title : String = "".to_string();
         let mut app = self.app.write().unwrap();
+        let mut msg = String::new();
         app.call_on_name("content", |view: &mut SelectView<GopherMapEntry>| {
             view.clear();
             let lines = content.lines();
@@ -414,7 +415,13 @@ impl NcGopher {
                     first = false;
                 }
                 if l != "." {
-                    let gophermap_line = GopherMapEntry::parse(l.to_string());
+                    let gophermap_line = match GopherMapEntry::parse(l.to_string()) {
+                        Ok(gl) => gl,
+                        Err(err) => {
+                            msg = format!("Invalid gophermap: '{}'", err);
+                            return;
+                        }
+                    };
                     gophermap.push(gophermap_line);
                 }
             }
@@ -447,6 +454,12 @@ impl NcGopher {
                 });
             });
         });
+        if msg.len() > 0 {
+            app.with_user_data(|userdata: &mut UserData|
+                               userdata.ui_tx.read().unwrap()
+                               .send(UiMessage::ShowMessage(msg)).unwrap()
+            );
+        }
 
         // FIXME: Call this from the previous callback
         if !title.is_empty() {
