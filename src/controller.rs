@@ -5,6 +5,7 @@ use std::net::{TcpStream, ToSocketAddrs};
 use std::io::{BufWriter, Read, Write};
 use std::fs::File;
 use std::path::Path;
+use std::process::Command;
 use cursive::Cursive;
 use chrono::Local;
 use url::Url;
@@ -16,6 +17,7 @@ use crate::ncgopher::{NcGopher, UiMessage, ContentType};
 use crate::gophermap::{GopherMapEntry};
 use crate::history::{History, HistoryEntry};
 use crate::bookmarks::{Bookmark, Bookmarks};
+use crate::SETTINGS;
 
 #[derive(Clone)]
 pub struct Controller {
@@ -43,6 +45,9 @@ pub enum ControllerMessage {
     BinaryWritten(String, usize),
     ClearHistory,
     NavigateBack,
+    OpenImage(Url),
+    OpenHtml(Url),
+    OpenTelnet(Url),
     ReloadCurrentPage,
     RemoveBookmark(Bookmark),
     RequestAddBookmarkDialog,
@@ -361,6 +366,26 @@ impl Controller {
         }
     }
 
+    fn open_command(&mut self, command: &str, url: Url) {
+        // Opens an image in an external application - if defined in settings
+        let tx_clone = self.tx.read().unwrap().clone();
+        let u = url.clone().into_string();
+        let command = SETTINGS.read().unwrap().get_str(command).unwrap();
+        if !command.is_empty() {
+            if let Err(err) = Command::new(&command)
+                .arg(u)
+                .spawn() {
+                    tx_clone.send(
+                        ControllerMessage::ShowMessage(format!("Command failed: {}: {}", err, command)))
+                        .unwrap();
+                }
+        } else {
+            tx_clone.send(
+                ControllerMessage::ShowMessage(format!("No command for opening {} defined.", url.into_string())))
+                .unwrap();
+        }
+    }
+
     fn save_textfile(&mut self, filename: String) {
         let content: String;
         {
@@ -551,6 +576,15 @@ impl Controller {
                     },
                     ControllerMessage::NavigateBack => {
                         self.navigate_back();
+                    },
+                    ControllerMessage::OpenHtml(url) => {
+                        self.open_command("html_command", url);
+                    },
+                    ControllerMessage::OpenImage(url) => {
+                        self.open_command("image_command", url);
+                    },
+                    ControllerMessage::OpenTelnet(url) => {
+                        self.open_command("telnet_command", url);
                     },
                     ControllerMessage::FetchUrl(url, content_type, query) => {
                         self.fetch_url(url, content_type, query);

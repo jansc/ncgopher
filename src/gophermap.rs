@@ -26,32 +26,6 @@ pub struct GopherMapEntry {
 }
 
 impl GopherMapEntry {
-    /// Converts a Url into a GopherMapEntry
-    /*
-    pub fn url_into_entry(url: Url) -> GopherMapEntry {
-        // TODO Implement
-        GopherMapEntry {
-            item_type: ItemType::Error,
-            name: String::new(),
-            selector: String::new(),
-            host: String::new(),
-            port: 70,
-            url: url.clone()
-        }
-    }
-    
-    pub fn new(host: String, port: u16, selector: String, item_type: ItemType) -> GopherMapEntry {
-        GopherMapEntry {
-            item_type,
-            name: "".to_string(),
-            selector,
-            host,
-            port,
-            url: Url::parse("gopher://no.host:70").unwrap()
-        }
-    }
-    */
-
     /// Parses a raw string into a GopherMapEntry
     pub fn parse(line: String) -> Result<Self, &'static str> {
         let l: Vec<&str> = line.split_terminator("\t").collect();
@@ -114,11 +88,6 @@ impl GopherMapEntry {
         })
     }
 
-    /*
-    pub fn as_url(&self) -> Url {
-        self.url.clone()
-    }
-    */
 
     pub fn label(self: Self) -> String {
         self.name.clone()
@@ -275,6 +244,27 @@ impl ItemType {
     pub fn is_inline(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Inline => true,
+            _ => false
+        }
+    }
+
+    pub fn is_image(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::Gif | ItemType::Image => true,
+            _ => false
+        }
+    }
+
+    pub fn is_telnet(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::Telnet => true,
+            _ => false
+        }
+    }
+
+    pub fn is_html(item_type: ItemType) -> bool {
+        match item_type {
+            ItemType::Html => true,
             _ => false
         }
     }

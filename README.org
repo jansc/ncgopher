@@ -36,6 +36,7 @@ Obligatory screenshot:
  - Mouse support in some terminals
  - TLS support
  - Darkmode!
+ - External commands for HTML and Telnet
 
 ** Installation
 

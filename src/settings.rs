@@ -57,6 +57,9 @@ impl Settings {
         settings.config.set_default("homepage", "gopher://jan.bio:70/1/ncgopher/")?;
         settings.config.set_default("debug", false)?;
         settings.config.set_default("theme", "lightmode")?;
+        settings.config.set_default("html_command", "")?;
+        settings.config.set_default("image_command", "")?;
+        settings.config.set_default("telnet_command", "")?;
         settings.themes.insert("darkmode".to_string(), include_str!("themes/darkmode.toml").to_string());
         settings.themes.insert("lightmode".to_string(), include_str!("themes/lightmode.toml").to_string());
 

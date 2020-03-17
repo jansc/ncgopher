@@ -452,6 +452,18 @@ impl NcGopher {
                         userdata.ui_tx.write().unwrap().send(
                             UiMessage::OpenQueryDialog(entry.url.clone()))
                             .unwrap();
+                    } else if ItemType::is_html(entry.item_type) {
+                        userdata.controller_tx.write().unwrap().send(
+                            ControllerMessage::OpenHtml(entry.url.clone()))
+                            .unwrap();
+                    } else if ItemType::is_image(entry.item_type) {
+                        userdata.controller_tx.write().unwrap().send(
+                            ControllerMessage::OpenImage(entry.url.clone()))
+                            .unwrap();
+                    } else if ItemType::is_telnet(entry.item_type) {
+                        userdata.controller_tx.write().unwrap().send(
+                            ControllerMessage::OpenTelnet(entry.url.clone()))
+                            .unwrap();
                     }
                 });
             });
@@ -576,6 +588,9 @@ impl NcGopher {
         let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
         let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
         let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
+        let html_command = SETTINGS.read().unwrap().get_str("html_command").unwrap();
+        let image_command = SETTINGS.read().unwrap().get_str("image_command").unwrap();
+        let telnet_command = SETTINGS.read().unwrap().get_str("telnet_command").unwrap();
         let darkmode = theme == "darkmode";
         {
             let mut app = self.app.write().unwrap();
@@ -588,6 +603,13 @@ impl NcGopher {
                             .child(EditView::new().content(homepage_url).with_name("homepage").fixed_width(50))
                             .child(TextView::new("Download path:"))
                             .child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50))
+                            .child(TextView::new("\nUse full path to the external command executable.\nIt will be called with the URL as parameter."))
+                            .child(TextView::new("HTML browser:"))
+                            .child(EditView::new().content(html_command.as_str()).with_name("html_command").fixed_width(50))
+                            .child(TextView::new("Images viewer:"))
+                            .child(EditView::new().content(image_command.as_str()).with_name("image_command").fixed_width(50))
+                            .child(TextView::new("Telnet client:"))
+                            .child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
                             .child(TextView::new("Dark mode:"))
                             .child(Checkbox::new().with_name("darkmode")
                             )
@@ -605,14 +627,23 @@ impl NcGopher {
                         let darkmode = app.call_on_name("darkmode", |view: &mut Checkbox| {
                             view.is_checked()
                         }).unwrap();
+                        let html_command = app.call_on_name("html_command", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
+                        let image_command = app.call_on_name("image_command", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
+                        let telnet_command = app.call_on_name("telnet_command", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
                         app.pop_layer();
                         if let Ok(_url) = Url::parse(&homepage) {
                             SETTINGS.write().unwrap().set::<String>("homepage", homepage.clone().to_string()).unwrap();
                             SETTINGS.write().unwrap().set::<String>("download_path", download.clone().to_string()).unwrap();
-                            let mut theme = "lightmode";
-                            if darkmode {
-                                theme = "darkmode";
-                            }
+                            SETTINGS.write().unwrap().set::<String>("html_command", html_command.clone().to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("image_command", image_command.clone().to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.clone().to_string()).unwrap();
+                            let theme = if darkmode { "darkmode" } else { "lightmode" };
                             app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
                             SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
 
