@@ -60,7 +60,7 @@ pub enum ControllerMessage {
     ShowMessage(String),
     RedrawBookmarks,
     RedrawHistory,
-    FetchUrl(Url, ContentType, String),
+    FetchUrl(Url, ContentType),
     FetchBinaryUrl(Url, String),
 }
 
@@ -103,7 +103,7 @@ impl Controller {
         Ok(controller)
     }
 
-    fn fetch_url(&self, url: Url, content_type: ContentType, query: String) {
+    fn fetch_url(&self, url: Url, content_type: ContentType) {
         info!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -116,7 +116,9 @@ impl Controller {
         let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
         if let Some(s) = s { server = s.to_string() }
-        let mut path = gopher_url.path().to_string();
+        let path = gopher_url.path();
+        let mut path = str::replace(path, "%09", "\t");
+        info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
             //let x = path[0..1].to_string();
             // TODO: Sjekk om x[0] == / og x[1] == itemtype
@@ -147,11 +149,7 @@ impl Controller {
                             Ok(mut stream) => {
                                 tls = true;
                                 info!("Connected with TLS");
-                                if !query.is_empty() {
-                                    writeln!(stream, "{}\t{}", path, query.as_str()).unwrap();
-                                } else {
-                                    writeln!(stream, "{}", path).unwrap();
-                                }
+                                writeln!(stream, "{}", path).unwrap();
 
                                 loop {
                                     match stream.read_to_end(&mut buf) {
@@ -172,11 +170,7 @@ impl Controller {
             }
             if !tls {
                 let mut stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
-                if !query.is_empty() {
-                    writeln!(stream, "{}\t{}", path, query.as_str()).unwrap();
-                } else {
-                    writeln!(stream, "{}", path).unwrap();
-                }
+                writeln!(stream, "{}", path).unwrap();
 
                 loop {
                     match stream.read_to_end(&mut buf) {
@@ -569,8 +563,8 @@ impl Controller {
                     ControllerMessage::OpenTelnet(url) => {
                         self.open_command("telnet_command", url);
                     },
-                    ControllerMessage::FetchUrl(url, content_type, query) => {
-                        self.fetch_url(url, content_type, query);
+                    ControllerMessage::FetchUrl(url, content_type) => {
+                        self.fetch_url(url, content_type);
                     },
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);

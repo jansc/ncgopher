@@ -39,7 +39,7 @@ pub enum UiMessage {
     MoveToLink(Direction),
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
-    OpenQueryUrl(Url, String),
+    OpenQueryUrl(Url),
     OpenUrl(Url, ContentType),
     OpenUrlFromString(String),
     PageSaved(Url, ContentType, String), 
@@ -354,7 +354,7 @@ impl NcGopher {
             v.set_view("content");
         });
         self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, content_type, String::new())).unwrap();
+            .send(ControllerMessage::FetchUrl(url, content_type)).unwrap();
     }
 
     fn open_query_dialog(&mut self, url: Url) {
@@ -375,10 +375,17 @@ impl NcGopher {
                             view.get_content()
                         });
                         if let Some(n) = name {
+                            let mut u = url.clone();
+                            let mut path = u.path().to_string();
+                            path.push_str("%09");
+                            path.push_str(&n);
+                            u.set_path(path.as_str());
+                            info!("open_query_dialog(): url = {}", u);
+                            
                             app.pop_layer(); // Close search dialog
                             app.with_user_data(|userdata: &mut UserData| {
                                 userdata.ui_tx.write().unwrap().send(
-                                    UiMessage::OpenQueryUrl(url.clone(), n.to_string()))
+                                    UiMessage::OpenQueryUrl(u.clone()))
                                     .unwrap();
                             });
                         } else {
@@ -390,10 +397,11 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn query(&mut self, url: Url, query: String) {
+    fn query(&mut self, url: Url) {
+        trace!("query({});", url);
         self.set_message("Loading ...");
         self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, ContentType::Gophermap, query)).unwrap();
+            .send(ControllerMessage::FetchUrl(url, ContentType::Gophermap)).unwrap();
     }
 
     /// Renders a gophermap in a cursive::TextView
@@ -568,8 +576,14 @@ impl NcGopher {
                         });
                         if let Some(n) = name {
                             app.pop_layer();
+                            let mut u = url.clone();
+                            let mut path = u.path().to_string();
+                            path.push_str("%09");
+                            path.push_str(&n);
+                            u.set_path(path.as_str());
+                            info!("show_search_dialog(): url = {}", u);
                             ui_tx_clone.send(
-                                UiMessage::OpenQueryUrl(url.clone(), n.to_string()))
+                                UiMessage::OpenQueryUrl(u))
                                 .unwrap();
                         } else {
                             app.pop_layer(); // Close search dialog
@@ -1039,8 +1053,8 @@ impl NcGopher {
                 UiMessage::OpenQueryDialog(url) => {
                     self.open_query_dialog(url);
                 },
-                UiMessage::OpenQueryUrl(url, query) => {
-                    self.query(url, query);
+                UiMessage::OpenQueryUrl(url) => {
+                    self.query(url);
                 },
                 UiMessage::OpenUrl(url, content_type) => {
                     match content_type {
