@@ -100,7 +100,7 @@ impl Controller {
         // Add bookmarks to bookmark menu on startup
         ncgopher.open_gopher_url(url);
         info!("Controller::new()");
-        Ok(controller.clone())
+        Ok(controller)
     }
 
     fn fetch_url(&self, url: Url, content_type: ContentType, query: String) {
@@ -112,16 +112,10 @@ impl Controller {
 
         let mut port: u16 = 70;
         let p = gopher_url.port();
-        match p {
-            Some(p) => port = p,
-            _ => ()
-        }
+        if let Some(p) = p { port = p };
         let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
-        match s {
-            Some(s) => server = s.to_string(),
-            _ => ()
-        }
+        if let Some(s) = s { server = s.to_string() }
         let mut path = gopher_url.path().to_string();
         if path.len() > 2 {
             //let x = path[0..1].to_string();
@@ -129,7 +123,7 @@ impl Controller {
             path = path[2..].to_string();
         }
         
-        let server_details = format!("{}:{}", server, port).to_string();
+        let server_details = format!("{}:{}", server, port);
         let _server: Vec<_>;
         match server_details.as_str().to_socket_addrs() {
             Ok(s) => { _server = s.collect(); },
@@ -154,9 +148,9 @@ impl Controller {
                                 tls = true;
                                 info!("Connected with TLS");
                                 if !query.is_empty() {
-                                    write!(stream, "{}\t{}\n", path, query.as_str()).unwrap();
+                                    writeln!(stream, "{}\t{}", path, query.as_str()).unwrap();
                                 } else {
-                                    write!(stream, "{}\n", path).unwrap();
+                                    writeln!(stream, "{}", path).unwrap();
                                 }
 
                                 loop {
@@ -179,9 +173,9 @@ impl Controller {
             if !tls {
                 let mut stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
                 if !query.is_empty() {
-                    write!(stream, "{}\t{}\n", path, query.as_str()).unwrap();
+                    writeln!(stream, "{}\t{}", path, query.as_str()).unwrap();
                 } else {
-                    write!(stream, "{}\n", path).unwrap();
+                    writeln!(stream, "{}", path).unwrap();
                 }
 
                 loop {
@@ -211,20 +205,14 @@ impl Controller {
     fn fetch_binary_url(&self, url: Url, local_filename: String) {
         let tx_clone = self.tx.read().unwrap().clone();
         // Local copy of Url will be passed to thread
-        let gopher_url = url.clone();
+        let gopher_url = url;
 
         let mut port: u16 = 70;
         let p = gopher_url.port();
-        match p {
-            Some(p) => port = p,
-            _ => ()
-        }
+        if let Some(p) = p { port = p }
         let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
-        match s {
-            Some(s) => server = s.to_string(),
-            _ => ()
-        }
+        if let Some(s) = s { server = s.to_string() }
         let mut path = gopher_url.path().to_string();
         if path.len() > 2 {
             //let x = path[0..1].to_string();
@@ -232,7 +220,7 @@ impl Controller {
             path = path[2..].to_string();
         }
         
-        let server_details = format!("{}:{}", server, port).to_string();
+        let server_details = format!("{}:{}", server, port);
         let _server: Vec<_>;
         match server_details.as_str().to_socket_addrs() {
             Ok(s) => { _server = s.collect(); },
@@ -248,7 +236,7 @@ impl Controller {
             // FIXME: Error handling!
             let mut tls = false;
             let f = File::create(local_filename.clone())
-                .expect(format!("Unable to open file '{}'", local_filename.clone()).as_str());
+                .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename.clone()));
             let mut bw = BufWriter::new(f);
             let mut buf = [0u8;1024];
             let mut total_written: usize = 0;
@@ -256,12 +244,13 @@ impl Controller {
                 if port != 70 {
                     if let Ok(connector) = TlsConnector::new() {
                         let stream = TcpStream::connect(server_details.clone())
-                            .expect(format!("Couldn't connect to the server {}", server_details).as_str());
+                            .unwrap_or_else(|_| panic!(
+                                "Couldn't connect to the server {}", server_details));
                         match connector.connect(&server, stream) {
                             Ok(mut stream) => {
                                 tls = true;
                                 info!("Connected with TLS");
-                                write!(stream, "{}\n", path).unwrap();
+                                writeln!(stream, "{}", path).unwrap();
                                 loop {
                                     let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
                                     if bytes_read == 0 {
@@ -282,7 +271,7 @@ impl Controller {
             }
             if !tls {
                 let mut stream = TcpStream::connect(server_details.clone()).expect("Couldn't connect to the server...");
-                write!(stream, "{}\n", path).unwrap();
+                writeln!(stream, "{}", path).unwrap();
                 loop {
                     let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
                     if bytes_read == 0 {
@@ -309,9 +298,9 @@ impl Controller {
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
         let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
         let b: Bookmark = Bookmark {
-            title: title,
-            url: url.clone(),
-            tags: tags
+            title,
+            url,
+            tags
         };
         self.bookmarks.lock().unwrap().add(b.clone());
         /*
@@ -333,7 +322,7 @@ impl Controller {
     fn add_to_history(&mut self, url: Url) -> HistoryEntry {
         let h: HistoryEntry = HistoryEntry {
             title: url.clone().into_string(),
-            url: url.clone(),
+            url,
             timestamp: Local::now(),
             visited_count: 1,
         };
@@ -408,14 +397,10 @@ impl Controller {
         };
 
         // Read the file contents into a string, returns `io::Result<usize>`
-        match file.write_all(content.as_bytes()) {
-            Err(why) => {
-                self.ui.read().unwrap().controller_tx.read().unwrap()
+        if let Err(why) = file.write_all(content.as_bytes()) {
+            self.ui.read().unwrap().controller_tx.read().unwrap()
                 .send(ControllerMessage::ShowMessage(format!("Couldn't open {}: {}", display, why)))
-                    .unwrap();
-                return;
-            },
-            Ok(_) => (),
+                .unwrap();
         }
         // `file` goes out of scope, and the [filename] file gets closed
     }
@@ -455,9 +440,8 @@ impl Controller {
 
         // Read the file contents into a string, returns `io::Result<usize>`
         for l in txtlines {
-            match file.write_all(format!("{}\n",l).as_bytes()) {
-                Err(why) => panic!("couldn't write {}: {}", display, why),
-                Ok(_) => (),
+            if let Err(why) = file.write_all(format!("{}\n",l).as_bytes()) {
+                panic!("couldn't write {}: {}", display, why)
             }
         }
         // `file` goes out of scope, and the "hello.txt" file gets closed

@@ -112,7 +112,7 @@ impl NcGopher {
 
     /// Used by statusbar to get current message
     pub fn get_message(&self) -> String {
-        return self.message.read().unwrap().clone();
+        self.message.read().unwrap().clone()
     }
 
     /// Sets message for statusbar
@@ -205,10 +205,7 @@ impl NcGopher {
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
         let last_seg = segments.pop();
-        match last_seg {
-            Some(filename) => return filename.to_string(),
-            None => ()
-        }
+        if let Some(filename) = last_seg { return filename.to_string() }
         "download.bin".to_string()
     }
 
@@ -338,7 +335,7 @@ impl NcGopher {
         match res {
             Ok(res) => {
                 url = res;
-                self.open_gopher_address(url.clone(), ItemType::to_content_type(ItemType::from_url(url.clone())));
+                self.open_gopher_address(url.clone(), ItemType::to_content_type(ItemType::from_url(url)));
             },
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
@@ -468,7 +465,7 @@ impl NcGopher {
                 });
             });
         });
-        if msg.len() > 0 {
+        if !msg.is_empty() {
             app.with_user_data(|userdata: &mut UserData|
                                userdata.ui_tx.read().unwrap()
                                .send(UiMessage::ShowMessage(msg)).unwrap()
@@ -502,7 +499,7 @@ impl NcGopher {
     fn show_add_bookmark_dialog(&mut self, url: Url) {
         {
             let mut app = self.app.write().unwrap();
-            let newurl = url.clone();
+            let newurl = url;
             app.add_layer(
                 Dialog::new()
                     .title("Add Bookmark")
@@ -639,19 +636,16 @@ impl NcGopher {
                         app.pop_layer();
                         if let Ok(_url) = Url::parse(&homepage) {
                             SETTINGS.write().unwrap().set::<String>("homepage", homepage.clone().to_string()).unwrap();
-                            SETTINGS.write().unwrap().set::<String>("download_path", download.clone().to_string()).unwrap();
-                            SETTINGS.write().unwrap().set::<String>("html_command", html_command.clone().to_string()).unwrap();
-                            SETTINGS.write().unwrap().set::<String>("image_command", image_command.clone().to_string()).unwrap();
-                            SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.clone().to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("download_path", download.to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("html_command", html_command.to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("image_command", image_command.to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.to_string()).unwrap();
                             let theme = if darkmode { "darkmode" } else { "lightmode" };
                             app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
                             SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
 
-                            match SETTINGS.write().unwrap().write_settings_to_file() {
-                                Err(why) => {
-                                    app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
-                                },
-                                Ok(_) => ()
+                            if let Err(why) = SETTINGS.write().unwrap().write_settings_to_file() {
+                                app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
                             }
                         } else {
                             app.add_layer(Dialog::info("Invalid homepage url"));
@@ -773,7 +767,7 @@ impl NcGopher {
         let mut i: usize = cur;
         match dir {
             Direction::Next =>  {
-                i = i + 1; // Start at the element after the current row
+                i += 1; // Start at the element after the current row
                 loop {
                     if i >= view.len() {
                         i = 0; // Wrap and start from scratch
@@ -786,12 +780,12 @@ impl NcGopher {
                     if !ItemType::is_inline(item.item_type) {
                         break;
                     }
-                    i = i + 1;
+                    i += 1;
                 }
             },
             Direction::Previous => {
                 if i > 0 {
-                    i = i - 1; // Start at the element before the current row
+                    i -= 1; // Start at the element before the current row
                 } else {
                     i = view.len() - 1;
                 }
@@ -807,7 +801,7 @@ impl NcGopher {
                     if !ItemType::is_inline(item.item_type) {
                         break;
                     }
-                    i = i - 1;
+                    i -= 1;
                 }
             }
         }
@@ -887,7 +881,7 @@ impl NcGopher {
     
     fn show_save_as_dialog(&mut self, url: Url) {
         {
-            let mut filename = self.get_filename_from_url(url.clone());
+            let mut filename = self.get_filename_from_url(url);
             if filename.is_empty() {
                 filename.push_str("download");
             }

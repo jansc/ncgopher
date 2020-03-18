@@ -32,7 +32,7 @@ impl Settings {
                 dir.push(env!("CARGO_PKG_NAME"));
                 let dir = dir.into_os_string().into_string().unwrap();
                 if !Path::new(&dir).exists() {
-                    match fs::create_dir_all(dir.clone()) {
+                    match fs::create_dir_all(dir) {
                         Err(why) => warn!("Could not create config dir: {}", why),
                         Ok(()) => ()
                     }
@@ -124,8 +124,7 @@ impl Settings {
     */
 
     pub fn get_str(&self, key: &str) -> Result<String, ConfigError> {
-        let res = self.config.get_str(key);
-        res
+        self.config.get_str(key)
     }
 
     /*

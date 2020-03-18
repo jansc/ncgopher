@@ -28,10 +28,10 @@ pub struct GopherMapEntry {
 impl GopherMapEntry {
     /// Parses a raw string into a GopherMapEntry
     pub fn parse(line: String) -> Result<Self, &'static str> {
-        let l: Vec<&str> = line.split_terminator("\t").collect();
+        let l: Vec<&str> = line.split_terminator('\t').collect();
         // Sometimes there are empty lines in a gophermap.
         // Ignore these.
-        if l.len() == 0 {
+        if l.is_empty() {
             return Ok(GopherMapEntry {
                 item_type: ItemType::Inline,
                 name: "".to_string(),
@@ -64,7 +64,7 @@ impl GopherMapEntry {
             url.set_port(Some(port)).unwrap();
         } else if item_type == ItemType::Html {
             if path.starts_with("hURL:") {
-                let mut html_url = path.clone();
+                let mut html_url = path;
                 html_url.replace_range(..5, "");
                 match Url::parse(html_url.as_str()) {
                     Ok(u) => url = u,
@@ -90,7 +90,7 @@ impl GopherMapEntry {
 
 
     pub fn label(self: Self) -> String {
-        self.name.clone()
+        self.name
     }
 }
 
