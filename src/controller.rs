@@ -342,8 +342,7 @@ impl Controller {
     fn navigate_back(&mut self) {
         let mut guard = self.history.lock().unwrap();
         let history = guard.back();
-        if history.is_some() {
-            let h = history.unwrap();
+        if let Some(h) = history {
             std::mem::drop(guard);
             // FIXME: Add contenttype to history
             self.ui.read().unwrap().ui_tx.read().unwrap()

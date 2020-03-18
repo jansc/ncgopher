@@ -709,56 +709,50 @@ impl NcGopher {
         let mut app = self.app.write().expect("Could not get write lock on app");
         let view: ViewRef<SelectView<GopherMapEntry>>;
         let v = app.find_name("content");
-        if v.is_none() {
-            return;
+        if let Some(v) = v {
+            view = v;
         } else {
-            view = v.unwrap();
+            return;
         }
         let cur = match view.selected_id() {
             Some(id) => id,
             None => 0
         };
-        match view.get_item(cur) {
-            Some((_, item)) => {
-                match item.item_type {
-                    ItemType::Html => {
-                        let mut url = item.url.clone().into_string();
-                        if url.starts_with("URL:") {
-                            url.replace_range(..3, "");
-                            app.with_user_data(|userdata: &mut UserData|
-                                userdata.ui_tx.read().unwrap()
-                                .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
-                            );
-                        } else {
-                            app.with_user_data(|userdata: &mut UserData|
-                                userdata.ui_tx.read().unwrap()
-                                .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
-                            );
-                        }
-                    },
-                    ItemType::Inline => (),
-                    _ => {
+        if let Some((_, item)) = view.get_item(cur) {
+            match item.item_type {
+                ItemType::Html => {
+                    let mut url = item.url.clone().into_string();
+                    if url.starts_with("URL:") {
+                        url.replace_range(..3, "");
                         app.with_user_data(|userdata: &mut UserData|
-                            userdata.ui_tx.read().unwrap()
-                            .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
+                                           userdata.ui_tx.read().unwrap()
+                                           .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
+                        );
+                    } else {
+                        app.with_user_data(|userdata: &mut UserData|
+                                           userdata.ui_tx.read().unwrap()
+                                           .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
                         );
                     }
+                },
+                ItemType::Inline => (),
+                _ => {
+                    app.with_user_data(|userdata: &mut UserData|
+                                       userdata.ui_tx.read().unwrap()
+                                       .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
+                    );
                 }
-                if !ItemType::is_inline(item.item_type) {
-                }
-            },
-            None => ()
+            }
         };
     }
 
     fn move_to_link(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
         let mut view: ViewRef<SelectView<GopherMapEntry>>;
-        let v = app.find_name("content");
-        if v.is_none() {
-            return;
+        if let Some(v) = app.find_name("content") {
+            view = v;
         } else {
-            view = v.unwrap();
+            return;
         }
         let cur = match view.selected_id() {
             Some(id) => id,

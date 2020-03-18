@@ -281,14 +281,10 @@ impl ItemType {
     }
 
     pub fn to_content_type(it: ItemType) -> ContentType {
-        let mut ct = match it {
+        if ItemType::is_download(it) { ContentType::Binary } else { match it {
             ItemType::Dir => ContentType::Gophermap,
             ItemType::File => ContentType::Text,
             _ => ContentType::Text // FIXME: Should be unknown
-        };
-        if ItemType::is_download(it) {
-            ct = ContentType::Binary;
-        }
-        ct
+        } }
     }
 }
