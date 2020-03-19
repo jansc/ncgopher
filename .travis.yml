@@ -11,10 +11,6 @@ cache: cargo
 #  directories:
 #    - /home/travis/.cargo
 
-#before_cache:
-#  - rm -rf "$TRAVIS_HOME/.cargo/registry/src"
-#  # rest of your existing "before_cache"argo
-
 script:
   - cargo build --verbose --all
   - cargo test --verbose --all
@@ -63,7 +59,9 @@ matrix:
     <<: *DEPLOY_TO_GITHUB
 
   # Testing other channels
-  - name: Windows
-    env: TARGET=x86_64-pc-windows-msvc
-    os: windows
-    rust: stable
+# Can't get compilation on windows to run here:
+#  - name: Windows
+#    env: TARGET=x86_64-pc-windows-msvc
+#    # TODO: install mingw-w64-pdcurses
+#    os: windows
+#    rust: stable
