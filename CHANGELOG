@@ -4,10 +4,13 @@
 
   New features:
   - Darkmode (can be set in config file or settings dialog)
+  - External commands for telnet and html. External command for images
+    not yet implemented
 
   Bugfixes:
   - Config file was not read on startup
   - Error handling for invalid gophermaps
+  - Fixed bookmarking of queries
 
 ** 0.1.2 [2020-03-14]
 
@@ -16,8 +19,8 @@
    port number is different than 70. Fallback to a non-TLS connection
  - New command 'i' to show url below cursor
  - Implemented simple bookmarks dialog for deleting and opening bookmarks
- - Wrapped navigtaion. Use 'p' for go to previous url and 'n'
-   for next url
+ - Wrapped navigtaion. Use 'p' for go to previous url and 'n' for next
+   url
 
  Bugfixes:
  - Bugfix: No more italics for all text in gophermaps
