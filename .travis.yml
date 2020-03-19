@@ -61,9 +61,9 @@ matrix:
     script: cargo build --release --target $TARGET --locked
     install: true
     <<: *DEPLOY_TO_GITHUB
-	
-	# Testing other channels
-  - name Windows
+
+  # Testing other channels
+  - name: Windows
     env: TARGET=x86_64-pc-windows-msvc
     os: windows
     rust: stable
