@@ -13,8 +13,8 @@ use url::Url;
 #[cfg(feature="tls")]
 use native_tls::TlsConnector;
 
-use crate::ncgopher::{NcGopher, UiMessage, ContentType};
-use crate::gophermap::{GopherMapEntry};
+use crate::ncgopher::{NcGopher, UiMessage};
+use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::SETTINGS;
@@ -35,7 +35,7 @@ pub struct Controller {
     /// Current URL
     current_url: Arc<Mutex<Url>>, 
     /// Current content type
-    current_content_type: Arc<Mutex<ContentType>>, 
+    current_item_type: Arc<Mutex<ItemType>>, 
 }
 
 /// Defines messages sent between Controller and UI
@@ -56,11 +56,11 @@ pub enum ControllerMessage {
     RequestSettingsDialog,
     Quit,
     SavePageAs(String),
-    SetContent(Url, String, ContentType),
+    SetContent(Url, String, ItemType),
     ShowMessage(String),
     RedrawBookmarks,
     RedrawHistory,
-    FetchUrl(Url, ContentType),
+    FetchUrl(Url, ItemType),
     FetchBinaryUrl(Url, String),
 }
 
@@ -79,7 +79,7 @@ impl Controller {
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
-            current_content_type: Arc::new(Mutex::new(ContentType::Gophermap)),
+            current_item_type: Arc::new(Mutex::new(ItemType::Dir)),
         };
         ncgopher.setup_ui();
         // Add old entries to history on start-up
@@ -103,7 +103,7 @@ impl Controller {
         Ok(controller)
     }
 
-    fn fetch_url(&self, url: Url, content_type: ContentType) {
+    fn fetch_url(&self, url: Url, item_type: ItemType) {
         info!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -190,7 +190,7 @@ impl Controller {
             tx_clone.send(
                 ControllerMessage::RedrawHistory).unwrap();
             tx_clone.send(
-                ControllerMessage::SetContent(gopher_url.clone(), s.to_string(), content_type))
+                ControllerMessage::SetContent(gopher_url.clone(), s.to_string(), item_type))
                 .unwrap();
         });
     }
@@ -338,9 +338,9 @@ impl Controller {
         let history = guard.back();
         if let Some(h) = history {
             std::mem::drop(guard);
-            // FIXME: Add contenttype to history
+            // FIXME: Add itemtype to history
             self.ui.read().unwrap().ui_tx.read().unwrap()
-                .send(UiMessage::OpenUrl(h.url, ContentType::Gophermap))
+                .send(UiMessage::OpenUrl(h.url, ItemType::Dir))
                 .unwrap();
         } else {
             std::mem::drop(guard);
@@ -464,15 +464,15 @@ impl Controller {
                     },
                     ControllerMessage::ReloadCurrentPage => {
                         let current_url: Url;
-                        let current_content_type: ContentType;
+                        let current_item_type: ItemType;
                         {
                             let guard = self.current_url.lock().unwrap();
                             current_url = guard.clone();
-                            let guard = self.current_content_type.lock().unwrap();
-                            current_content_type = guard.clone();
+                            let guard = self.current_item_type.lock().unwrap();
+                            current_item_type = *guard;
                         }
                         self.ui.read().unwrap().ui_tx.read().unwrap()
-                            .send(UiMessage::OpenUrl(current_url, current_content_type)).unwrap();
+                            .send(UiMessage::OpenUrl(current_url, current_item_type)).unwrap();
                     },
                     ControllerMessage::RemoveBookmark(bookmark) => {
                         info!("Removing bookmark {}", bookmark.title);
@@ -512,33 +512,33 @@ impl Controller {
                     },
                     ControllerMessage::SavePageAs(filename) => {
                         let url: Url;
-                        let content_type: ContentType;
+                        let item_type: ItemType;
                         {
-                            let guard = self.current_content_type.lock().unwrap();
-                            content_type = guard.clone();
+                            let guard = self.current_item_type.lock().unwrap();
+                            item_type = *guard;
                             let guard = self.current_url.lock().unwrap();
                             url = guard.clone();
                         }
-                        match content_type {
-                            ContentType::Gophermap => { self.save_gophermap(filename.clone()) },
-                            ContentType::Text => { self.save_textfile(filename.clone()) },
+                        match item_type {
+                            ItemType::Dir => { self.save_gophermap(filename.clone()) },
+                            ItemType::File => { self.save_textfile(filename.clone()) },
                             _ => ()
                         }
                         self.ui.read().unwrap().ui_tx.read().unwrap()
-                            .send(UiMessage::PageSaved(url, content_type, filename)).unwrap();
+                            .send(UiMessage::PageSaved(url, item_type, filename)).unwrap();
                     },
-                    ControllerMessage::SetContent(url, content, content_type) => {
+                    ControllerMessage::SetContent(url, content, item_type) => {
                         {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
                             guard.push_str(content.as_str());
                             let mut guard = self.current_url.lock().unwrap();
                             *guard = url.clone();
-                            let mut guard = self.current_content_type.lock().unwrap();
-                            *guard = content_type.clone();
+                            let mut guard = self.current_item_type.lock().unwrap();
+                            *guard = item_type;
                         }
                         self.ui.read().unwrap().ui_tx.read().unwrap()
-                            .send(UiMessage::ShowContent(url, content, content_type)).unwrap();
+                            .send(UiMessage::ShowContent(url, content, item_type)).unwrap();
                     },
                     ControllerMessage::ShowMessage(msg) => {
                         self.ui.read().unwrap().ui_tx.read().unwrap()
@@ -563,8 +563,8 @@ impl Controller {
                     ControllerMessage::OpenTelnet(url) => {
                         self.open_command("telnet_command", url);
                     },
-                    ControllerMessage::FetchUrl(url, content_type) => {
-                        self.fetch_url(url, content_type);
+                    ControllerMessage::FetchUrl(url, item_type) => {
+                        self.fetch_url(url, item_type);
                     },
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);

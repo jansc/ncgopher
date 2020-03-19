@@ -1,5 +1,4 @@
 use url::Url;
-use crate::ncgopher::ContentType;
 
 /// A list of Gopher resources.
 /*
@@ -278,13 +277,5 @@ impl ItemType {
             item_type = ItemType::decode(chars.next().unwrap());
         }
         item_type
-    }
-
-    pub fn to_content_type(it: ItemType) -> ContentType {
-        if ItemType::is_download(it) { ContentType::Binary } else { match it {
-            ItemType::Dir => ContentType::Gophermap,
-            ItemType::File => ContentType::Text,
-            _ => ContentType::Text // FIXME: Should be unknown
-        } }
     }
 }

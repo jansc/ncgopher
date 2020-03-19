@@ -7,7 +7,7 @@
 *** DONE [#A] Refactor: Get rid of server/port/path - use url::URL
 *** DONE [#A] Error handling for URLs
 *** NEXT [#B] Refactor: Move non-ui functions to controller
-*** TODO Refactor: get rid of contenttype, use itemtype
+*** DONE Refactor: get rid of contenttype, use itemtype
 *** TODO [#B] Implement open history entries [5/6]
     - [X] Open URL from history-menu
     - [X] Add count to history
@@ -35,6 +35,7 @@
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
 **** SPACE to page
+*** TODO Settings dialog
 *** TODO Setting for disabling history recording
 *** TODO Tor support
 *** TODO Handle tags for bookmarks

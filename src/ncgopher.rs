@@ -40,11 +40,11 @@ pub enum UiMessage {
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
     OpenQueryUrl(Url),
-    OpenUrl(Url, ContentType),
+    OpenUrl(Url, ItemType),
     OpenUrlFromString(String),
-    PageSaved(Url, ContentType, String), 
+    PageSaved(Url, ItemType, String), 
     ShowAddBookmarkDialog(Url),
-    ShowContent(Url, String, ContentType),
+    ShowContent(Url, String, ItemType),
     ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
     ShowMessage(String),
@@ -54,14 +54,6 @@ pub enum UiMessage {
     ShowSettingsDialog,
     Trigger,
 }
-
-#[derive(Clone)]
-pub enum ContentType {
-    Gophermap,
-    Text,
-    Binary
-}
-
 
 /// UserData is stored inside the cursive object (with set_user_data).
 /// This makes the contained data available without the use of closures.
@@ -335,7 +327,7 @@ impl NcGopher {
         match res {
             Ok(res) => {
                 url = res;
-                self.open_gopher_address(url.clone(), ItemType::to_content_type(ItemType::from_url(url)));
+                self.open_gopher_address(url.clone(), ItemType::from_url(url));
             },
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
@@ -347,14 +339,14 @@ impl NcGopher {
         self.open_gopher_url_string(url.to_string());
     }
 
-    pub fn open_gopher_address(&mut self, url: Url, content_type: ContentType) {
+    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType) {
         self.set_message("Loading ...");
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("content");
         });
         self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, content_type)).unwrap();
+            .send(ControllerMessage::FetchUrl(url, item_type)).unwrap();
     }
 
     fn open_query_dialog(&mut self, url: Url) {
@@ -401,7 +393,7 @@ impl NcGopher {
         trace!("query({});", url);
         self.set_message("Loading ...");
         self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, ContentType::Gophermap)).unwrap();
+            .send(ControllerMessage::FetchUrl(url, ItemType::Dir)).unwrap();
     }
 
     /// Renders a gophermap in a cursive::TextView
@@ -441,17 +433,13 @@ impl NcGopher {
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    if ItemType::is_download(entry.item_type) {
+                    // FIXME Remove duplicate code
+                    if ItemType::is_download(entry.item_type) ||
+                        ItemType::is_text(entry.item_type) ||
+                        ItemType::is_dir(entry.item_type)
+                    {
                         userdata.ui_tx.write().unwrap().send(
-                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Binary))
-                            .unwrap();
-                    } else if ItemType::is_text(entry.item_type) {
-                        userdata.ui_tx.write().unwrap().send(
-                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Text))
-                            .unwrap();
-                    } else if ItemType::is_dir(entry.item_type) {
-                        userdata.ui_tx.write().unwrap().send(
-                            UiMessage::OpenUrl(entry.url.clone(), ContentType::Gophermap))
+                            UiMessage::OpenUrl(entry.url.clone(), entry.item_type))
                             .unwrap();
                     } else if ItemType::is_query(entry.item_type) {
                         userdata.ui_tx.write().unwrap().send(
@@ -1032,17 +1020,17 @@ impl NcGopher {
                 UiMessage::ClearBookmarksMenu => {
                     self.clear_bookmarks_menu();
                 },
-                UiMessage::PageSaved(_url, _content_type, filename) => {
+                UiMessage::PageSaved(_url, _item_type, filename) => {
                     self.set_message(format!("Page saved as '{}'.", filename).as_str());
                 },
                 UiMessage::ShowAddBookmarkDialog(url) => {
                     self.show_add_bookmark_dialog(url);
                 },
-                UiMessage::ShowContent(url, content, content_type) => {
-                    match content_type {
-                        ContentType::Gophermap => self.show_gophermap(content),
-                        ContentType::Text => self.show_text_file(content),
-                        ContentType::Binary => (),
+                UiMessage::ShowContent(url, content, item_type) => {
+                    if ItemType::is_dir(item_type) {
+                        self.show_gophermap(content);
+                    } else if ItemType::is_text(item_type) {
+                        self.show_text_file(content);
                     }
                     self.set_message(url.as_str());
                 },
@@ -1056,21 +1044,18 @@ impl NcGopher {
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);
                 },
-                UiMessage::OpenUrl(url, content_type) => {
-                    match content_type {
-                        ContentType::Binary => {
-                            match dirs::home_dir() {
-                                Some(dir) => {
-                                    self.fetch_binary_file(url, dir.into_os_string().into_string().unwrap());
-                                },
-                                None => {
-                                    self.set_message("Could not find download dir");
-                                }
-                            };
-                        },
-                        _ => {
-                            self.open_gopher_address(url, content_type);
-                        }
+                UiMessage::OpenUrl(url, item_type) => {
+                    if ItemType::is_download(item_type) {
+                        match dirs::home_dir() {
+                            Some(dir) => {
+                                self.fetch_binary_file(url, dir.into_os_string().into_string().unwrap());
+                            },
+                            None => {
+                                self.set_message("Could not find download dir");
+                            }
+                        };
+                    } else {
+                        self.open_gopher_address(url, item_type);
                     }
                 },
                 UiMessage::OpenUrlFromString(url) => {
