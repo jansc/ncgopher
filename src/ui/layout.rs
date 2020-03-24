@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
+use crate::gophermap::GopherMapEntry;
 use cursive::align::HAlign;
 use cursive::direction::Direction;
 use cursive::event::{AnyCb, Event, EventResult};
-use cursive::theme::{ColorStyle};
+use cursive::theme::ColorStyle;
 use cursive::traits::View;
 use cursive::vec::Vec2;
 use cursive::view::{IntoBoxedView, Selector};
 use cursive::views::EditView;
 use cursive::Printer;
 use unicode_width::UnicodeWidthStr;
-use crate::gophermap::GopherMapEntry;
 
 //use command::Command;
 //use commands::CommandResult;
@@ -29,18 +29,23 @@ impl ViewExt for cursive::views::SelectView {
     }
 }
 
-impl ViewExt for cursive::views::ScrollView<cursive::views::NamedView<cursive::views::SelectView<GopherMapEntry>>> {
+impl ViewExt
+    for cursive::views::ScrollView<
+        cursive::views::NamedView<cursive::views::SelectView<GopherMapEntry>>,
+    >
+{
     fn title(&self) -> String {
         "scrollview(gophermap)".to_string()
     }
 }
 
-impl ViewExt for cursive::views::ScrollView<cursive::views::NamedView<cursive::views::SelectView<String>>> {
+impl ViewExt
+    for cursive::views::ScrollView<cursive::views::NamedView<cursive::views::SelectView<String>>>
+{
     fn title(&self) -> String {
         "scrollview(text)".to_string()
     }
 }
-
 
 struct Screen {
     title: String,
@@ -54,21 +59,21 @@ pub struct Layout {
     focus: Option<String>,
     pub cmdline: EditView,
     cmdline_focus: bool,
-//    result: Result<Option<String>, String>,
-//    result_time: Option<SystemTime>,
+    //    result: Result<Option<String>, String>,
+    //    result_time: Option<SystemTime>,
     screenchange: bool,
     last_size: Vec2,
-//    ev: events::EventManager,
-//    theme: Theme,
+    //    ev: events::EventManager,
+    //    theme: Theme,
 }
 
 impl Layout {
     pub fn new<T: IntoBoxedView>(status: T, /*ev: &events::EventManager, theme: Theme*/) -> Layout {
         let style = ColorStyle::new(
-//           ColorType::Color(*theme.palette.custom("cmdline_bg").unwrap()),
-//           ColorType::Color(*theme.palette.custom("cmdline").unwrap()),
+            //           ColorType::Color(*theme.palette.custom("cmdline_bg").unwrap()),
+            //           ColorType::Color(*theme.palette.custom("cmdline").unwrap()),
             ColorStyle::secondary().front,
-            ColorStyle::secondary().back
+            ColorStyle::secondary().back,
         );
 
         Layout {
@@ -78,12 +83,12 @@ impl Layout {
             focus: None,
             cmdline: EditView::new().filler(" ").style(style),
             cmdline_focus: false,
-//            result: Ok(None),
-//            result_time: None,
+            //            result: Ok(None),
+            //            result_time: None,
             screenchange: true,
             last_size: Vec2::new(0, 0),
-//            ev: ev.clone(),
-//            theme,
+            //            ev: ev.clone(),
+            //            theme,
         }
     }
 
@@ -119,35 +124,35 @@ impl Layout {
         self.stack.clear();
 
         // trigger a redraw
- //       self.ev.trigger();
+        //       self.ev.trigger();
     }
 
-//    pub fn set_result(&mut self, result: Result<Option<String>, String>) {
-//        self.result = result;
-//        self.result_time = Some(SystemTime::now());
-//    }
+    //    pub fn set_result(&mut self, result: Result<Option<String>, String>) {
+    //        self.result = result;
+    //        self.result_time = Some(SystemTime::now());
+    //    }
 
     /*
-    pub fn clear_cmdline(&mut self) {
-        self.cmdline.set_content("");
-        self.cmdline_focus = false;
-//        self.result = Ok(None);
-//        self.result_time = None;
-    }
-    */
+        pub fn clear_cmdline(&mut self) {
+            self.cmdline.set_content("");
+            self.cmdline_focus = false;
+    //        self.result = Ok(None);
+    //        self.result_time = None;
+        }
+        */
 
-//    fn get_result(&self) -> Result<Option<String>, String> {
-//        if let Some(t) = self.result_time {
-//            if t.elapsed().unwrap() > Duration::from_secs(5) {
-//                return Ok(None);
-//            }
-//        }
-//        self.result.clone()
-//    }
+    //    fn get_result(&self) -> Result<Option<String>, String> {
+    //        if let Some(t) = self.result_time {
+    //            if t.elapsed().unwrap() > Duration::from_secs(5) {
+    //                return Ok(None);
+    //            }
+    //        }
+    //        self.result.clone()
+    //    }
 
     pub fn set_title(&mut self, id: String, title: String) {
         if let Some(view) = self.views.get_mut(&id) {
-           view.title = title;
+            view.title = title;
         }
     }
 
@@ -191,13 +196,13 @@ impl Layout {
 
 impl View for Layout {
     fn draw(&self, printer: &Printer<'_, '_>) {
-//        let result = self.get_result();
+        //        let result = self.get_result();
 
         let cmdline_visible = self.cmdline.get_content().len() > 0;
         let cmdline_height = if cmdline_visible { 1 } else { 0 };
-//        if result.as_ref().map(Option::is_some).unwrap_or(true) {
-//            cmdline_height += 1;
-//        }
+        //        if result.as_ref().map(Option::is_some).unwrap_or(true) {
+        //            cmdline_height += 1;
+        //        }
 
         if let Some(screen) = self.get_current_screen() {
             // screen title
@@ -221,14 +226,14 @@ impl View for Layout {
         self.statusbar
             .draw(&printer.offset((0, printer.size.y - 2 - cmdline_height)));
 
-  //      if let Ok(Some(r)) = result {
- //           printer.print_hline((0, printer.size.y - cmdline_height), printer.size.x, " ");
-//            printer.print((0, printer.size.y - cmdline_height), &r);
-//        } else if let Err(e) = result {
-//            let style = ColorStyle::new(
-//                ColorType::Color(*self.theme.palette.custom("error").unwrap()),
-//                ColorType::Color(*self.theme.palette.custom("error_bg").unwrap()),
-//            );
+        //      if let Ok(Some(r)) = result {
+        //           printer.print_hline((0, printer.size.y - cmdline_height), printer.size.x, " ");
+        //            printer.print((0, printer.size.y - cmdline_height), &r);
+        //        } else if let Err(e) = result {
+        //            let style = ColorStyle::new(
+        //                ColorType::Color(*self.theme.palette.custom("error").unwrap()),
+        //                ColorType::Color(*self.theme.palette.custom("error_bg").unwrap()),
+        //            );
 
         /*
         printer.with_color(style, |printer| {

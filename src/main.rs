@@ -1,36 +1,36 @@
 extern crate clap;
 #[macro_use]
 extern crate log;
-extern crate dirs;
 extern crate config;
+extern crate dirs;
 extern crate serde;
 
 extern crate serde_derive;
 extern crate toml;
 
-
 use clap::{App, Arg};
-use cursive::Cursive;
-use url::Url;
-use std::sync::RwLock;
-use std::process::exit;
 use controller::Controller;
-use settings::Settings;
+use cursive::Cursive;
 use lazy_static::lazy_static;
+use settings::Settings;
+use std::process::exit;
+use std::sync::RwLock;
+use url::Url;
 
-mod ncgopher;
+mod bookmarks;
 mod controller;
 mod gophermap;
 mod history;
-mod bookmarks;
-mod ui;
+mod ncgopher;
 mod settings;
 mod traits;
-
+mod ui;
 
 lazy_static! {
     static ref SETTINGS: RwLock<Settings> = RwLock::new(match Settings::new() {
-        Ok(settings) => {settings},
+        Ok(settings) => {
+            settings
+        }
         Err(e) => {
             println!("Could not read settings: {}", e);
             exit(1);
@@ -44,22 +44,30 @@ fn main() {
         .version(env!("CARGO_PKG_VERSION"))
         .author("Jan Schreiber <jan@mecinus.com>")
         .about("An ncurses gopher client for the modern internet")
-        .arg(Arg::with_name("debug")
+        .arg(
+            Arg::with_name("debug")
                 .short("d")
                 .long("debug")
                 .value_name("FILE")
                 .help("Enable debug logging to the specified file")
                 .takes_value(true),
         )
-        .arg(Arg::with_name("URL")
-             .help("URL to open after startup")
-             .index(1))
+        .arg(
+            Arg::with_name("URL")
+                .help("URL to open after startup")
+                .index(1),
+        )
         .get_matches();
 
-    let mut homepage = Url::parse(SETTINGS.read().unwrap()
-                                  .get_str("homepage")
-                                  .expect("Could not find homepage in config")
-                                  .as_str()).unwrap();
+    let mut homepage = Url::parse(
+        SETTINGS
+            .read()
+            .unwrap()
+            .get_str("homepage")
+            .expect("Could not find homepage in config")
+            .as_str(),
+    )
+    .unwrap();
     if let Some(url) = matches.value_of("URL") {
         match Url::parse(url) {
             Ok(url) => homepage = url,
@@ -72,11 +80,11 @@ fn main() {
     let mut app = Cursive::default();
     //app.set_theme(SETTINGS.read().unwrap().get_theme());
     let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
-    app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme)).unwrap();
+    app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme))
+        .unwrap();
     let controller = Controller::new(app, homepage);
     match controller {
         Ok(mut controller) => controller.run(),
         Err(e) => println!("Error: {}", e),
     };
 }
-

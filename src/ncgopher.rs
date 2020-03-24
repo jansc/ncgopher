@@ -1,34 +1,34 @@
-use cursive::Cursive;
-use cursive::menu::MenuTree;
-use cursive::views::{Dialog, SelectView, EditView, TextView, LinearLayout, ViewRef, ScrollView, NamedView, Checkbox};
-use cursive::utils::markup::StyledString;
-use cursive::event::Key; 
-use cursive::traits::*;
-use std::str;
-use std::sync::{Arc, RwLock};
-use std::sync::mpsc;
-use url::Url;
+use crate::bookmarks::Bookmark;
 use crate::controller::ControllerMessage;
 use crate::gophermap::{GopherMapEntry, ItemType};
-use crate::history::{HistoryEntry};
-use crate::bookmarks::{Bookmark};
+use crate::history::HistoryEntry;
+use cursive::event::Key;
+use cursive::menu::MenuTree;
+use cursive::traits::*;
+use cursive::utils::markup::StyledString;
+use cursive::views::{
+    Checkbox, Dialog, EditView, LinearLayout, NamedView, ScrollView, SelectView, TextView, ViewRef,
+};
+use cursive::Cursive;
+use std::str;
+use std::sync::mpsc;
+use std::sync::{Arc, RwLock};
+use url::Url;
 //use crate::settings::Settings;
-use crate::SETTINGS;
+use crate::ui;
 use crate::ui::layout::Layout;
 use crate::ui::statusbar::StatusBar;
-use crate::ui;
+use crate::SETTINGS;
 
 extern crate chrono;
-extern crate url;
 extern crate log;
-
+extern crate url;
 
 #[derive(Clone, Debug)]
 pub enum Direction {
     Next,
-    Previous
+    Previous,
 }
-
 
 /// Messages sent between Controller and UI
 pub enum UiMessage {
@@ -42,7 +42,7 @@ pub enum UiMessage {
     OpenQueryUrl(Url),
     OpenUrl(Url, ItemType),
     OpenUrlFromString(String),
-    PageSaved(Url, ItemType, String), 
+    PageSaved(Url, ItemType, String),
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ItemType),
     ShowEditBookmarksDialog(Vec<Bookmark>),
@@ -64,8 +64,10 @@ pub struct UserData {
 }
 
 impl UserData {
-    pub fn new(ui_tx: Arc<RwLock<mpsc::Sender<UiMessage>>>,
-               controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>) -> UserData {
+    pub fn new(
+        ui_tx: Arc<RwLock<mpsc::Sender<UiMessage>>>,
+        controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
+    ) -> UserData {
         UserData {
             ui_tx,
             controller_tx,
@@ -83,7 +85,6 @@ pub struct NcGopher {
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
 }
-
 
 impl NcGopher {
     pub fn new(cursive: Cursive, controller_tx: mpsc::Sender<ControllerMessage>) -> NcGopher {
@@ -126,57 +127,108 @@ impl NcGopher {
 
         // TODO: Make keys configurable
         app.add_global_callback('q', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.controller_tx.read().unwrap().send(ControllerMessage::Quit)
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .send(ControllerMessage::Quit)
+            });
         });
         app.add_global_callback('g', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowURLDialog).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(UiMessage::ShowURLDialog)
+                    .unwrap()
+            });
         });
         app.add_global_callback('b', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.controller_tx.read().unwrap().send(ControllerMessage::NavigateBack)
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .send(ControllerMessage::NavigateBack)
+            });
         });
         app.add_global_callback('r', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.controller_tx.read().unwrap().send(ControllerMessage::ReloadCurrentPage)
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .send(ControllerMessage::ReloadCurrentPage)
+            });
         });
         app.add_global_callback('s', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSaveAsDialog).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(ControllerMessage::RequestSaveAsDialog)
+                    .unwrap()
+            });
         });
         app.add_global_callback('i', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowLinkInfo).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(UiMessage::ShowLinkInfo)
+                    .unwrap()
+            });
         });
         app.add_global_callback('n' /*Key::Tab*/, |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.ui_tx.read().unwrap().clone().send(UiMessage::MoveToLink(Direction::Next)).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(UiMessage::MoveToLink(Direction::Next))
+                    .unwrap()
+            });
         });
         app.add_global_callback('p' /*Event::Shift(Key::Tab)*/, |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.ui_tx.read().unwrap().clone().send(UiMessage::MoveToLink(Direction::Previous)).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(UiMessage::MoveToLink(Direction::Previous))
+                    .unwrap()
+            });
         });
         app.add_global_callback('a', |app| {
-            app.with_user_data(|userdata: &mut UserData|
-                userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestAddBookmarkDialog).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .clone()
+                    .send(ControllerMessage::RequestAddBookmarkDialog)
+                    .unwrap()
+            });
         });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
 
         let view: SelectView<GopherMapEntry> = SelectView::new();
         let textview: SelectView = SelectView::new();
         let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
-        let scrollable = view.with_name("content").scrollable().with_name("content_scroll");
-        let mut layout = Layout::new(status/*, theme*/)
+        let scrollable = view
+            .with_name("content")
+            .scrollable()
+            .with_name("content_scroll");
+        let mut layout = Layout::new(status /*, theme*/)
             .view("text", textview.with_name("text").scrollable(), "Textfile")
             .view("content", scrollable, "Gophermap");
         layout.set_view("content");
@@ -185,19 +237,22 @@ impl NcGopher {
         app.add_global_callback('~', Cursive::toggle_debug_console);
     }
 
-
     fn fetch_binary_file(&mut self, url: Url, local_path: String) {
         let filename = self.get_filename_from_url(url.clone());
         let path = format!("{}/{}", local_path, filename);
-        self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchBinaryUrl(url, path)).unwrap();
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::FetchBinaryUrl(url, path))
+            .unwrap();
     }
-
 
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
         let last_seg = segments.pop();
-        if let Some(filename) = last_seg { return filename.to_string() }
+        if let Some(filename) = last_seg {
+            return filename.to_string();
+        }
         "download.bin".to_string()
     }
 
@@ -209,84 +264,136 @@ impl NcGopher {
         let mut app = self.app.write().unwrap();
         let menubar = app.menubar();
         menubar.add_subtree(
-                "File",
-                MenuTree::new()
-                    .leaf("Open URL...", |app| {
-                        app.with_user_data(|userdata: &mut UserData|
-                             userdata.ui_tx.read().unwrap().clone().send(UiMessage::ShowURLDialog).unwrap()
-                        );
+            "File",
+            MenuTree::new()
+                .leaf("Open URL...", |app| {
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(UiMessage::ShowURLDialog)
+                            .unwrap()
+                    });
                 })
                 .delimiter()
-                .leaf("Save page as...", |app|{
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSaveAsDialog).unwrap()
-                    );
+                .leaf("Save page as...", |app| {
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .controller_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(ControllerMessage::RequestSaveAsDialog)
+                            .unwrap()
+                    });
                 })
                 .leaf("Settings...", |app| {
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestSettingsDialog).unwrap()
-                    );
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .controller_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(ControllerMessage::RequestSettingsDialog)
+                            .unwrap()
+                    });
                 })
                 .delimiter()
-                .leaf("Quit", |s| s.quit())
+                .leaf("Quit", |s| s.quit()),
         );
         menubar.add_subtree(
             "History",
             MenuTree::new()
                 .leaf("Show all history...", |s| {
                     s.add_layer(Dialog::info("Show history not implemented"))
-                }).
-                leaf("Clear history", |app| {
-                    app.add_layer(Dialog::around(TextView::new("Do you want to delete the history?"))
-                        .button("Cancel", |app| { app.pop_layer();})
-                        .button("Ok", |app| {
-                            app.pop_layer();
-                            app.with_user_data(|userdata: &mut UserData| {
-                                userdata.controller_tx.read().unwrap().send(ControllerMessage::ClearHistory).unwrap()
-                            });
-                        })
+                })
+                .leaf("Clear history", |app| {
+                    app.add_layer(
+                        Dialog::around(TextView::new("Do you want to delete the history?"))
+                            .button("Cancel", |app| {
+                                app.pop_layer();
+                            })
+                            .button("Ok", |app| {
+                                app.pop_layer();
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .controller_tx
+                                        .read()
+                                        .unwrap()
+                                        .send(ControllerMessage::ClearHistory)
+                                        .unwrap()
+                                });
+                            }),
                     );
                 })
-                .delimiter()
+                .delimiter(),
         );
         menubar.add_subtree(
             "Bookmarks",
             MenuTree::new()
                 .leaf("Edit...", |app| {
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.controller_tx.read().unwrap().send(ControllerMessage::RequestEditBookmarksDialog).unwrap()
-                    );
-                }).
-                leaf("Add bookmark", |app| {
-                    //app.add_layer(Dialog::info("Add bookmark not implemented"))
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.controller_tx.read().unwrap().clone().send(ControllerMessage::RequestAddBookmarkDialog).unwrap()
-                    );
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .controller_tx
+                            .read()
+                            .unwrap()
+                            .send(ControllerMessage::RequestEditBookmarksDialog)
+                            .unwrap()
+                    });
                 })
-                .delimiter()
+                .leaf("Add bookmark", |app| {
+                    //app.add_layer(Dialog::info("Add bookmark not implemented"))
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .controller_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(ControllerMessage::RequestAddBookmarkDialog)
+                            .unwrap()
+                    });
+                })
+                .delimiter(),
         );
         menubar.add_subtree(
             "Search",
             MenuTree::new()
                 .leaf("Veronica/2...", |app| {
                     let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
-                    );
-                }).
-                leaf("Gopherpedia...", |app| {
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowSearchDialog(url))
+                            .unwrap()
+                    });
+                })
+                .leaf("Gopherpedia...", |app| {
                     // FIXME Add Url to gopherpedia
                     let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
-                    );
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowSearchDialog(url))
+                            .unwrap()
+                    });
                 })
                 .leaf("Gopher Movie Database...", |app| {
                     let url = Url::parse("gopher://jan.bio:70/7/cgi-bin/gmdb.py").unwrap();
-                    app.with_user_data(|userdata: &mut UserData|
-                        userdata.ui_tx.read().unwrap().send(UiMessage::ShowSearchDialog(url)).unwrap()
-                    );
-                })
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowSearchDialog(url))
+                            .unwrap()
+                    });
+                }),
         );
         menubar.add_subtree(
             "Help",
@@ -299,18 +406,25 @@ impl NcGopher {
                         })
                         .leaf("Online", |app| {
                             app.with_user_data(|userdata: &mut UserData| {
-                                userdata.ui_tx.write().unwrap().send(
-                                    UiMessage::OpenUrlFromString("gopher://jan.bio/1/ncgopher/".to_string()))
+                                userdata
+                                    .ui_tx
+                                    .write()
+                                    .unwrap()
+                                    .send(UiMessage::OpenUrlFromString(
+                                        "gopher://jan.bio/1/ncgopher/".to_string(),
+                                    ))
                                     .unwrap();
                             });
-                        })
+                        }),
                 )
                 .leaf("About", |s| {
                     s.add_layer(Dialog::info(format!(
                         ";               ncgopher v{}\n\
                          ;     A Gopher client for the modern internet\n\
                          ; (c) 2019-2020 by Jan Schreiber <jan@mecinus.com>\n\
-                         ;               gopher://jan.bio", env!("CARGO_PKG_VERSION"))))
+                         ;               gopher://jan.bio",
+                        env!("CARGO_PKG_VERSION")
+                    )))
                 }),
         );
     }
@@ -322,13 +436,13 @@ impl NcGopher {
             url.insert_str(0, "gopher://");
         }
         let res = Url::parse(url.as_str());
-        let url : Url;
+        let url: Url;
         // TODO: Check if URL includes an item type
         match res {
             Ok(res) => {
                 url = res;
                 self.open_gopher_address(url.clone(), ItemType::from_url(url));
-            },
+            }
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
             }
@@ -345,8 +459,11 @@ impl NcGopher {
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("content");
         });
-        self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, item_type)).unwrap();
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::FetchUrl(url, item_type))
+            .unwrap();
     }
 
     fn open_query_dialog(&mut self, url: Url) {
@@ -357,15 +474,14 @@ impl NcGopher {
                     .title("Enter query:")
                     .content(
                         EditView::new()
-                        // Call `show_popup` when the user presses `Enter`
-                        //FIXME: create closure with url: .on_submit(search)
+                            // Call `show_popup` when the user presses `Enter`
+                            //FIXME: create closure with url: .on_submit(search)
                             .with_name("query")
                             .fixed_width(30),
                     )
                     .button("Ok", move |app| {
-                        let name = app.call_on_name("query", |view: &mut EditView| {
-                            view.get_content()
-                        });
+                        let name =
+                            app.call_on_name("query", |view: &mut EditView| view.get_content());
                         if let Some(n) = name {
                             let mut u = url.clone();
                             let mut path = u.path().to_string();
@@ -373,11 +489,14 @@ impl NcGopher {
                             path.push_str(&n);
                             u.set_path(path.as_str());
                             info!("open_query_dialog(): url = {}", u);
-                            
+
                             app.pop_layer(); // Close search dialog
                             app.with_user_data(|userdata: &mut UserData| {
-                                userdata.ui_tx.write().unwrap().send(
-                                    UiMessage::OpenQueryUrl(u.clone()))
+                                userdata
+                                    .ui_tx
+                                    .write()
+                                    .unwrap()
+                                    .send(UiMessage::OpenQueryUrl(u.clone()))
                                     .unwrap();
                             });
                         } else {
@@ -392,13 +511,16 @@ impl NcGopher {
     fn query(&mut self, url: Url) {
         trace!("query({});", url);
         self.set_message("Loading ...");
-        self.controller_tx.read().unwrap()
-            .send(ControllerMessage::FetchUrl(url, ItemType::Dir)).unwrap();
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::FetchUrl(url, ItemType::Dir))
+            .unwrap();
     }
 
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String) {
-        let mut title : String = "".to_string();
+        let mut title: String = "".to_string();
         let mut app = self.app.write().unwrap();
         let mut msg = String::new();
         app.call_on_name("content", |view: &mut SelectView<GopherMapEntry>| {
@@ -408,7 +530,7 @@ impl NcGopher {
             let mut first = true;
             for l in lines {
                 if first {
-                    if l.starts_with('/')  {
+                    if l.starts_with('/') {
                         title = l.to_string();
                     }
                     first = false;
@@ -434,38 +556,57 @@ impl NcGopher {
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
                     // FIXME Remove duplicate code
-                    if ItemType::is_download(entry.item_type) ||
-                        ItemType::is_text(entry.item_type) ||
-                        ItemType::is_dir(entry.item_type)
+                    if ItemType::is_download(entry.item_type)
+                        || ItemType::is_text(entry.item_type)
+                        || ItemType::is_dir(entry.item_type)
                     {
-                        userdata.ui_tx.write().unwrap().send(
-                            UiMessage::OpenUrl(entry.url.clone(), entry.item_type))
+                        userdata
+                            .ui_tx
+                            .write()
+                            .unwrap()
+                            .send(UiMessage::OpenUrl(entry.url.clone(), entry.item_type))
                             .unwrap();
                     } else if ItemType::is_query(entry.item_type) {
-                        userdata.ui_tx.write().unwrap().send(
-                            UiMessage::OpenQueryDialog(entry.url.clone()))
+                        userdata
+                            .ui_tx
+                            .write()
+                            .unwrap()
+                            .send(UiMessage::OpenQueryDialog(entry.url.clone()))
                             .unwrap();
                     } else if ItemType::is_html(entry.item_type) {
-                        userdata.controller_tx.write().unwrap().send(
-                            ControllerMessage::OpenHtml(entry.url.clone()))
+                        userdata
+                            .controller_tx
+                            .write()
+                            .unwrap()
+                            .send(ControllerMessage::OpenHtml(entry.url.clone()))
                             .unwrap();
                     } else if ItemType::is_image(entry.item_type) {
-                        userdata.controller_tx.write().unwrap().send(
-                            ControllerMessage::OpenImage(entry.url.clone()))
+                        userdata
+                            .controller_tx
+                            .write()
+                            .unwrap()
+                            .send(ControllerMessage::OpenImage(entry.url.clone()))
                             .unwrap();
                     } else if ItemType::is_telnet(entry.item_type) {
-                        userdata.controller_tx.write().unwrap().send(
-                            ControllerMessage::OpenTelnet(entry.url.clone()))
+                        userdata
+                            .controller_tx
+                            .write()
+                            .unwrap()
+                            .send(ControllerMessage::OpenTelnet(entry.url.clone()))
                             .unwrap();
                     }
                 });
             });
         });
         if !msg.is_empty() {
-            app.with_user_data(|userdata: &mut UserData|
-                               userdata.ui_tx.read().unwrap()
-                               .send(UiMessage::ShowMessage(msg)).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .send(UiMessage::ShowMessage(msg))
+                    .unwrap()
+            });
         }
 
         // FIXME: Call this from the previous callback
@@ -506,16 +647,13 @@ impl NcGopher {
                             .child(TextView::new("\nTitle:"))
                             .child(EditView::new().with_name("title").fixed_width(30))
                             .child(TextView::new("Tags (comma separated):"))
-                            .child(EditView::new().with_name("tags").fixed_width(30)
-                                )
+                            .child(EditView::new().with_name("tags").fixed_width(30)),
                     )
                     .button("Ok", move |app| {
-                        let sometitle = app.call_on_name("title", |view: &mut EditView| {
-                            view.get_content()
-                        });
-                        let sometags = app.call_on_name("tags", |view: &mut EditView| {
-                            view.get_content()
-                        });
+                        let sometitle =
+                            app.call_on_name("title", |view: &mut EditView| view.get_content());
+                        let sometags =
+                            app.call_on_name("tags", |view: &mut EditView| view.get_content());
                         app.pop_layer(); // Close edit bookmark
                         let title: String;
                         let tags: String;
@@ -529,16 +667,23 @@ impl NcGopher {
                         } else {
                             tags = String::new()
                         }
-                        app.with_user_data(|userdata: &mut UserData|
-                                           userdata.controller_tx.read().unwrap().clone().send(
-                                               ControllerMessage::AddBookmark(newurl.clone(),
-                                                   title.to_string(), tags.to_string()))
-                                           .unwrap()
-                                           );
+                        app.with_user_data(|userdata: &mut UserData| {
+                            userdata
+                                .controller_tx
+                                .read()
+                                .unwrap()
+                                .clone()
+                                .send(ControllerMessage::AddBookmark(
+                                    newurl.clone(),
+                                    title.to_string(),
+                                    tags.to_string(),
+                                ))
+                                .unwrap()
+                        });
                     })
                     .button("Cancel", |app| {
                         app.pop_layer(); // Close edit bookmark
-                    })
+                    }),
             );
         }
         self.trigger();
@@ -553,15 +698,14 @@ impl NcGopher {
                     .title("Enter search term")
                     .content(
                         EditView::new()
-                        // Call `show_popup` when the user presses `Enter`
-                        //FIXME: create closure with url: .on_submit(search)
+                            // Call `show_popup` when the user presses `Enter`
+                            //FIXME: create closure with url: .on_submit(search)
                             .with_name("search")
                             .fixed_width(30),
                     )
                     .button("Ok", move |app| {
-                        let name = app.call_on_name("search", |view: &mut EditView| {
-                            view.get_content()
-                        });
+                        let name =
+                            app.call_on_name("search", |view: &mut EditView| view.get_content());
                         if let Some(n) = name {
                             app.pop_layer();
                             let mut u = url.clone();
@@ -570,9 +714,7 @@ impl NcGopher {
                             path.push_str(&n);
                             u.set_path(path.as_str());
                             info!("show_search_dialog(): url = {}", u);
-                            ui_tx_clone.send(
-                                UiMessage::OpenQueryUrl(u))
-                                .unwrap();
+                            ui_tx_clone.send(UiMessage::OpenQueryUrl(u)).unwrap();
                         } else {
                             app.pop_layer(); // Close search dialog
                             app.add_layer(Dialog::info("No search parameter!"))
@@ -664,11 +806,11 @@ impl NcGopher {
                 } else {
                     view.uncheck();
                 }
-            }).unwrap();
+            })
+            .unwrap();
         }
         self.trigger();
     }
-
 
     pub fn show_url_dialog(&mut self) {
         {
@@ -680,17 +822,17 @@ impl NcGopher {
                         EditView::new()
                             .on_submit(NcGopher::open_url_action)
                             .with_name("name")
-                            .fixed_width(50)
+                            .fixed_width(50),
                     )
                     .button("Cancel", move |app| {
                         app.pop_layer();
                     })
                     .button("Ok", |app| {
-                        let name = app.call_on_name("name", |view: &mut EditView| {
-                            view.get_content()
-                        }).unwrap();
+                        let name = app
+                            .call_on_name("name", |view: &mut EditView| view.get_content())
+                            .unwrap();
                         NcGopher::open_url_action(app, name.as_str())
-                    })
+                    }),
             );
         } // drop lock on app before calling trigger:
         self.trigger();
@@ -698,12 +840,15 @@ impl NcGopher {
 
     fn open_url_action(app: &mut Cursive, name: &str) {
         app.pop_layer();
-        app.with_user_data(|userdata: &mut UserData|
-            userdata.ui_tx.read().unwrap()
-            .send(UiMessage::OpenUrlFromString(name.to_string())).unwrap()
-        );
+        app.with_user_data(|userdata: &mut UserData| {
+            userdata
+                .ui_tx
+                .read()
+                .unwrap()
+                .send(UiMessage::OpenUrlFromString(name.to_string()))
+                .unwrap()
+        });
     }
-
 
     /// If the cursor in the current view is on a link, show
     /// a status message in the statusbar.
@@ -718,7 +863,7 @@ impl NcGopher {
         }
         let cur = match view.selected_id() {
             Some(id) => id,
-            None => 0
+            None => 0,
         };
         if let Some((_, item)) = view.get_item(cur) {
             match item.item_type {
@@ -726,23 +871,35 @@ impl NcGopher {
                     let mut url = item.url.clone().into_string();
                     if url.starts_with("URL:") {
                         url.replace_range(..3, "");
-                        app.with_user_data(|userdata: &mut UserData|
-                                           userdata.ui_tx.read().unwrap()
-                                           .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
-                        );
+                        app.with_user_data(|userdata: &mut UserData| {
+                            userdata
+                                .ui_tx
+                                .read()
+                                .unwrap()
+                                .send(UiMessage::ShowMessage(format!("URL '{}'", url)))
+                                .unwrap()
+                        });
                     } else {
-                        app.with_user_data(|userdata: &mut UserData|
-                                           userdata.ui_tx.read().unwrap()
-                                           .send(UiMessage::ShowMessage(format!("URL '{}'", url))).unwrap()
-                        );
+                        app.with_user_data(|userdata: &mut UserData| {
+                            userdata
+                                .ui_tx
+                                .read()
+                                .unwrap()
+                                .send(UiMessage::ShowMessage(format!("URL '{}'", url)))
+                                .unwrap()
+                        });
                     }
-                },
+                }
                 ItemType::Inline => (),
                 _ => {
-                    app.with_user_data(|userdata: &mut UserData|
-                                       userdata.ui_tx.read().unwrap()
-                                       .send(UiMessage::ShowMessage(format!("URL '{}'", item.url))).unwrap()
-                    );
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowMessage(format!("URL '{}'", item.url)))
+                            .unwrap()
+                    });
                 }
             }
         };
@@ -758,11 +915,11 @@ impl NcGopher {
         }
         let cur = match view.selected_id() {
             Some(id) => id,
-            None => 0
+            None => 0,
         };
         let mut i: usize = cur;
         match dir {
-            Direction::Next =>  {
+            Direction::Next => {
                 i += 1; // Start at the element after the current row
                 loop {
                     if i >= view.len() {
@@ -778,7 +935,7 @@ impl NcGopher {
                     }
                     i += 1;
                 }
-            },
+            }
             Direction::Previous => {
                 if i > 0 {
                     i -= 1; // Start at the element before the current row
@@ -802,21 +959,28 @@ impl NcGopher {
             }
         }
         view.set_selection(i);
-        app.call_on_name("content_scroll", |s: &mut ScrollView<NamedView<SelectView<GopherMapEntry>>>| {
-            s.scroll_to_important_area();
-        });
-        app.with_user_data(|userdata: &mut UserData|
-                           userdata.ui_tx.read().unwrap()
-                           .send(UiMessage::Trigger).unwrap()
+        app.call_on_name(
+            "content_scroll",
+            |s: &mut ScrollView<NamedView<SelectView<GopherMapEntry>>>| {
+                s.scroll_to_important_area();
+            },
         );
+        app.with_user_data(|userdata: &mut UserData| {
+            userdata
+                .ui_tx
+                .read()
+                .unwrap()
+                .send(UiMessage::Trigger)
+                .unwrap()
+        });
     }
 
-    fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec::<Bookmark>) {
+    fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec<Bookmark>) {
         let mut view: SelectView<Bookmark> = SelectView::new();
         for b in bookmarks {
             let mut title: String = format!("{:<20}", b.title.clone().as_str());
             title.truncate(20);
-            let mut url   = format!("{:<50}", b.url.clone().as_str());
+            let mut url = format!("{:<50}", b.url.clone().as_str());
             url.truncate(50);
             view.add_item(format!("{} | {}", title, url), b);
         }
@@ -826,44 +990,55 @@ impl NcGopher {
                 Dialog::new()
                     .title("Edit bookmarks")
                     .content(
-                        LinearLayout::vertical()
-                            .child(view.with_name("bookmarks").scrollable())
+                        LinearLayout::vertical().child(view.with_name("bookmarks").scrollable()),
                     )
-                    .button("Delete",  |app| {
-                        let selected = app.call_on_name("bookmarks",
-                                                    |view: &mut SelectView<Bookmark>| {
-                            view.selection()
-                        }).unwrap();
+                    .button("Delete", |app| {
+                        let selected = app
+                            .call_on_name("bookmarks", |view: &mut SelectView<Bookmark>| {
+                                view.selection()
+                            })
+                            .unwrap();
                         match selected {
                             None => (),
                             Some(bookmark) => {
-                                app.call_on_name("bookmarks",
-                                    |view: &mut SelectView<Bookmark>| {
+                                app.call_on_name("bookmarks", |view: &mut SelectView<Bookmark>| {
                                     view.remove_item(view.selected_id().unwrap());
-                                }).unwrap();
+                                })
+                                .unwrap();
                                 let bm = Bookmark {
                                     title: (*bookmark).title.clone(),
                                     url: (*bookmark).url.clone(),
-                                    tags: Vec::new()
+                                    tags: Vec::new(),
                                 };
-                                app.with_user_data(|userdata: &mut UserData|
-                                                   userdata.controller_tx.read().unwrap()
-                                                   .send(ControllerMessage::RemoveBookmark(bm)).unwrap()
-                                );
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .controller_tx
+                                        .read()
+                                        .unwrap()
+                                        .send(ControllerMessage::RemoveBookmark(bm))
+                                        .unwrap()
+                                });
                             }
                         }
                     })
-                    .button("Open",  |app| {
-                        let selected = app.call_on_name("bookmarks",
-                                                    |view: &mut SelectView<Bookmark>| {
-                            view.selection()
-                        }).unwrap();
+                    .button("Open", |app| {
+                        let selected = app
+                            .call_on_name("bookmarks", |view: &mut SelectView<Bookmark>| {
+                                view.selection()
+                            })
+                            .unwrap();
                         match selected {
                             None => (),
                             Some(b) => {
-                                app.with_user_data(|userdata: &mut UserData|
-                                     userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(b.url.to_string())).unwrap()
-                                );
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .ui_tx
+                                        .read()
+                                        .unwrap()
+                                        .clone()
+                                        .send(UiMessage::OpenUrlFromString(b.url.to_string()))
+                                        .unwrap()
+                                });
                             }
                         }
                     })
@@ -874,7 +1049,7 @@ impl NcGopher {
         }
         self.trigger();
     }
-    
+
     fn show_save_as_dialog(&mut self, url: Url) {
         {
             let mut filename = self.get_filename_from_url(url);
@@ -898,9 +1073,9 @@ impl NcGopher {
                         app.pop_layer();
                     })
                     .button("Ok", move |app| {
-                        let name = app.call_on_name("name", |view: &mut EditView| {
-                            view.get_content()
-                        }).unwrap();
+                        let name = app
+                            .call_on_name("name", |view: &mut EditView| view.get_content())
+                            .unwrap();
                         NcGopher::save_as_action(app, name.as_str())
                     }),
             );
@@ -914,10 +1089,14 @@ impl NcGopher {
     fn save_as_action(app: &mut Cursive, name: &str) {
         app.pop_layer();
         if !name.is_empty() {
-            app.with_user_data(|userdata: &mut UserData|
-                               userdata.controller_tx.read().unwrap()
-                               .send(ControllerMessage::SavePageAs(name.to_string())).unwrap()
-            );
+            app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .controller_tx
+                    .read()
+                    .unwrap()
+                    .send(ControllerMessage::SavePageAs(name.to_string()))
+                    .unwrap()
+            });
         } else {
             app.add_layer(Dialog::info("No filename given!"))
         }
@@ -932,13 +1111,18 @@ impl NcGopher {
             tree.insert_leaf(3, b.title.as_str(), move |app| {
                 info!("Adding bm to bookmark menu");
                 let b3 = b2.clone();
-                app.with_user_data(|userdata: &mut UserData|
-                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(b3.url.to_string())).unwrap()
-                );
+                app.with_user_data(|userdata: &mut UserData| {
+                    userdata
+                        .ui_tx
+                        .read()
+                        .unwrap()
+                        .clone()
+                        .send(UiMessage::OpenUrlFromString(b3.url.to_string()))
+                        .unwrap()
+                });
             });
         }
     }
-
 
     fn add_to_history_menu(&mut self, h: HistoryEntry) {
         const HISTORY_LEN: usize = 10;
@@ -954,13 +1138,18 @@ impl NcGopher {
             let h2 = h.clone();
             tree.insert_leaf(3, h.title.as_str(), move |app| {
                 let h3 = h2.clone();
-                app.with_user_data(|userdata: &mut UserData|
-                    userdata.ui_tx.read().unwrap().clone().send(UiMessage::OpenUrlFromString(h3.url.to_string())).unwrap()
-                );
+                app.with_user_data(|userdata: &mut UserData| {
+                    userdata
+                        .ui_tx
+                        .read()
+                        .unwrap()
+                        .clone()
+                        .send(UiMessage::OpenUrlFromString(h3.url.to_string()))
+                        .unwrap()
+                });
             });
         }
     }
-
 
     fn clear_history_menu(&mut self) {
         let mut app = self.app.write().unwrap();
@@ -1007,25 +1196,25 @@ impl NcGopher {
             match message {
                 UiMessage::AddToBookmarkMenu(bookmark) => {
                     self.add_to_bookmark_menu(bookmark);
-                },
+                }
                 UiMessage::AddToHistoryMenu(history_entry) => {
                     self.add_to_history_menu(history_entry);
-                },
+                }
                 UiMessage::BinaryWritten(filename, bytes_written) => {
                     self.binary_written(filename, bytes_written);
-                },
+                }
                 UiMessage::ClearHistoryMenu => {
                     self.clear_history_menu();
-                },
+                }
                 UiMessage::ClearBookmarksMenu => {
                     self.clear_bookmarks_menu();
-                },
+                }
                 UiMessage::PageSaved(_url, _item_type, filename) => {
                     self.set_message(format!("Page saved as '{}'.", filename).as_str());
-                },
+                }
                 UiMessage::ShowAddBookmarkDialog(url) => {
                     self.show_add_bookmark_dialog(url);
-                },
+                }
                 UiMessage::ShowContent(url, content, item_type) => {
                     if ItemType::is_dir(item_type) {
                         self.show_gophermap(content);
@@ -1033,23 +1222,26 @@ impl NcGopher {
                         self.show_text_file(content);
                     }
                     self.set_message(url.as_str());
-                },
+                }
                 UiMessage::MoveToLink(direction) => {
                     warn!("MoveToLink");
                     self.move_to_link(direction);
-                },
+                }
                 UiMessage::OpenQueryDialog(url) => {
                     self.open_query_dialog(url);
-                },
+                }
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);
-                },
+                }
                 UiMessage::OpenUrl(url, item_type) => {
                     if ItemType::is_download(item_type) {
                         match dirs::home_dir() {
                             Some(dir) => {
-                                self.fetch_binary_file(url, dir.into_os_string().into_string().unwrap());
-                            },
+                                self.fetch_binary_file(
+                                    url,
+                                    dir.into_os_string().into_string().unwrap(),
+                                );
+                            }
                             None => {
                                 self.set_message("Could not find download dir");
                             }
@@ -1057,31 +1249,29 @@ impl NcGopher {
                     } else {
                         self.open_gopher_address(url, item_type);
                     }
-                },
+                }
                 UiMessage::OpenUrlFromString(url) => {
                     self.open_gopher_url_string(url);
-                },
+                }
                 UiMessage::ShowEditBookmarksDialog(bookmarks) => {
                     self.show_edit_bookmarks_dialog(bookmarks)
-                },
-                UiMessage::ShowLinkInfo => {
-                    self.show_current_link_info()
-                },
+                }
+                UiMessage::ShowLinkInfo => self.show_current_link_info(),
                 UiMessage::ShowMessage(msg) => {
                     self.set_message(msg.as_str());
-                },
+                }
                 UiMessage::ShowURLDialog => {
                     self.show_url_dialog();
-                },
+                }
                 UiMessage::ShowSaveAsDialog(url) => {
                     self.show_save_as_dialog(url);
-                },
+                }
                 UiMessage::ShowSearchDialog(url) => {
                     self.show_search_dialog(url);
-                },
+                }
                 UiMessage::ShowSettingsDialog => {
                     self.show_settings_dialog();
-                },
+                }
                 UiMessage::Trigger => {
                     self.trigger();
                 }

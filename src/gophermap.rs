@@ -37,12 +37,12 @@ impl GopherMapEntry {
                 selector: "/".to_string(),
                 host: "fixme".to_string(),
                 port: 70,
-                url: Url::parse("gopher://fixme:70").unwrap()
+                url: Url::parse("gopher://fixme:70").unwrap(),
             });
         }
         if l.len() <= 3 {
             // Happens e.g. if a text file is parsed as a gophermap
-            return Err("Invalid gophermap entry")
+            return Err("Invalid gophermap entry");
         }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
@@ -53,7 +53,7 @@ impl GopherMapEntry {
         let mut path = selector.clone();
         path.insert(0, ch);
 
-        let mut url : Url = Url::parse("gopher://fixme:70").unwrap();
+        let mut url: Url = Url::parse("gopher://fixme:70").unwrap();
         if item_type == ItemType::Telnet {
             // Telnet URLs have no selector
             url = Url::parse("telnet://fixme:70").unwrap();
@@ -67,7 +67,9 @@ impl GopherMapEntry {
                 html_url.replace_range(..5, "");
                 match Url::parse(html_url.as_str()) {
                     Ok(u) => url = u,
-                    Err(e) => { warn!("Could not parse url {}: {}", e, html_url); }
+                    Err(e) => {
+                        warn!("Could not parse url {}: {}", e, html_url);
+                    }
                 }
             }
         } else {
@@ -83,16 +85,14 @@ impl GopherMapEntry {
             selector,
             host,
             port,
-            url
+            url,
         })
     }
-
 
     pub fn label(self: Self) -> String {
         self.name
     }
 }
-
 
 /// The type of a resource in a Gopher directory.
 ///
@@ -199,72 +199,73 @@ impl ItemType {
             ItemType::Sound => "[SND]",
             ItemType::Inline => "     ",
             ItemType::Other(_ch) => "[???]",
-        }.to_string()
+        }
+        .to_string()
     }
 
     pub fn is_download(item_type: ItemType) -> bool {
         match item_type {
-            ItemType::BinHex |
-            ItemType::Dos |
-            ItemType::Uuencoded |
-            ItemType::Binary |
-            ItemType::Gif |
-            ItemType::Image |
-            ItemType::Document |
-            ItemType::Video |
-            ItemType::MIME |
-            ItemType::Calendar |
-            ItemType::Sound => true,
-            _ => false
+            ItemType::BinHex
+            | ItemType::Dos
+            | ItemType::Uuencoded
+            | ItemType::Binary
+            | ItemType::Gif
+            | ItemType::Image
+            | ItemType::Document
+            | ItemType::Video
+            | ItemType::MIME
+            | ItemType::Calendar
+            | ItemType::Sound => true,
+            _ => false,
         }
     }
 
     pub fn is_text(item_type: ItemType) -> bool {
         match item_type {
             ItemType::File => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_dir(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Dir => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_query(item_type: ItemType) -> bool {
         match item_type {
             ItemType::IndexServer => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_inline(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Inline => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_image(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Gif | ItemType::Image => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_telnet(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Telnet => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_html(item_type: ItemType) -> bool {
         match item_type {
             ItemType::Html => true,
-            _ => false
+            _ => false,
         }
     }
 
