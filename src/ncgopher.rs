@@ -522,7 +522,7 @@ impl NcGopher {
     fn show_gophermap(&mut self, content: String) {
         let mut title: String = "".to_string();
         let mut app = self.app.write().unwrap();
-        let mut msg = String::new();
+        let msg = String::new();
         app.call_on_name("content", |view: &mut SelectView<GopherMapEntry>| {
             view.clear();
             let lines = content.lines();
@@ -536,14 +536,14 @@ impl NcGopher {
                     first = false;
                 }
                 if l != "." {
-                    let gophermap_line = match GopherMapEntry::parse(l.to_string()) {
-                        Ok(gl) => gl,
+                    match GopherMapEntry::parse(l.to_string()) {
+                        Ok(gl) => {
+                            gophermap.push(gl);
+                        }
                         Err(err) => {
-                            msg = format!("Invalid gophermap: '{}'", err);
-                            return;
+                            warn!("Invalid gophermap line: {}", err);
                         }
                     };
-                    gophermap.push(gophermap_line);
                 }
             }
             for l in gophermap {
