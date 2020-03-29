@@ -7,7 +7,8 @@ use cursive::menu::MenuTree;
 use cursive::traits::*;
 use cursive::utils::markup::StyledString;
 use cursive::views::{
-    Checkbox, Dialog, EditView, LinearLayout, NamedView, ScrollView, SelectView, TextView, ViewRef,
+    Checkbox, Dialog, EditView, LinearLayout, NamedView, ResizedView, ScrollView, SelectView,
+    TextView, ViewRef,
 };
 use cursive::Cursive;
 use std::str;
@@ -225,7 +226,8 @@ impl NcGopher {
         let textview: SelectView = SelectView::new();
         let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
         let scrollable = view
-            .with_name("content").full_width()
+            .with_name("content")
+            .full_width()
             .scrollable()
             .with_name("content_scroll");
         let mut layout = Layout::new(status /*, theme*/)
@@ -958,11 +960,15 @@ impl NcGopher {
                 }
             }
         }
+        view.take_focus(cursive::direction::Direction::front());
         view.set_selection(i);
+
+        // Scroll to selected row
+        let selected_id = view.selected_id().unwrap();
         app.call_on_name(
             "content_scroll",
-            |s: &mut ScrollView<NamedView<SelectView<GopherMapEntry>>>| {
-                s.scroll_to_important_area();
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>| {
+                s.set_offset(cursive::Vec2::new(0, selected_id));
             },
         );
         app.with_user_data(|userdata: &mut UserData| {
