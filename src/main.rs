@@ -23,7 +23,6 @@ mod gophermap;
 mod history;
 mod ncgopher;
 mod settings;
-mod traits;
 mod ui;
 
 lazy_static! {

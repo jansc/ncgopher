@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use crate::gophermap::GopherMapEntry;
 use cursive::align::HAlign;
 use cursive::direction::Direction;
 use cursive::event::{AnyCb, Event, EventResult};
@@ -15,41 +14,10 @@ use unicode_width::UnicodeWidthStr;
 //use command::Command;
 //use commands::CommandResult;
 //use events;
-use crate::traits::{IntoBoxedViewExt, ViewExt};
-
-impl ViewExt for cursive::views::SelectView<GopherMapEntry> {
-    fn title(&self) -> String {
-        "test".to_string()
-    }
-}
-
-impl ViewExt for cursive::views::SelectView {
-    fn title(&self) -> String {
-        "text".to_string()
-    }
-}
-
-impl ViewExt
-    for cursive::views::ScrollView<
-        cursive::views::NamedView<cursive::views::SelectView<GopherMapEntry>>,
-    >
-{
-    fn title(&self) -> String {
-        "scrollview(gophermap)".to_string()
-    }
-}
-
-impl ViewExt
-    for cursive::views::ScrollView<cursive::views::NamedView<cursive::views::SelectView<String>>>
-{
-    fn title(&self) -> String {
-        "scrollview(text)".to_string()
-    }
-}
 
 struct Screen {
     title: String,
-    view: Box<dyn ViewExt>,
+    view: Box<dyn View>,
 }
 
 pub struct Layout {
@@ -101,17 +69,17 @@ impl Layout {
     }
     */
 
-    pub fn add_view<S: Into<String>, T: IntoBoxedViewExt>(&mut self, id: S, view: T, title: S) {
+    pub fn add_view<S: Into<String>, T: IntoBoxedView>(&mut self, id: S, view: T, title: S) {
         let s = id.into();
         let screen = Screen {
             title: title.into(),
-            view: view.as_boxed_view_ext(),
+            view: view.as_boxed_view(),
         };
         self.views.insert(s.clone(), screen);
         self.focus = Some(s);
     }
 
-    pub fn view<S: Into<String>, T: IntoBoxedViewExt>(mut self, id: S, view: T, title: S) -> Self {
+    pub fn view<S: Into<String>, T: IntoBoxedView>(mut self, id: S, view: T, title: S) -> Self {
         (&mut self).add_view(id, view, title);
         self
     }
@@ -146,6 +114,7 @@ impl Layout {
     //            if t.elapsed().unwrap() > Duration::from_secs(5) {
     //                return Ok(None);
     //            }
+
     //        }
     //        self.result.clone()
     //    }

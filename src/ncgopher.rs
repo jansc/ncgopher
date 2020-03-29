@@ -225,7 +225,7 @@ impl NcGopher {
         let textview: SelectView = SelectView::new();
         let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
         let scrollable = view
-            .with_name("content")
+            .with_name("content").full_width()
             .scrollable()
             .with_name("content_scroll");
         let mut layout = Layout::new(status /*, theme*/)
