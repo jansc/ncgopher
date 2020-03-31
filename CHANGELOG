@@ -6,11 +6,19 @@
   - Darkmode (can be set in config file or settings dialog)
   - External commands for telnet and html. External command for images
     not yet implemented
+  - Wrapped link navigation: 'n' and 'p' move selected line to
+    next or previous link
+  - Implemented help menu
 
   Bugfixes:
   - Config file was not read on startup
-  - Error handling for invalid gophermaps
+  - Error handling for invalid gophermaps, invalid lines are ignored
   - Fixed bookmarking of queries
+  - Reload must not add current page to history
+
+  Changes:
+  - Removed unecessary code
+  - Gophermap view now uses full width of screen
 
 ** 0.1.2 [2020-03-14]
 
