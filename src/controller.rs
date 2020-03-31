@@ -56,11 +56,11 @@ pub enum ControllerMessage {
     RequestSettingsDialog,
     Quit,
     SavePageAs(String),
-    SetContent(Url, String, ItemType),
+    SetContent(Url, String, ItemType, usize),
     ShowMessage(String),
     RedrawBookmarks,
     RedrawHistory,
-    FetchUrl(Url, ItemType),
+    FetchUrl(Url, ItemType, bool, usize),
     FetchBinaryUrl(Url, String),
 }
 
@@ -114,7 +114,8 @@ impl Controller {
         Ok(controller)
     }
 
-    fn fetch_url(&self, url: Url, item_type: ItemType) {
+    fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
+        // index is the position in the text (used when navigatin back or reloading)
         info!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -214,15 +215,18 @@ impl Controller {
                 }
             }
             let s = String::from_utf8_lossy(&buf);
-            tx_clone
-                .send(ControllerMessage::AddToHistory(url.clone()))
-                .unwrap();
+            if add_to_history {
+                tx_clone
+                    .send(ControllerMessage::AddToHistory(url.clone()))
+                    .unwrap();
+            }
             tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
             tx_clone
                 .send(ControllerMessage::SetContent(
                     gopher_url.clone(),
                     s.to_string(),
                     item_type,
+                    index
                 ))
                 .unwrap();
         });
@@ -372,11 +376,19 @@ impl Controller {
     }
 
     fn add_to_history(&mut self, url: Url) -> HistoryEntry {
+        // TODO: Should not access the ui here
+        let ui = self.ui.read().unwrap();
+        let mut index = 0;
+        if let Some(i) = ui.get_selected_item_index() {
+            index = i;
+        }
+        info!("add_to_history(): {}  {}", url, index);
         let h: HistoryEntry = HistoryEntry {
             title: url.clone().into_string(),
             url,
             timestamp: Local::now(),
             visited_count: 1,
+            position: index,
         };
         self.history.lock().unwrap().add(h.clone());
         h
@@ -395,6 +407,7 @@ impl Controller {
         let history = guard.back();
         if let Some(h) = history {
             std::mem::drop(guard);
+            info!("NAVIGATE_BACK to index {}", h.position);
             // FIXME: Add itemtype to history
             self.ui
                 .read()
@@ -402,7 +415,7 @@ impl Controller {
                 .ui_tx
                 .read()
                 .unwrap()
-                .send(UiMessage::OpenUrl(h.url, ItemType::Dir))
+                .send(UiMessage::OpenUrl(h.url, ItemType::Dir, true, h.position))
                 .unwrap();
         } else {
             std::mem::drop(guard);
@@ -566,11 +579,16 @@ impl Controller {
                     ControllerMessage::ReloadCurrentPage => {
                         let current_url: Url;
                         let current_item_type: ItemType;
+                        let mut index = 0;
                         {
                             let guard = self.current_url.lock().unwrap();
                             current_url = guard.clone();
                             let guard = self.current_item_type.lock().unwrap();
                             current_item_type = *guard;
+                            let ui = self.ui.read().unwrap();
+                            if let Some(i) = ui.get_selected_item_index() {
+                                index = i;
+                            }
                         }
                         self.ui
                             .read()
@@ -578,7 +596,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(current_url, current_item_type))
+                            .send(UiMessage::OpenUrl(current_url, current_item_type, false, index))
                             .unwrap();
                     }
                     ControllerMessage::RemoveBookmark(bookmark) => {
@@ -664,7 +682,7 @@ impl Controller {
                             .send(UiMessage::PageSaved(url, item_type, filename))
                             .unwrap();
                     }
-                    ControllerMessage::SetContent(url, content, item_type) => {
+                    ControllerMessage::SetContent(url, content, item_type, index) => {
                         {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
@@ -680,7 +698,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::ShowContent(url, content, item_type))
+                            .send(UiMessage::ShowContent(url, content, item_type, index))
                             .unwrap();
                     }
                     ControllerMessage::ShowMessage(msg) => {
@@ -718,8 +736,8 @@ impl Controller {
                     ControllerMessage::OpenTelnet(url) => {
                         self.open_command("telnet_command", url);
                     }
-                    ControllerMessage::FetchUrl(url, item_type) => {
-                        self.fetch_url(url, item_type);
+                    ControllerMessage::FetchUrl(url, item_type, add_to_history, index) => {
+                        self.fetch_url(url, item_type, add_to_history, index);
                     }
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);

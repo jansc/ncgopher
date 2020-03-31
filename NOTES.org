@@ -32,10 +32,11 @@
 *** DONE [#C] Write README.org
 ** post-alpha
 *** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
+*** DONE [#A] Bugfix: Reload must not add current page to history
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
 **** SPACE to page
-*** TODO Settings dialog
+*** DONE Settings dialog
 *** TODO Setting for disabling history recording
 *** TODO Tor support
 *** TODO Handle tags for bookmarks

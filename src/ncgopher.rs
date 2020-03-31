@@ -41,11 +41,11 @@ pub enum UiMessage {
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
     OpenQueryUrl(Url),
-    OpenUrl(Url, ItemType),
+    OpenUrl(Url, ItemType, bool, usize),
     OpenUrlFromString(String),
     PageSaved(Url, ItemType, String),
     ShowAddBookmarkDialog(Url),
-    ShowContent(Url, String, ItemType),
+    ShowContent(Url, String, ItemType, usize),
     ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
     ShowMessage(String),
@@ -443,7 +443,7 @@ impl NcGopher {
         match res {
             Ok(res) => {
                 url = res;
-                self.open_gopher_address(url.clone(), ItemType::from_url(url));
+                self.open_gopher_address(url.clone(), ItemType::from_url(url), true, 0);
             }
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
@@ -455,7 +455,7 @@ impl NcGopher {
         self.open_gopher_url_string(url.to_string());
     }
 
-    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType) {
+    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
         self.set_message("Loading ...");
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
@@ -464,7 +464,7 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchUrl(url, item_type))
+            .send(ControllerMessage::FetchUrl(url, item_type, add_to_history, index))
             .unwrap();
     }
 
@@ -516,12 +516,12 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchUrl(url, ItemType::Dir))
+            .send(ControllerMessage::FetchUrl(url, ItemType::Dir, true, 0))
             .unwrap();
     }
 
     /// Renders a gophermap in a cursive::TextView
-    fn show_gophermap(&mut self, content: String) {
+    fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
         let mut app = self.app.write().unwrap();
         let msg = String::new();
@@ -566,7 +566,7 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(entry.url.clone(), entry.item_type))
+                            .send(UiMessage::OpenUrl(entry.url.clone(), entry.item_type, true, 0))
                             .unwrap();
                     } else if ItemType::is_query(entry.item_type) {
                         userdata
@@ -599,6 +599,7 @@ impl NcGopher {
                     }
                 });
             });
+            view.set_selection(index);
         });
         if !msg.is_empty() {
             app.with_user_data(|userdata: &mut UserData| {
@@ -905,6 +906,24 @@ impl NcGopher {
                 }
             }
         };
+    }
+
+    pub fn get_selected_item_index(&self) -> Option<usize> {
+        let mut app = self.app.write().expect("Could not get read lock on app");
+        let view: ViewRef<SelectView<GopherMapEntry>>;
+        if let Some(v) = app.find_name("content") {
+            view = v;
+        } else {
+            warn!("Could not find content");
+            return None
+        }
+        let cur = match view.selected_id() {
+            Some(id) => id,
+            None => 0,
+        };
+        let i: usize = cur;
+        warn!("get_selected_item_index() => {}", i);
+        Some(i)
     }
 
     fn move_to_link(&mut self, dir: Direction) {
@@ -1221,9 +1240,9 @@ impl NcGopher {
                 UiMessage::ShowAddBookmarkDialog(url) => {
                     self.show_add_bookmark_dialog(url);
                 }
-                UiMessage::ShowContent(url, content, item_type) => {
+                UiMessage::ShowContent(url, content, item_type, index) => {
                     if ItemType::is_dir(item_type) {
-                        self.show_gophermap(content);
+                        self.show_gophermap(content, index);
                     } else if ItemType::is_text(item_type) {
                         self.show_text_file(content);
                     }
@@ -1239,7 +1258,7 @@ impl NcGopher {
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);
                 }
-                UiMessage::OpenUrl(url, item_type) => {
+                UiMessage::OpenUrl(url, item_type, add_to_history, index) => {
                     if ItemType::is_download(item_type) {
                         match dirs::home_dir() {
                             Some(dir) => {
@@ -1253,7 +1272,7 @@ impl NcGopher {
                             }
                         };
                     } else {
-                        self.open_gopher_address(url, item_type);
+                        self.open_gopher_address(url, item_type, add_to_history, index);
                     }
                 }
                 UiMessage::OpenUrlFromString(url) => {

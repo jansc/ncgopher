@@ -29,6 +29,10 @@ pub struct HistoryEntry {
     #[serde(serialize_with = "timestamp_serialize")]
     pub timestamp: DateTime<Local>,
     pub visited_count: u16,
+
+    // Never serialized. Keep track of position
+    #[serde(skip_serializing)]
+    pub position: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -64,6 +68,7 @@ impl History {
                             title: v["url"].clone().into_str().unwrap(),
                             timestamp: Local::now(),
                             visited_count: 1,
+                            position: 0,
                         };
                         entries.push(h.clone());
                     }
