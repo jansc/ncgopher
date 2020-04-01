@@ -7,8 +7,8 @@ use cursive::menu::MenuTree;
 use cursive::traits::*;
 use cursive::utils::markup::StyledString;
 use cursive::views::{
-    Checkbox, Dialog, EditView, LinearLayout, NamedView, ResizedView, ScrollView, SelectView,
-    TextView, ViewRef,
+    Checkbox, Dialog, EditView, LinearLayout, NamedView, OnEventView, ResizedView, ScrollView,
+    SelectView, TextView, ViewRef,
 };
 use cursive::Cursive;
 use std::str;
@@ -223,16 +223,41 @@ impl NcGopher {
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
 
         let view: SelectView<GopherMapEntry> = SelectView::new();
-        let textview: SelectView = SelectView::new();
+        let textview = SelectView::<String>::new();
+        let scrollable_textview = textview
+            .with_name("text")
+            .full_width()
+            .scrollable()
+            .with_name("text_scroll");
+        let text_event_view = OnEventView::new(scrollable_textview).on_event(' ', |app| {
+            app.call_on_name(
+                "text_scroll",
+                |s: &mut ScrollView<ResizedView<NamedView<SelectView>>>| {
+                    let rect = s.content_viewport();
+                    let bl = rect.bottom_left();
+                    s.set_offset(bl);
+                },
+            );
+        });
         let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
         let scrollable = view
             .with_name("content")
             .full_width()
             .scrollable()
             .with_name("content_scroll");
+        let event_view = OnEventView::new(scrollable).on_event(' ', |app| {
+            app.call_on_name(
+                "content_scroll",
+                |s: &mut ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>| {
+                    let rect = s.content_viewport();
+                    let bl = rect.bottom_left();
+                    s.set_offset(bl);
+                },
+            );
+        });
         let mut layout = Layout::new(status /*, theme*/)
-            .view("text", textview.with_name("text").scrollable(), "Textfile")
-            .view("content", scrollable, "Gophermap");
+            .view("text", text_event_view, "Textfile")
+            .view("content", event_view, "Gophermap");
         layout.set_view("content");
         app.add_fullscreen_layer(layout.with_name("main"));
 
@@ -455,7 +480,13 @@ impl NcGopher {
         self.open_gopher_url_string(url.to_string());
     }
 
-    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
+    pub fn open_gopher_address(
+        &mut self,
+        url: Url,
+        item_type: ItemType,
+        add_to_history: bool,
+        index: usize,
+    ) {
         self.set_message("Loading ...");
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
@@ -464,7 +495,12 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchUrl(url, item_type, add_to_history, index))
+            .send(ControllerMessage::FetchUrl(
+                url,
+                item_type,
+                add_to_history,
+                index,
+            ))
             .unwrap();
     }
 
@@ -566,7 +602,12 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(entry.url.clone(), entry.item_type, true, 0))
+                            .send(UiMessage::OpenUrl(
+                                entry.url.clone(),
+                                entry.item_type,
+                                true,
+                                0,
+                            ))
                             .unwrap();
                     } else if ItemType::is_query(entry.item_type) {
                         userdata
@@ -915,7 +956,7 @@ impl NcGopher {
             view = v;
         } else {
             warn!("Could not find content");
-            return None
+            return None;
         }
         let cur = match view.selected_id() {
             Some(id) => id,

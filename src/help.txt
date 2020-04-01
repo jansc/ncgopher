@@ -4,6 +4,7 @@
 | Arrow keys | Move around in text            |
 | Enter      | Open the link under the cursor |
 | Esc        | Go to menubar                  |
+| Space      | Scroll down one page           |
 | g          | Open new URL                   |
 | b          | Navigate back                  |
 | q          | Close application              |

@@ -226,7 +226,7 @@ impl Controller {
                     gopher_url.clone(),
                     s.to_string(),
                     item_type,
-                    index
+                    index,
                 ))
                 .unwrap();
         });
@@ -596,7 +596,12 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(current_url, current_item_type, false, index))
+                            .send(UiMessage::OpenUrl(
+                                current_url,
+                                current_item_type,
+                                false,
+                                index,
+                            ))
                             .unwrap();
                     }
                     ControllerMessage::RemoveBookmark(bookmark) => {
