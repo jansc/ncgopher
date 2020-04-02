@@ -127,9 +127,25 @@ impl History {
     pub fn back(&mut self) -> Option<HistoryEntry> {
         if self.stack.len() > 1 {
             self.stack.pop();
-            return self.stack.pop();
+            let item = self.stack.pop().unwrap();
+            self.stack.push(item.clone());
+            return Some(item);
         }
         None
+    }
+
+    pub fn update_selected_item(&mut self, index: usize) {
+        // Updates the current selection position of the history item
+        // on top of the stack
+        if !self.stack.is_empty() {
+            let mut item = self.stack.pop().expect("Could not fetch history item");
+            info!(
+                "update_selected_item(): {} {} => {}",
+                item.url, item.position, index
+            );
+            item.position = index;
+            self.stack.push(item);
+        }
     }
 
     pub fn get_latest_history(&self, num_items: usize) -> Vec<HistoryEntry> {

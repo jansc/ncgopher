@@ -377,18 +377,23 @@ impl Controller {
 
     fn add_to_history(&mut self, url: Url) -> HistoryEntry {
         // TODO: Should not access the ui here
+
         let ui = self.ui.read().unwrap();
-        let mut index = 0;
         if let Some(i) = ui.get_selected_item_index() {
-            index = i;
+            // Updates the position of the last item on the stack This
+            // works because add_to_history is called _before_
+            // set_content.
+            info!("add_to_history(): updating last item's position to {}", i);
+            let mut guard = self.history.lock().unwrap();
+            guard.update_selected_item(i);
         }
-        info!("add_to_history(): {}  {}", url, index);
+        info!("add_to_history(): {}", url);
         let h: HistoryEntry = HistoryEntry {
             title: url.clone().into_string(),
             url,
             timestamp: Local::now(),
             visited_count: 1,
-            position: index,
+            position: 0,
         };
         self.history.lock().unwrap().add(h.clone());
         h
@@ -415,7 +420,7 @@ impl Controller {
                 .ui_tx
                 .read()
                 .unwrap()
-                .send(UiMessage::OpenUrl(h.url, ItemType::Dir, true, h.position))
+                .send(UiMessage::OpenUrl(h.url, ItemType::Dir, false, h.position))
                 .unwrap();
         } else {
             std::mem::drop(guard);
