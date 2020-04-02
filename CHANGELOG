@@ -15,6 +15,7 @@
   - Error handling for invalid gophermaps, invalid lines are ignored
   - Fixed bookmarking of queries
   - Reload must not add current page to history
+  - Keep cursor position when navigating back
 
   Changes:
   - Removed unecessary code
