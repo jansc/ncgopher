@@ -1,6 +1,6 @@
 * NcGopher Changelog
 
-** [unreleased]
+** 0.1.3 [2020-04-02]
 
   New features:
   - Darkmode (can be set in config file or settings dialog)
