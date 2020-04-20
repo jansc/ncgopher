@@ -74,7 +74,10 @@ impl GopherMapEntry {
             }
         } else {
             if !host.is_empty() {
-                url.set_host(Some(host.as_str())).unwrap();
+                if let Err(e) = url.set_host(Some(host.as_str())) {
+                    warn!("Could not parse host {}: {}", host.as_str(), e);
+                    return Err("Invalid host");
+                }
             }
             url.set_port(Some(port)).unwrap();
             url.set_path(path.as_str());
