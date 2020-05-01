@@ -86,7 +86,7 @@ pub struct NcGopher {
     pub controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
-    is_running: bool
+    is_running: bool,
 }
 
 impl Drop for NcGopher {
@@ -138,11 +138,7 @@ impl NcGopher {
         // TODO: Make keys configurable
         app.add_global_callback('q', |app| {
             app.with_user_data(|userdata: &mut UserData| {
-                userdata
-                    .ui_tx
-                    .read()
-                    .unwrap()
-                    .send(UiMessage::Quit)
+                userdata.ui_tx.read().unwrap().send(UiMessage::Quit)
             });
         });
         app.add_global_callback('g', |app| {
@@ -1338,9 +1334,7 @@ impl NcGopher {
                     self.open_gopher_url_string(url);
                 }
                 // Exit the event loop
-                UiMessage::Quit => {
-                    self.is_running = false
-                }
+                UiMessage::Quit => self.is_running = false,
                 UiMessage::ShowEditBookmarksDialog(bookmarks) => {
                     self.show_edit_bookmarks_dialog(bookmarks)
                 }

@@ -5,20 +5,20 @@ extern crate config;
 extern crate dirs;
 extern crate serde;
 
+extern crate rusqlite;
 extern crate serde_derive;
 extern crate toml;
-extern crate rusqlite;
 
 use clap::{App, Arg};
 use controller::Controller;
 use cursive::Cursive;
 use lazy_static::lazy_static;
+use pancurses;
 use settings::Settings;
+use std::io::{stdout, Write};
 use std::process::exit;
 use std::sync::RwLock;
 use url::Url;
-use std::io::{stdout, Write};
-use pancurses;
 
 mod bookmarks;
 mod controller;
