@@ -79,7 +79,7 @@ impl Controller {
             rx: Arc::new(rx),
             tx: Arc::new(RwLock::new(tx)),
             ui: Arc::new(RwLock::new(ncgopher.clone())),
-            history: Arc::new(Mutex::new(History::new())),
+            history: Arc::new(Mutex::new(History::new().unwrap())),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
@@ -87,7 +87,7 @@ impl Controller {
         };
         ncgopher.setup_ui();
         // Add old entries to history on start-up
-        let entries = controller.history.lock().unwrap().get_latest_history(10);
+        let entries = controller.history.lock().unwrap().get_latest_history(10).expect("Could not get latest history");
         for entry in entries {
             controller
                 .ui
@@ -401,7 +401,7 @@ impl Controller {
             visited_count: 1,
             position: 0,
         };
-        self.history.lock().unwrap().add(h.clone());
+        self.history.lock().unwrap().add(h.clone()).expect("Could not add to history");
         h
     }
 
@@ -409,7 +409,7 @@ impl Controller {
     /// TODO: Add option to clear only parts of the history
     fn clear_history(&mut self) {
         // Purge file
-        self.history.lock().unwrap().clear();
+        self.history.lock().unwrap().clear().expect("Could not clear history");
     }
 
     /// Navigates to the previous page in history
@@ -785,7 +785,7 @@ impl Controller {
                             .unwrap()
                             .send(UiMessage::ClearHistoryMenu)
                             .unwrap();
-                        let entries = self.history.lock().unwrap().get_latest_history(10);
+                        let entries = self.history.lock().unwrap().get_latest_history(10).expect("Could not get latest history");
                         for entry in entries {
                             self.ui
                                 .read()

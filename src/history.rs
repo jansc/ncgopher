@@ -1,34 +1,16 @@
 use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, NO_PARAMS};
-use serde::Serializer;
+use rusqlite::{params, Connection, NO_PARAMS, Result};
 use std::sync::Arc;
 use url::Url;
 
-fn url_serialize<S>(url: &Url, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(url.clone().into_string().as_str())
-}
 
-fn timestamp_serialize<S>(ts: &DateTime<Local>, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(&ts.to_rfc2822())
-}
-
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug)]
 pub struct HistoryEntry {
     pub title: String,
-    #[serde(serialize_with = "url_serialize")]
     pub url: Url,
-    #[serde(serialize_with = "timestamp_serialize")]
     pub timestamp: DateTime<Local>,
     pub visited_count: u16,
 
-    // Never serialized. Keep track of position
-    #[serde(skip_serializing)]
     pub position: usize,
 }
 
@@ -41,9 +23,9 @@ pub struct History {
 }
 
 impl History {
-    pub fn new() -> History {
+    pub fn new() -> Result<History> {
         info!("Creating history object");
-        let connection = Arc::new(Connection::open(History::get_history_filename()).unwrap());
+        let connection = Arc::new(Connection::open(History::get_history_filename())?);
         connection
             .execute(
                 "CREATE TABLE IF NOT EXISTS history (
@@ -54,12 +36,11 @@ impl History {
              visitedcount NUMBER NOT NULL DEFAULT 1
          )",
                 NO_PARAMS,
-            )
-            .expect("Could not create history table");
-        History {
+            )?;
+        Ok(History {
             stack: Vec::new(),
             sql: connection,
-        }
+        })
     }
 
     fn get_history_filename() -> String {
@@ -74,7 +55,7 @@ impl History {
         confdir
     }
 
-    pub fn add(&mut self, entry: HistoryEntry) {
+    pub fn add(&mut self, entry: HistoryEntry) -> Result<()> {
         info!("Adding entry to history: {:?}", entry);
         self.stack.push(entry.clone());
 
@@ -87,26 +68,25 @@ impl History {
             trace!("History::add(): Row exists, updating");
             let mut stmt = self
                 .sql
-                .prepare("UPDATE history SET visitedcount=visitedcount+1 WHERE url=?1")
-                .expect("Could not update history entry");
-            stmt.query(params![&entry.url.to_string()]);
+                .prepare("UPDATE history SET visitedcount=visitedcount+1 WHERE url=?1")?;
+            stmt.query(params![&entry.url.to_string()])?;
         } else {
             trace!("History::add(): Adding entry");
             self.sql
                 .execute(
                     "INSERT INTO history (url) values (?1)",
                     &[&entry.url.to_string()],
-                )
-                .expect("Could not write history entry");
+                )?;
         }
+        Ok(())
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> Result<()> {
         trace!("History::clear()");
         self.stack.clear();
         self.sql
-            .execute("DELETE FROM history", NO_PARAMS)
-            .expect("Could not write history entry");
+            .execute("DELETE FROM history", NO_PARAMS)?;
+        Ok(())
     }
 
     pub fn back(&mut self) -> Option<HistoryEntry> {
@@ -134,29 +114,27 @@ impl History {
         }
     }
 
-    pub fn get_latest_history(&self, num_items: usize) -> Vec<HistoryEntry> {
+    pub fn get_latest_history(&self, num_items: usize) -> Result<Vec<HistoryEntry>> {
         let mut res = Vec::<HistoryEntry>::new();
         let mut stmt = self
             .sql
             .prepare(
                 "SELECT title, url, timestmp, visitedcount FROM history ORDER BY timestmp LIMIT ?1",
-            )
-            .expect("Could not get history entry");
+            )?;
         let mut rows = stmt
-            .query(params![num_items as u32])
-            .expect("Could not execute query");
-        while let Some(row) = rows.next().expect("Could not read rows") {
-            let title: String = row.get(1).expect("Could not get title");
+            .query(params![num_items as u32])?;
+        while let Some(row) = rows.next()? {
+            let title: String = row.get(1)?;
             let entry = HistoryEntry {
                 title,
-                url: row.get(1).expect("Could not get row"),
-                timestamp: row.get(2).expect("Could not get row"),
-                visited_count: row.get(3).expect("Could not get row"),
+                url: row.get(1)?,
+                timestamp: row.get(2)?,
+                visited_count: row.get(3)?,
                 position: 0,
             };
             res.push(entry);
         }
         trace!("Returning {} history entries", res.len());
-        res
+        Ok(res)
     }
 }
