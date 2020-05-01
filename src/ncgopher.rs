@@ -1270,7 +1270,6 @@ impl NcGopher {
     /// processing any UI messages.
     pub fn step(&mut self) -> bool {
         {
-            let mut app = self.app.write().unwrap();
             if !self.is_running {
                 return false;
             }
