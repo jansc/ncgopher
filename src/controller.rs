@@ -54,7 +54,6 @@ pub enum ControllerMessage {
     RequestEditBookmarksDialog,
     RequestSaveAsDialog,
     RequestSettingsDialog,
-    Quit,
     SavePageAs(String),
     SetContent(Url, String, ItemType, usize),
     ShowMessage(String),
@@ -62,6 +61,12 @@ pub enum ControllerMessage {
     RedrawHistory,
     FetchUrl(Url, ItemType, bool, usize),
     FetchBinaryUrl(Url, String),
+}
+
+impl Drop for Controller {
+    fn drop(&mut self) {
+        // Cleanup
+    }
 }
 
 impl Controller {
@@ -199,6 +204,7 @@ impl Controller {
                 info!("TLS not configured");
             }
             if !tls {
+                // FIXME: Proper error handling
                 let mut stream = TcpStream::connect(server_details.clone())
                     .expect("Couldn't connect to the server...");
                 writeln!(stream, "{}", path).unwrap();
@@ -543,8 +549,7 @@ impl Controller {
 
     /// Run the controller
     pub fn run(&mut self) {
-        let mut exit = false;
-        while self.ui.write().unwrap().step() && !exit {
+        while self.ui.write().unwrap().step() {
             while let Some(message) = self.rx.try_iter().next() {
                 // Handle messages arriving from the UI.
                 match message {
@@ -730,9 +735,6 @@ impl Controller {
                             .unwrap()
                             .send(UiMessage::BinaryWritten(filename, bytes_written))
                             .unwrap();
-                    }
-                    ControllerMessage::Quit => {
-                        exit = true;
                     }
                     ControllerMessage::NavigateBack => {
                         self.navigate_back();

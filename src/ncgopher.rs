@@ -44,6 +44,7 @@ pub enum UiMessage {
     OpenUrl(Url, ItemType, bool, usize),
     OpenUrlFromString(String),
     PageSaved(Url, ItemType, String),
+    Quit,
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ItemType, usize),
     ShowEditBookmarksDialog(Vec<Bookmark>),
@@ -85,6 +86,13 @@ pub struct NcGopher {
     pub controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
+    is_running: bool
+}
+
+impl Drop for NcGopher {
+    fn drop(&mut self) {
+        // Cleanup
+    }
 }
 
 impl NcGopher {
@@ -96,6 +104,7 @@ impl NcGopher {
             ui_rx: Arc::new(ui_rx),
             controller_tx: Arc::new(RwLock::new(controller_tx)),
             message: Arc::new(RwLock::new(String::new())),
+            is_running: true,
         };
         // Make channels available from callbacks
         let userdata = UserData::new(ncgopher.ui_tx.clone(), ncgopher.controller_tx.clone());
@@ -130,10 +139,10 @@ impl NcGopher {
         app.add_global_callback('q', |app| {
             app.with_user_data(|userdata: &mut UserData| {
                 userdata
-                    .controller_tx
+                    .ui_tx
                     .read()
                     .unwrap()
-                    .send(ControllerMessage::Quit)
+                    .send(UiMessage::Quit)
             });
         });
         app.add_global_callback('g', |app| {
@@ -328,7 +337,17 @@ impl NcGopher {
                     });
                 })
                 .delimiter()
-                .leaf("Quit", |s| s.quit()),
+                .leaf("Quit", |app| {
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(UiMessage::Quit)
+                            .unwrap()
+                    });
+                }),
         );
         menubar.add_subtree(
             "History",
@@ -1251,8 +1270,8 @@ impl NcGopher {
     /// processing any UI messages.
     pub fn step(&mut self) -> bool {
         {
-            let app = self.app.write().unwrap();
-            if !app.is_running() {
+            let mut app = self.app.write().unwrap();
+            if !self.is_running {
                 return false;
             }
         }
@@ -1318,6 +1337,10 @@ impl NcGopher {
                 }
                 UiMessage::OpenUrlFromString(url) => {
                     self.open_gopher_url_string(url);
+                }
+                // Exit the event loop
+                UiMessage::Quit => {
+                    self.is_running = false
                 }
                 UiMessage::ShowEditBookmarksDialog(bookmarks) => {
                     self.show_edit_bookmarks_dialog(bookmarks)

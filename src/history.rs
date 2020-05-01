@@ -5,7 +5,9 @@ use std::cmp;
 use std::fs::File as FsFile;
 use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
 use url::Url;
+use rusqlite::{Connection, NO_PARAMS};
 
 fn url_serialize<S>(url: &Url, s: S) -> Result<S::Ok, S::Error>
 where
@@ -41,12 +43,12 @@ pub struct History {
     pub stack: Vec<HistoryEntry>,
     /// Log of all visited gopherholes
     pub entries: Vec<HistoryEntry>,
+    sql: Arc<Connection>,
 }
 
 impl History {
     pub fn new() -> History {
         let mut s = Config::new();
-
         let confdir = History::get_history_filename();
         if Path::new(confdir.as_str()).exists() {
             match s.merge(File::new(confdir.as_str(), FileFormat::Toml)) {
@@ -57,6 +59,17 @@ impl History {
             }
         }
         let mut entries = Vec::new();
+        let connection = Arc::new(Connection::open_in_memory().unwrap());
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS history (
+             id INTEGER PRIMARY KEY,
+             title TEXT,
+             url TEXT NOT NULL,
+             timestmp DATETIME DEFAULT CURRENT_TIMESTAMP,
+             visitedcount NUMBER NOT NULL DEFAULT 1
+         )",
+            NO_PARAMS,
+        ).expect("Could not create history table");
         info!("Reading history...");
         info!("history: {:?}", s.get_array("history"));
         if let Ok(e) = s.get_array("history") {
@@ -78,6 +91,7 @@ impl History {
         History {
             stack: Vec::new(),
             entries,
+            sql: connection,
         }
     }
 
@@ -97,6 +111,10 @@ impl History {
     pub fn add(&mut self, entry: HistoryEntry) {
         info!("Adding entry to history: {:?}", entry);
         self.stack.push(entry.clone());
+        self.sql.execute(
+            "INSERT INTO history (url) values (?1)",
+            &[&entry.url.to_string()],
+        ).expect("Could not write history entry");
         // Check if the element already exists in history
         match self.entries.iter().position(|e| e.url == entry.url) {
             Some(p) => {
@@ -118,6 +136,7 @@ impl History {
     pub fn clear(&mut self) {
         self.stack.clear();
         self.entries.clear();
+        self.sql.execute("DELETE FROM history", NO_PARAMS).expect("Could not write history entry");
         match self.write_history_to_file() {
             Err(why) => warn!("Could not write history file: {}", why),
             Ok(()) => (),
@@ -172,6 +191,10 @@ impl History {
             return Err(why);
         };
         for h in self.clone().entries {
+            self.sql.execute(
+                "INSERT INTO history (url) values (?1)",
+                &[&h.url.to_string()],
+            ).expect("Could not write history entry");
             if let Err(why) = file.write(b"\n[[history]]\n") {
                 return Err(why);
             };

@@ -7,6 +7,7 @@ extern crate serde;
 
 extern crate serde_derive;
 extern crate toml;
+extern crate rusqlite;
 
 use clap::{App, Arg};
 use controller::Controller;
@@ -16,6 +17,8 @@ use settings::Settings;
 use std::process::exit;
 use std::sync::RwLock;
 use url::Url;
+use std::io::{stdout, Write};
+use pancurses;
 
 mod bookmarks;
 mod controller;
@@ -86,4 +89,7 @@ fn main() {
         Ok(mut controller) => controller.run(),
         Err(e) => println!("Error: {}", e),
     };
+    print!("\x1B[?1002l");
+    stdout().flush().expect("could not flush stdout");
+    pancurses::endwin();
 }

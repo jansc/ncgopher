@@ -1,5 +1,12 @@
 * NcGopher Changelog
 
+** [unreleased]
+  Bugfixes:
+  - Reset console when quitting application
+
+  Changes:
+  - Added Makefile
+
 ** 0.1.3 [2020-04-02]
 
   New features:
