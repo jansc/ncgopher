@@ -23,7 +23,7 @@ pub struct History {
 }
 
 impl History {
-    pub fn new() -> Result<History> {
+    pub fn new() -> Result<Self> {
         info!("Creating history object");
         let connection = Arc::new(Connection::open(History::get_history_filename())?);
         connection

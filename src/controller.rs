@@ -5,6 +5,7 @@ use std::io::{BufWriter, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::process::Command;
+use std::error::Error;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
@@ -71,7 +72,7 @@ impl Drop for Controller {
 
 impl Controller {
     /// Create a new controller
-    pub fn new(app: Cursive, url: Url) -> Result<Controller, String> {
+    pub fn new(app: Cursive, url: Url) -> Result<Controller, Box<dyn Error>> {
         let (tx, rx) = mpsc::channel::<ControllerMessage>();
         let mut ncgopher = NcGopher::new(app, tx.clone());
 
@@ -79,7 +80,7 @@ impl Controller {
             rx: Arc::new(rx),
             tx: Arc::new(RwLock::new(tx)),
             ui: Arc::new(RwLock::new(ncgopher.clone())),
-            history: Arc::new(Mutex::new(History::new().unwrap())),
+            history: Arc::new(Mutex::new(History::new()?)),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
@@ -96,8 +97,7 @@ impl Controller {
                 .ui_tx
                 .read()
                 .unwrap()
-                .send(UiMessage::AddToHistoryMenu(entry))
-                .unwrap();
+                .send(UiMessage::AddToHistoryMenu(entry))?;
         }
         info!("Adding existing bookmarks to menu");
         let entries = controller.bookmarks.lock().unwrap().get_bookmarks();
@@ -110,8 +110,7 @@ impl Controller {
                 .ui_tx
                 .read()
                 .unwrap()
-                .send(UiMessage::AddToBookmarkMenu(entry))
-                .unwrap();
+                .send(UiMessage::AddToBookmarkMenu(entry))?;
         }
         // Add bookmarks to bookmark menu on startup
         ncgopher.open_gopher_url(url);
@@ -144,6 +143,8 @@ impl Controller {
             //let x = path[0..1].to_string();
             // TODO: Sjekk om x[0] == / og x[1] == itemtype
             path = path[2..].to_string();
+        } else {
+            path = "".to_string();
         }
 
         let server_details = format!("{}:{}", server, port);
@@ -204,21 +205,27 @@ impl Controller {
                 info!("TLS not configured");
             }
             if !tls {
-                // FIXME: Proper error handling
-                let mut stream = TcpStream::connect(server_details.clone())
-                    .expect("Couldn't connect to the server...");
-                writeln!(stream, "{}", path).unwrap();
-
-                loop {
-                    match stream.read_to_end(&mut buf) {
-                        Ok(_) => break,
-                        Err(e) => {
-                            tx_clone
-                                .send(ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
-                                .unwrap();
+                match TcpStream::connect(server_details.clone()) {
+                    Ok(mut stream) => {
+                        writeln!(stream, "{}", path).unwrap();
+                        loop {
+                            match stream.read_to_end(&mut buf) {
+                                Ok(_) => break,
+                                Err(e) => {
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
+                                        .unwrap();
+                                }
+                            }
                         }
+                    },
+                    Err(e) => {
+                        tx_clone
+                            .send(ControllerMessage::ShowMessage(format!("Couldn't connect to server: {}", e)))
+                            .unwrap();
+                        return;
                     }
-                }
+                };
             }
             let s = String::from_utf8_lossy(&buf);
             if add_to_history {
