@@ -14,6 +14,7 @@ use cursive::Cursive;
 use std::str;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
+use textwrap::wrap_iter;
 use url::Url;
 //use crate::settings::Settings;
 use crate::ui;
@@ -571,11 +572,29 @@ impl NcGopher {
             .unwrap();
     }
 
+    // Helper function to get the width of the view port
+    // Used for text wrapping
+    fn get_viewport_width(&mut self) -> usize {
+        let mut app = self.app.write().unwrap();
+        let mut width = 0;
+        app.call_on_name(
+            "content_scroll",
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>| {
+                let rect = s.content_viewport();
+                width = rect.width();
+            },
+        );
+        width
+    }
+
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
+        let viewport_width = self.get_viewport_width() - 7;
+        info!("Viewport-width = {}", viewport_width);
         let mut app = self.app.write().unwrap();
         let msg = String::new();
+
         app.call_on_name("content", |view: &mut SelectView<GopherMapEntry>| {
             view.clear();
             let lines = content.lines();
@@ -601,10 +620,23 @@ impl NcGopher {
             }
             for l in gophermap {
                 let entry = l.clone();
-                let mut formatted = StyledString::new();
-                let label = format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
-                formatted.append(label);
-                view.add_item(formatted, l.clone());
+
+                let label = entry.clone().label();
+                if entry.item_type == ItemType::Inline && label.len() > viewport_width {
+                    let mut iter = wrap_iter(&label, viewport_width);
+                    info!("Wrapping text");
+                    while let Some(str) = iter.next() {
+                        let mut formatted = StyledString::new();
+                        let label = format!("{}  {}", ItemType::as_str(entry.item_type), str);
+                        formatted.append(label);
+                        view.add_item(formatted, l.clone());
+                    }
+                } else {
+                    let mut formatted = StyledString::new();
+                    let label = format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
+                    formatted.append(label);
+                    view.add_item(formatted, l.clone());
+                }
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
@@ -686,6 +718,7 @@ impl NcGopher {
             v.clear();
             let lines = content.lines();
             for l in lines {
+                // TODO: Do text wrapping
                 v.add_item_str(format!("  {}", l.to_string()));
             }
             // TODO: on_submit-handler to open URLs in text

@@ -4,7 +4,7 @@ extern crate log;
 extern crate config;
 extern crate dirs;
 extern crate serde;
-
+extern crate textwrap;
 extern crate rusqlite;
 extern crate serde_derive;
 extern crate toml;

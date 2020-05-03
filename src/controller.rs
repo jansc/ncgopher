@@ -265,6 +265,8 @@ impl Controller {
             //let x = path[0..1].to_string();
             // TODO: Sjekk om x[0] == / og x[1] == itemtype
             path = path[2..].to_string();
+        } else {
+            path = "".to_string();
         }
 
         let server_details = format!("{}:{}", server, port);
@@ -372,25 +374,16 @@ impl Controller {
         let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
         let b: Bookmark = Bookmark { title, url, tags };
         self.bookmarks.lock().unwrap().add(b.clone());
-        /*
-        let toml = toml::to_string(&self.bookmarks.lock().unwrap().clone()).unwrap();
-        info!("TOML={}", toml);
-        let toml2 = toml::to_string(&b).unwrap();
-        info!("TOML2={}", toml2);
-        */
         b
     }
 
     fn remove_bookmark(&mut self, b: Bookmark) {
-        info!("remove_bookmark");
         self.bookmarks.lock().unwrap().remove(b.url);
         let tx_clone = self.tx.read().unwrap().clone();
         tx_clone.send(ControllerMessage::RedrawBookmarks).unwrap();
     }
 
     fn add_to_history(&mut self, url: Url) -> HistoryEntry {
-        // TODO: Should not access the ui here
-
         let ui = self.ui.read().unwrap();
         if let Some(i) = ui.get_selected_item_index() {
             // Updates the position of the last item on the stack This
@@ -441,28 +434,27 @@ impl Controller {
         }
     }
 
-    fn open_command(&mut self, command: &str, url: Url) {
+    fn open_command(&mut self, command: &str, url: Url) -> Result<(), Box<dyn Error>> {
         // Opens an image in an external application - if defined in settings
         let tx_clone = self.tx.read().unwrap().clone();
         let u = url.clone().into_string();
-        let command = SETTINGS.read().unwrap().get_str(command).unwrap();
+        let command = SETTINGS.read().unwrap().get_str(command)?;
         if !command.is_empty() {
             if let Err(err) = Command::new(&command).arg(u).spawn() {
                 tx_clone
                     .send(ControllerMessage::ShowMessage(format!(
                         "Command failed: {}: {}",
                         err, command
-                    )))
-                    .unwrap();
+                    )))?;
             }
         } else {
             tx_clone
                 .send(ControllerMessage::ShowMessage(format!(
                     "No command for opening {} defined.",
                     url.into_string()
-                )))
-                .unwrap();
+                )))?;
         }
+        Ok(())
     }
 
     fn save_textfile(&mut self, filename: String) {
@@ -517,7 +509,7 @@ impl Controller {
             let guard = self.content.lock().unwrap();
             content = guard.clone();
         }
-
+        let tx_clone = self.tx.read().unwrap().clone();
         let lines = content.lines();
         let mut txtlines = Vec::<String>::new();
         let mut first = true;
@@ -541,17 +533,29 @@ impl Controller {
         let display = path.display();
 
         let mut file = match File::create(&path) {
-            Err(why) => panic!("couldn't open {}: {}", display, why),
+            Err(err) => {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(format!(
+                        "Could open: {}: {}",
+                        display, err
+                    ))).unwrap();
+                return;
+            },
             Ok(file) => file,
         };
 
         // Read the file contents into a string, returns `io::Result<usize>`
         for l in txtlines {
-            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
-                panic!("couldn't write {}: {}", display, why)
+            if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(format!(
+                        "Could not write: {}: {}",
+                        display, err
+                    ))).unwrap();
+                return;
             }
         }
-        // `file` goes out of scope, and the "hello.txt" file gets closed
+        // `file` goes out of scope and the file gets closed
     }
 
     /// Run the controller
@@ -747,13 +751,13 @@ impl Controller {
                         self.navigate_back();
                     }
                     ControllerMessage::OpenHtml(url) => {
-                        self.open_command("html_command", url);
+                        self.open_command("html_command", url).unwrap();
                     }
                     ControllerMessage::OpenImage(url) => {
-                        self.open_command("image_command", url);
+                        self.open_command("image_command", url).unwrap();
                     }
                     ControllerMessage::OpenTelnet(url) => {
-                        self.open_command("telnet_command", url);
+                        self.open_command("telnet_command", url).unwrap();
                     }
                     ControllerMessage::FetchUrl(url, item_type, add_to_history, index) => {
                         self.fetch_url(url, item_type, add_to_history, index);

@@ -33,6 +33,7 @@ serde_derive = "1.0.106"
 serde = { version = "1.0.106", features = ["derive"] }
 toml = "0.5.6"
 rusqlite = { version = "0.23.1", features = ["url", "chrono"] }
+textwrap = "0.11.0"
 
 native-tls = { version = "0.2.4", optional = true }
 pancurses = "0.16.1"
