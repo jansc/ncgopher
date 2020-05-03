@@ -1,8 +1,12 @@
 * NcGopher Changelog
 
 ** [unreleased]
+  New features:
+  - Text wrapping  
+
   Bugfixes:
   - Reset console when quitting application
+  - Improved error handling
 
   Changes:
   - Added Makefile

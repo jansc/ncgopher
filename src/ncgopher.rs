@@ -587,6 +587,25 @@ impl NcGopher {
         width
     }
 
+    /*
+    // Helper function to get the width of the view port
+    // Used for text wrapping
+    fn get_text_viewport_width(&mut self) -> usize {
+        let mut app = self.app.write().unwrap();
+        let mut width = 0;
+        // FIXME: Does not call the closure for some reason
+        app.call_on_name(
+            "text_scroll",
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView>>>| {
+                info!("TEXT_SCROLL");
+                let rect = s.content_viewport();
+                width = rect.width() - 2;
+            },
+        );
+        width
+    }
+    */
+
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
@@ -710,6 +729,7 @@ impl NcGopher {
 
     /// Renders a text file in a cursive::TextView
     fn show_text_file(&mut self, content: String) {
+        let viewport_width = self.get_viewport_width() - 2;
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("text");
@@ -718,8 +738,16 @@ impl NcGopher {
             v.clear();
             let lines = content.lines();
             for l in lines {
-                // TODO: Do text wrapping
-                v.add_item_str(format!("  {}", l.to_string()));
+                let line = l.to_string();
+                if line.len() > viewport_width {
+                    let mut iter = wrap_iter(&line, viewport_width);
+                    info!("Wrapping text");
+                    while let Some(str) = iter.next() {
+                        v.add_item_str(format!("  {}", str));
+                    }
+                } else {
+                    v.add_item_str(format!("  {}", line));
+                }
             }
             // TODO: on_submit-handler to open URLs in text
         });
