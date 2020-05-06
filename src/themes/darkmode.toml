@@ -14,9 +14,9 @@ borders = "simple" # Alternatives are "none" and "outset"
 	# - Full-resolution colors start with '#' and can be 3 or 6 hex digits:
 	#       "#1A6", "#123456", ...
 
-	background = "blue"
+	background = "black"
 	#shadow     = ["#222288", "blue"]
-	view       = "light black"
+	view       = "black"
 
 	# An array with a single value has the same effect as a simple value.
 	primary   = "blue"
@@ -29,5 +29,5 @@ borders = "simple" # Alternatives are "none" and "outset"
 	#title_secondary = "#ffff55"
 
 	# Lower precision values can use only 3 digits.
-	highlight          = "light cyan"
+	highlight          = "cyan"
 	highlight_inactive = "cyan"
