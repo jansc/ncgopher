@@ -119,7 +119,7 @@ impl History {
         let mut stmt = self
             .sql
             .prepare(
-                "SELECT title, url, timestmp, visitedcount FROM history ORDER BY timestmp LIMIT ?1",
+                "SELECT title, url, timestmp, visitedcount FROM history ORDER BY timestmp DESC LIMIT ?1",
             )?;
         let mut rows = stmt
             .query(params![num_items as u32])?;
