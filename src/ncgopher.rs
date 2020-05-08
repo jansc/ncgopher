@@ -1,5 +1,6 @@
 use crate::bookmarks::Bookmark;
 use crate::controller::ControllerMessage;
+use crate::gemini::{GeminiLine, GeminiType, LineType};
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::HistoryEntry;
 use cursive::event::Key;
@@ -48,6 +49,7 @@ pub enum UiMessage {
     Quit,
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ItemType, usize),
+    ShowGeminiContent(Url, GeminiType, String),
     ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
     ShowMessage(String),
@@ -228,7 +230,7 @@ impl NcGopher {
         });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
 
-        let view: SelectView<GopherMapEntry> = SelectView::new();
+        // Create text view
         let textview = SelectView::<String>::new();
         let scrollable_textview = textview
             .with_name("text")
@@ -245,7 +247,9 @@ impl NcGopher {
                 },
             );
         });
-        let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
+
+        // Create gophermap content view
+        let view: SelectView<GopherMapEntry> = SelectView::new();
         let scrollable = view
             .with_name("content")
             .full_width()
@@ -261,9 +265,29 @@ impl NcGopher {
                 },
             );
         });
+
+        // Create gemini content view
+        let view: SelectView<GeminiLine> = SelectView::new();
+        let scrollable = view
+            .with_name("gemini_content")
+            .full_width()
+            .scrollable()
+            .with_name("gemini_content_scroll");
+        let gemini_event_view = OnEventView::new(scrollable).on_event(' ', |app| {
+            app.call_on_name(
+                "gemini_content_scroll",
+                |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                    let rect = s.content_viewport();
+                    let bl = rect.bottom_left();
+                    s.set_offset(bl);
+                },
+            );
+        });
+        let status = StatusBar::new(Arc::new(self.clone())).with_name("statusbar");
         let mut layout = Layout::new(status /*, theme*/)
             .view("text", text_event_view, "Textfile")
-            .view("content", event_view, "Gophermap");
+            .view("content", event_view, "Gophermap")
+            .view("gemini_content", gemini_event_view, "Gemini");
         layout.set_view("content");
         app.add_fullscreen_layer(layout.with_name("main"));
 
@@ -473,18 +497,24 @@ impl NcGopher {
     }
 
     pub fn open_gopher_url_string(&mut self, url: String) {
-        // TODO: Allow other types of Urls
         let mut url = url;
-        if !url.starts_with("gopher://") {
+
+        // Default-protocol is gopher
+        if !url.starts_with("gemini://") && !url.starts_with("gopher://") {
             url.insert_str(0, "gopher://");
         }
         let res = Url::parse(url.as_str());
         let url: Url;
-        // TODO: Check if URL includes an item type
         match res {
             Ok(res) => {
                 url = res;
-                self.open_gopher_address(url.clone(), ItemType::from_url(url), true, 0);
+                match url.scheme() {
+                    "gopher" => {
+                        self.open_gopher_address(url.clone(), ItemType::from_url(url), true, 0)
+                    }
+                    "gemini" => self.open_gemini_address(url.clone(), true, 0),
+                    _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
+                }
             }
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
@@ -494,6 +524,19 @@ impl NcGopher {
 
     pub fn open_gopher_url(&mut self, url: Url) {
         self.open_gopher_url_string(url.to_string());
+    }
+
+    pub fn open_gemini_address(&mut self, url: Url, _add_to_history: bool, _index: usize) {
+        self.set_message("Loading ...");
+        let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::FetchGeminiUrl(url, true))
+            .unwrap();
     }
 
     pub fn open_gopher_address(
@@ -606,6 +649,41 @@ impl NcGopher {
     }
     */
 
+    /// Renders a gemini site in a cursive::TextView
+    fn show_gemini(&mut self, base_url: &Url, content: &str) {
+        trace!("show_gemini()");
+        let mut app = self.app.write().unwrap();
+        app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
+            v.clear();
+            let lines = content.lines();
+            for l in lines {
+                let line = l.to_string();
+                info!("Adding gemini line: {}", line);
+                if let Ok(gemini_line) = GeminiLine::parse(line.clone(), &base_url) {
+                    v.add_item(gemini_line.clone().label(), gemini_line.clone());
+                }
+            }
+            v.set_on_submit(|app, entry| {
+                app.with_user_data(|userdata: &mut UserData| {
+                    if entry.line_type == LineType::Link {
+                        info!("Trying to open {}", entry.url.as_str());
+                        userdata
+                            .ui_tx
+                            .write()
+                            .unwrap()
+                            .send(UiMessage::OpenUrlFromString(String::from(
+                                entry.url.as_str(),
+                            )))
+                            .unwrap();
+                    }
+                });
+            });
+        });
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
+    }
+
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
@@ -642,9 +720,9 @@ impl NcGopher {
 
                 let label = entry.clone().label();
                 if entry.item_type == ItemType::Inline && label.len() > viewport_width {
-                    let mut iter = wrap_iter(&label, viewport_width);
+                    let iter = wrap_iter(&label, viewport_width);
                     info!("Wrapping text");
-                    while let Some(str) = iter.next() {
+                    for str in iter {
                         let mut formatted = StyledString::new();
                         let label = format!("{}  {}", ItemType::as_str(entry.item_type), str);
                         formatted.append(label);
@@ -740,9 +818,9 @@ impl NcGopher {
             for l in lines {
                 let line = l.to_string();
                 if line.len() > viewport_width {
-                    let mut iter = wrap_iter(&line, viewport_width);
+                    let iter = wrap_iter(&line, viewport_width);
                     info!("Wrapping text");
-                    while let Some(str) = iter.next() {
+                    for str in iter {
                         v.add_item_str(format!("  {}", str));
                     }
                 } else {
@@ -1361,6 +1439,14 @@ impl NcGopher {
                         self.show_gophermap(content, index);
                     } else if ItemType::is_text(item_type) {
                         self.show_text_file(content);
+                    }
+                    self.set_message(url.as_str());
+                }
+                UiMessage::ShowGeminiContent(url, gemini_type, content) => {
+                    if gemini_type == GeminiType::Text {
+                        self.show_text_file(content);
+                    } else {
+                        self.show_gemini(&url, &content);
                     }
                     self.set_message(url.as_str());
                 }

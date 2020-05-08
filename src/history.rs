@@ -1,8 +1,7 @@
 use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, NO_PARAMS, Result};
+use rusqlite::{params, Connection, Result, NO_PARAMS};
 use std::sync::Arc;
 use url::Url;
-
 
 #[derive(Clone, Debug)]
 pub struct HistoryEntry {
@@ -26,17 +25,16 @@ impl History {
     pub fn new() -> Result<Self> {
         info!("Creating history object");
         let connection = Arc::new(Connection::open(History::get_history_filename())?);
-        connection
-            .execute(
-                "CREATE TABLE IF NOT EXISTS history (
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS history (
              id INTEGER PRIMARY KEY,
              title TEXT,
              url TEXT NOT NULL,
              timestmp DATETIME DEFAULT CURRENT_TIMESTAMP,
              visitedcount NUMBER NOT NULL DEFAULT 1
          )",
-                NO_PARAMS,
-            )?;
+            NO_PARAMS,
+        )?;
         Ok(History {
             stack: Vec::new(),
             sql: connection,
@@ -60,11 +58,15 @@ impl History {
         self.stack.push(entry.clone());
 
         trace!("History::add(): checking for entry with url {}", entry.url);
-        if self.sql.query_row(
-            "SELECT id FROM history WHERE url=?1",
-            params![&entry.url],
-            |_| Ok(()),
-        ).is_ok() {
+        if self
+            .sql
+            .query_row(
+                "SELECT id FROM history WHERE url=?1",
+                params![&entry.url],
+                |_| Ok(()),
+            )
+            .is_ok()
+        {
             trace!("History::add(): Row exists, updating");
             let mut stmt = self
                 .sql
@@ -72,11 +74,10 @@ impl History {
             stmt.query(params![&entry.url.to_string()])?;
         } else {
             trace!("History::add(): Adding entry");
-            self.sql
-                .execute(
-                    "INSERT INTO history (url) values (?1)",
-                    &[&entry.url.to_string()],
-                )?;
+            self.sql.execute(
+                "INSERT INTO history (url) values (?1)",
+                &[&entry.url.to_string()],
+            )?;
         }
         Ok(())
     }
@@ -84,8 +85,7 @@ impl History {
     pub fn clear(&mut self) -> Result<()> {
         trace!("History::clear()");
         self.stack.clear();
-        self.sql
-            .execute("DELETE FROM history", NO_PARAMS)?;
+        self.sql.execute("DELETE FROM history", NO_PARAMS)?;
         Ok(())
     }
 
@@ -121,8 +121,7 @@ impl History {
             .prepare(
                 "SELECT title, url, timestmp, visitedcount FROM history ORDER BY timestmp DESC LIMIT ?1",
             )?;
-        let mut rows = stmt
-            .query(params![num_items as u32])?;
+        let mut rows = stmt.query(params![num_items as u32])?;
         while let Some(row) = rows.next()? {
             let title: String = row.get(1)?;
             let entry = HistoryEntry {

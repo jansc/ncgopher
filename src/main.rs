@@ -3,10 +3,11 @@ extern crate clap;
 extern crate log;
 extern crate config;
 extern crate dirs;
-extern crate serde;
-extern crate textwrap;
+extern crate regex;
 extern crate rusqlite;
+extern crate serde;
 extern crate serde_derive;
+extern crate textwrap;
 extern crate toml;
 
 use clap::{App, Arg};
@@ -22,6 +23,7 @@ use url::Url;
 
 mod bookmarks;
 mod controller;
+mod gemini;
 mod gophermap;
 mod history;
 mod ncgopher;
