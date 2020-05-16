@@ -127,6 +127,17 @@ impl Controller {
         Ok(controller)
     }
 
+     // Used for gemini downloads
+     fn get_filename_from_url(&self, url: &Url) -> String {
+        if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
+            let last_seg = segments.pop();
+            if let Some(filename) = last_seg {
+                return filename.to_string();
+            }
+        }
+        "download.bin".to_string()
+    }
+
     fn fetch_gemini_url(&self, url: Url, add_to_history: bool) {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
@@ -162,6 +173,7 @@ impl Controller {
                 return;
             }
         }
+        let local_filename = self.get_filename_from_url(&url);
         thread::spawn(move || {
             // FIXME: Should use _server instead?
             let mut buf = String::new();
@@ -256,19 +268,36 @@ impl Controller {
                                         tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
                                     } else {
                                         // Binary download
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(
-                                                "Binary download not implemented".to_string()
-                                            ))
-                                            .unwrap();
+                                        let f = File::create(local_filename.clone())
+                                            .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename.clone()));
+                                        let mut bw = BufWriter::new(f);
+                                        let mut buf = [0u8; 1024];
+                                        let mut total_written: usize = 0;
+                                        loop {
+                                            let bytes_read =
+                                                bufr.read(&mut buf).expect("Could not read from TCP");
+                                            if bytes_read == 0 {
+                                                break;
+                                            }
+                                            let bytes_written = bw
+                                                .write(&buf[..bytes_read])
+                                                .expect("Could not write to file");
+                                            total_written += bytes_written;
+                                            tx_clone
+                                                .send(ControllerMessage::ShowMessage(format!(
+                                                    "{} bytes read",
+                                                    total_written
+                                                )))
+                                                .unwrap();
+                                        }
                                     }
                                 } else {
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(format!(
-                                                "Invalid status code: {}",
-                                                buf
-                                            )))
-                                            .unwrap();
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "Invalid status code: {}",
+                                            buf
+                                        )))
+                                        .unwrap();
                                 }
                             }
                             '3' => {

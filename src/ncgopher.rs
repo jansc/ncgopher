@@ -304,6 +304,7 @@ impl NcGopher {
             .unwrap();
     }
 
+    // TODO: Should be moved to controller
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
         let last_seg = segments.pop();
