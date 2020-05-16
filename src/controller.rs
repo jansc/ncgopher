@@ -174,7 +174,8 @@ impl Controller {
                 match connector.connect(&server, stream) {
                     Ok(mut stream) => {
                         info!("Connected with TLS");
-                        writeln!(stream, "{}", url.as_str()).unwrap();
+                        info!("Writing url '{}'", url.as_str());
+                        write!(stream, "{}\r\n", url.as_str()).unwrap();
                         let mut bufr = BufReader::new(stream);
                         info!("Reading from gemini stream");
                         // Read Gemini Header
@@ -223,38 +224,58 @@ impl Controller {
                                 return;
                             }
                             '2' => {
-                                let _status2 = Regex::new(r"^(2[01])\s+(.*);?").unwrap();
-                                let mut buf = vec![];
-                                bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "I/O error: {}",
-                                            err
-                                        )))
-                                        .unwrap();
-                                    0
-                                });
-                                let s = String::from_utf8_lossy(&buf);
-                                tx_clone
-                                    .send(ControllerMessage::SetGeminiContent(
-                                        gemini_url.clone(),
-                                        GeminiType::Gemini,
-                                        s.to_string(),
-                                    ))
-                                    .unwrap();
-                                if add_to_history {
-                                    tx_clone
-                                        .send(ControllerMessage::AddToHistory(gemini_url.clone()))
-                                        .unwrap();
+                                let status2 = Regex::new(r"^(2[01])\s+(.*);?").unwrap();
+                                if let Some(caps) = status2.captures(&buf) {
+                                    let mimetype = caps.get(2).unwrap().as_str();
+                                    // If mimetype is text/* download as gemini
+                                    // Otherwise initiate a binary download
+                                    if mimetype.starts_with("text/") {
+                                        let mut buf = vec![];
+                                        bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
+                                            tx_clone
+                                                .send(ControllerMessage::ShowMessage(format!(
+                                                    "I/O error: {}",
+                                                    err
+                                                )))
+                                                .unwrap();
+                                            0
+                                        });
+                                        let s = String::from_utf8_lossy(&buf);
+                                        tx_clone
+                                            .send(ControllerMessage::SetGeminiContent(
+                                                gemini_url.clone(),
+                                                GeminiType::Gemini,
+                                                s.to_string(),
+                                            ))
+                                            .unwrap();
+                                        if add_to_history {
+                                            tx_clone
+                                                .send(ControllerMessage::AddToHistory(gemini_url.clone()))
+                                                .unwrap();
+                                        }
+                                        tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
+                                    } else {
+                                        // Binary download
+                                        tx_clone
+                                            .send(ControllerMessage::ShowMessage(
+                                                "Binary download not implemented".to_string()
+                                            ))
+                                            .unwrap();
+                                    }
+                                } else {
+                                        tx_clone
+                                            .send(ControllerMessage::ShowMessage(format!(
+                                                "Invalid status code: {}",
+                                                buf
+                                            )))
+                                            .unwrap();
                                 }
-                                tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
                             }
                             '3' => {
                                 let status3 = Regex::new(r"^(3[01])\s+(.*)\s*$?").unwrap();
                                 if let Some(caps) = status3.captures(&buf) {
                                     // TODO: Should automatically update bookmarks when code is 31
                                     let _code = caps.get(1).unwrap().as_str();
-
                                     let url = caps.get(2).unwrap().as_str();
                                     // FIXME: Try to parse url, check scheme
                                     if let Ok(url) = Url::parse(url) {
