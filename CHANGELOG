@@ -2,7 +2,8 @@
 
 ** [unreleased]
   New features:
-  - Text wrapping  
+  - Text wrapping
+  - Initial Gemini support
 
   Bugfixes:
   - Reset console when quitting application
