@@ -290,6 +290,12 @@ impl Controller {
                                                 )))
                                                 .unwrap();
                                         }
+                                        tx_clone
+                                            .send(ControllerMessage::BinaryWritten(
+                                                local_filename.clone(),
+                                                total_written,
+                                            ))
+                                            .unwrap();
                                     }
                                 } else {
                                     tx_clone
@@ -363,6 +369,9 @@ impl Controller {
             }
         });
     }
+
+//    fn binary_download(filename: String) {
+//    }
 
     fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
