@@ -24,7 +24,9 @@ impl GeminiLine {
         let _heading1 = Regex::new(r"^#\s").unwrap();
         let _list = Regex::new(r"^*\s").unwrap();
         let link = Regex::new(r"^=>\s*(.*)$").unwrap();
+        let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
 
+        let line = ansi_sequences.replace_all(line.as_str(), "").to_string();
         if link.is_match(&line) {
             let mut iter = line[2..].trim().split_whitespace();
             let mut url = "";
