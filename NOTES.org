@@ -56,7 +56,7 @@
 *** DONE Implement reload of page
 ** beta, etc
 *** NEXT [#A] Gemini support [0/2]
-    - [ ] Binary downloads
+    - [x] Binary downloads
     - [ ] Automatic text wrapping
     - [ ] Handle prefomatting toggle lines
     - [ ] Limit number of redirects to 5
