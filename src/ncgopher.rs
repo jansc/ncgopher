@@ -631,6 +631,20 @@ impl NcGopher {
         width
     }
 
+    // Helper function to get the width of the gemini view port
+    fn get_gemini_viewport_width(&mut self) -> usize {
+        let mut app = self.app.write().unwrap();
+        let mut width = 0;
+        app.call_on_name(
+            "gemini_content_scroll",
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                let rect = s.content_viewport();
+                width = rect.width();
+            },
+        );
+        width
+    }
+
     /*
     // Helper function to get the width of the view port
     // Used for text wrapping
@@ -653,7 +667,9 @@ impl NcGopher {
     /// Renders a gemini site in a cursive::TextView
     fn show_gemini(&mut self, base_url: &Url, content: &str) {
         trace!("show_gemini()");
+        let viewport_width = self.get_gemini_viewport_width() - 7;
         let mut app = self.app.write().unwrap();
+        info!("Viewport-width = {}", viewport_width);
         app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
             v.clear();
             let lines = content.lines();
@@ -661,7 +677,19 @@ impl NcGopher {
                 let line = l.to_string();
                 info!("Adding gemini line: {}", line);
                 if let Ok(gemini_line) = GeminiLine::parse(line.clone(), &base_url) {
-                    v.add_item(gemini_line.clone().label(), gemini_line.clone());
+                    let label = gemini_line.clone().label();
+                    if gemini_line.line_type == LineType::Text && label.len() > viewport_width {
+                        let iter = wrap_iter(&label, viewport_width);
+                        info!("Wrapping text");
+                        for str in iter {
+                            let mut formatted = StyledString::new();
+                            let label = format!("{}", str);
+                            formatted.append(label);
+                            v.add_item(formatted, gemini_line.clone());
+                        }
+                    } else {
+                        v.add_item(label, gemini_line.clone());
+                    }
                 }
             }
             v.set_on_submit(|app, entry| {
