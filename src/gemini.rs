@@ -22,7 +22,7 @@ impl GeminiLine {
         let _heading3 = Regex::new(r"^###\s").unwrap();
         let _heading2 = Regex::new(r"^##\s").unwrap();
         let _heading1 = Regex::new(r"^#\s").unwrap();
-        let _list = Regex::new(r"^*\s").unwrap();
+        let list = Regex::new(r"^\*\s").unwrap();
         let link = Regex::new(r"^=>\s*(.*)$").unwrap();
 
         // Remove ANSI sequences. Konpeito, I'm looking at you
@@ -62,11 +62,18 @@ impl GeminiLine {
                 url: parsed_url,
             });
         }
+        if list.is_match(&line) {
+            return Ok(GeminiLine {
+                line_type: LineType::UnorderedList,
+                text: format!("{}", line),
+                url: Url::parse("gemini://none:1965").unwrap(),
+            });
+        }
 
         Ok(GeminiLine {
             line_type: LineType::Text,
             text: line,
-            url: Url::parse("gemini://fixme:1965").unwrap(),
+            url: Url::parse("gemini://none:1965").unwrap(),
         })
     }
 
@@ -82,5 +89,5 @@ pub enum LineType {
     _Preformatted,
     _PreformattedToggle,
     _Heading,
-    _UnorderedList,
+    UnorderedList,
 }

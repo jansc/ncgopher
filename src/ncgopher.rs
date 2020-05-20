@@ -667,7 +667,7 @@ impl NcGopher {
     /// Renders a gemini site in a cursive::TextView
     fn show_gemini(&mut self, base_url: &Url, content: &str) {
         trace!("show_gemini()");
-        let viewport_width = self.get_gemini_viewport_width() - 7;
+        let viewport_width = self.get_gemini_viewport_width() - 10;
         let mut app = self.app.write().unwrap();
         info!("Viewport-width = {}", viewport_width);
         app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
@@ -677,18 +677,51 @@ impl NcGopher {
                 let line = l.to_string();
                 info!("Adding gemini line: {}", line);
                 if let Ok(gemini_line) = GeminiLine::parse(line.clone(), &base_url) {
-                    let label = gemini_line.clone().label();
-                    if gemini_line.line_type == LineType::Text && label.len() > viewport_width {
-                        let iter = wrap_iter(&label, viewport_width);
-                        info!("Wrapping text");
-                        for str in iter {
-                            let mut formatted = StyledString::new();
-                            let label = format!("{}", str);
-                            formatted.append(label);
-                            v.add_item(formatted, gemini_line.clone());
+                    match gemini_line.line_type {
+                        LineType::Text => {
+                            let label = gemini_line.clone().label();
+                            if label.len() > viewport_width {
+                                let iter = wrap_iter(&label, viewport_width);
+                                for str in iter {
+                                    let mut formatted = StyledString::new();
+                                    let label = format!("       {}", str);
+                                    formatted.append(label);
+                                    v.add_item(formatted, gemini_line.clone());
+                                }
+                            } else {
+                                v.add_item(format!("       {}", label), gemini_line.clone());
+                            }
+                        },
+                        LineType::UnorderedList => {
+                            info!("Formatting unordered list");
+                            let label = gemini_line.clone().label();
+                            if label.len() > viewport_width {
+                                let iter = wrap_iter(&label, viewport_width);
+                                let mut first = true;
+                                for str in iter {
+                                    let mut formatted = StyledString::new();
+                                    let label;
+                                    if first {
+                                        label = format!("       {}", str);
+                                    } else {
+                                        label = format!("         {}", str);
+                                    }
+                                    first = false;
+                                    formatted.append(label);
+                                    v.add_item(formatted, gemini_line.clone());
+                                }
+                            } else {
+                                v.add_item(format!("       {}", label), gemini_line.clone());
+                            }
+                        },
+                        LineType::Link => {
+                            let label = gemini_line.clone().label();
+                            v.add_item(label, gemini_line.clone());
                         }
-                    } else {
-                        v.add_item(label, gemini_line.clone());
+                        _ => {
+                            let label = gemini_line.clone().label();
+                            v.add_item(label, gemini_line.clone());
+                        }
                     }
                 }
             }
