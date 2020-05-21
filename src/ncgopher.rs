@@ -718,6 +718,9 @@ impl NcGopher {
                             let label = gemini_line.clone().label();
                             v.add_item(label, gemini_line.clone());
                         }
+                        LineType::PreformattedToggle => {
+                            // Skip for now
+                        }
                         _ => {
                             let label = gemini_line.clone().label();
                             v.add_item(label, gemini_line.clone());
