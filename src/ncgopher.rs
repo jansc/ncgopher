@@ -43,8 +43,9 @@ pub enum UiMessage {
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
     OpenQueryUrl(Url),
+    // TODO: Remove this
     OpenUrl(Url, ItemType, bool, usize),
-    OpenUrlFromString(String),
+    OpenUrlFromString(String, bool, usize),
     PageSaved(Url, ItemType, String),
     Quit,
     ShowAddBookmarkDialog(Url),
@@ -480,6 +481,8 @@ impl NcGopher {
                                     .unwrap()
                                     .send(UiMessage::OpenUrlFromString(
                                         "gopher://jan.bio/1/ncgopher/".to_string(),
+                                        false,
+                                        0
                                     ))
                                     .unwrap();
                             });
@@ -497,7 +500,7 @@ impl NcGopher {
         );
     }
 
-    pub fn open_gopher_url_string(&mut self, url: String) {
+    pub fn open_url_string(&mut self, url: String, add_to_history: bool, index: usize) {
         let mut url = url;
 
         // Default-protocol is gopher
@@ -511,9 +514,9 @@ impl NcGopher {
                 url = res;
                 match url.scheme() {
                     "gopher" => {
-                        self.open_gopher_address(url.clone(), ItemType::from_url(url), true, 0)
+                        self.open_gopher_address(url.clone(), ItemType::from_url(url), add_to_history, index)
                     }
-                    "gemini" => self.open_gemini_address(url.clone(), true, 0),
+                    "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
                     _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
                 }
             }
@@ -523,11 +526,11 @@ impl NcGopher {
         }
     }
 
-    pub fn open_gopher_url(&mut self, url: Url) {
-        self.open_gopher_url_string(url.to_string());
+    pub fn open_url(&mut self, url: Url) {
+        self.open_url_string(url.to_string(), true, 0);
     }
 
-    pub fn open_gemini_address(&mut self, url: Url, _add_to_history: bool, _index: usize) {
+    pub fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
         self.set_message("Loading ...");
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
@@ -536,7 +539,7 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchGeminiUrl(url, true))
+            .send(ControllerMessage::FetchGeminiUrl(url, add_to_history, index))
             .unwrap();
     }
 
@@ -736,7 +739,7 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrlFromString(String::from(url.as_str())))
+                            .send(UiMessage::OpenUrlFromString(String::from(url.as_str()), true, 0))
                             .unwrap();
                     }
                 });
@@ -863,6 +866,7 @@ impl NcGopher {
         // FIXME: Call this from the previous callback
         if !title.is_empty() {
             app.call_on_name("main", |v: &mut ui::layout::Layout| {
+                trace!("SET TITLE");
                 v.set_title("content".to_string(), title);
             });
         }
@@ -1106,7 +1110,7 @@ impl NcGopher {
                 .ui_tx
                 .read()
                 .unwrap()
-                .send(UiMessage::OpenUrlFromString(name.to_string()))
+                .send(UiMessage::OpenUrlFromString(name.to_string(), true, 0))
                 .unwrap()
         });
     }
@@ -1319,7 +1323,7 @@ impl NcGopher {
                                         .read()
                                         .unwrap()
                                         .clone()
-                                        .send(UiMessage::OpenUrlFromString(b.url.to_string()))
+                                        .send(UiMessage::OpenUrlFromString(b.url.to_string(), true, 0))
                                         .unwrap()
                                 });
                             }
@@ -1400,7 +1404,7 @@ impl NcGopher {
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(b3.url.to_string()))
+                        .send(UiMessage::OpenUrlFromString(b3.url.to_string(), true, 0))
                         .unwrap()
                 });
             });
@@ -1427,7 +1431,7 @@ impl NcGopher {
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(h3.url.to_string()))
+                        .send(UiMessage::OpenUrlFromString(h3.url.to_string(), true, 0))
                         .unwrap()
                 });
             });
@@ -1524,6 +1528,7 @@ impl NcGopher {
                     self.query(url);
                 }
                 UiMessage::OpenUrl(url, item_type, add_to_history, index) => {
+                    info!("OpenUrl({}, {:?})", url, item_type);
                     if ItemType::is_download(item_type) {
                         match dirs::home_dir() {
                             Some(dir) => {
@@ -1540,8 +1545,8 @@ impl NcGopher {
                         self.open_gopher_address(url, item_type, add_to_history, index);
                     }
                 }
-                UiMessage::OpenUrlFromString(url) => {
-                    self.open_gopher_url_string(url);
+                UiMessage::OpenUrlFromString(url, add_to_history, index) => {
+                    self.open_url_string(url, add_to_history, index);
                 }
                 // Exit the event loop
                 UiMessage::Quit => self.is_running = false,

@@ -63,7 +63,7 @@ pub enum ControllerMessage {
     ShowMessage(String),
     RedrawBookmarks,
     RedrawHistory,
-    FetchGeminiUrl(Url, bool),
+    FetchGeminiUrl(Url, bool, usize),
     FetchUrl(Url, ItemType, bool, usize),
     FetchBinaryUrl(Url, String),
 }
@@ -122,7 +122,7 @@ impl Controller {
                 .send(UiMessage::AddToBookmarkMenu(entry))?;
         }
         // Add bookmarks to bookmark menu on startup
-        ncgopher.open_gopher_url(url);
+        ncgopher.open_url(url);
         info!("Controller::new()");
         Ok(controller)
     }
@@ -138,7 +138,7 @@ impl Controller {
         "download.bin".to_string()
     }
 
-    fn fetch_gemini_url(&self, url: Url, add_to_history: bool) {
+    fn fetch_gemini_url(&self, url: Url, add_to_history: bool, _index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -323,7 +323,7 @@ impl Controller {
                                     // FIXME: Try to parse url, check scheme
                                     if let Ok(url) = Url::parse(url) {
                                         tx_clone
-                                            .send(ControllerMessage::FetchGeminiUrl(url, true))
+                                            .send(ControllerMessage::FetchGeminiUrl(url, true, 0))
                                             .unwrap();
                                     } else {
                                         tx_clone
@@ -703,7 +703,7 @@ impl Controller {
                     .ui_tx
                     .read()
                     .unwrap()
-                    .send(UiMessage::OpenUrlFromString(h.url.as_str().to_string()))
+                    .send(UiMessage::OpenUrlFromString(h.url.as_str().to_string(), false, h.position))
                     .unwrap();
             } else {
                 self.ui
@@ -1063,8 +1063,8 @@ impl Controller {
                     ControllerMessage::OpenTelnet(url) => {
                         self.open_command("telnet_command", url).unwrap();
                     }
-                    ControllerMessage::FetchGeminiUrl(url, add_to_history) => {
-                        self.fetch_gemini_url(url, add_to_history);
+                    ControllerMessage::FetchGeminiUrl(url, add_to_history, index) => {
+                        self.fetch_gemini_url(url, add_to_history, index);
                     }
                     ControllerMessage::FetchUrl(url, item_type, add_to_history, index) => {
                         self.fetch_url(url, item_type, add_to_history, index);
