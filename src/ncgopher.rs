@@ -431,8 +431,7 @@ impl NcGopher {
                     });
                 })
                 .leaf("Gopherpedia...", |app| {
-                    // FIXME Add Url to gopherpedia
-                    let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
+                    let url = Url::parse("gopher://gopherpedia.com:70/7/lookup").unwrap();
                     app.with_user_data(|userdata: &mut UserData| {
                         userdata
                             .ui_tx
