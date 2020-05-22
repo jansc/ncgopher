@@ -14,7 +14,6 @@ use clap::{App, Arg};
 use controller::Controller;
 use cursive::Cursive;
 use lazy_static::lazy_static;
-use pancurses;
 use settings::Settings;
 use std::io::{stdout, Write};
 use std::process::exit;

@@ -691,7 +691,7 @@ impl NcGopher {
                             } else {
                                 v.add_item(format!("       {}", label), gemini_line.clone());
                             }
-                        },
+                        }
                         LineType::UnorderedList => {
                             info!("Formatting unordered list");
                             let label = gemini_line.clone().label();
@@ -700,12 +700,11 @@ impl NcGopher {
                                 let mut first = true;
                                 for str in iter {
                                     let mut formatted = StyledString::new();
-                                    let label;
-                                    if first {
-                                        label = format!("       {}", str);
+                                    let label = if first {
+                                        format!("       {}", str)
                                     } else {
-                                        label = format!("         {}", str);
-                                    }
+                                        format!("         {}", str)
+                                    };
                                     first = false;
                                     formatted.append(label);
                                     v.add_item(formatted, gemini_line.clone());
@@ -713,7 +712,7 @@ impl NcGopher {
                             } else {
                                 v.add_item(format!("       {}", label), gemini_line.clone());
                             }
-                        },
+                        }
                         LineType::Link => {
                             let label = gemini_line.clone().label();
                             v.add_item(label, gemini_line.clone());
@@ -731,14 +730,13 @@ impl NcGopher {
             v.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
                     if entry.line_type == LineType::Link {
-                        info!("Trying to open {}", entry.url.as_str());
+                        let url = entry.url.as_ref().unwrap();
+                        info!("Trying to open {}", url.as_str());
                         userdata
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrlFromString(String::from(
-                                entry.url.as_str(),
-                            )))
+                            .send(UiMessage::OpenUrlFromString(String::from(url.as_str())))
                             .unwrap();
                     }
                 });
@@ -786,7 +784,7 @@ impl NcGopher {
                 let label = entry.clone().label();
                 if entry.item_type == ItemType::Inline && label.len() > viewport_width {
                     let iter = wrap_iter(&label, viewport_width);
-                    info!("Wrapping text");
+                    // TODO: use cursive::utils::lines::simple::make_lines
                     for str in iter {
                         let mut formatted = StyledString::new();
                         let label = format!("{}  {}", ItemType::as_str(entry.item_type), str);

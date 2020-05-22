@@ -127,8 +127,8 @@ impl Controller {
         Ok(controller)
     }
 
-     // Used for gemini downloads
-     fn get_filename_from_url(&self, url: &Url) -> String {
+    // Used for gemini downloads
+    fn get_filename_from_url(&self, url: &Url) -> String {
         if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
             let last_seg = segments.pop();
             if let Some(filename) = last_seg {
@@ -262,20 +262,28 @@ impl Controller {
                                             .unwrap();
                                         if add_to_history {
                                             tx_clone
-                                                .send(ControllerMessage::AddToHistory(gemini_url.clone()))
+                                                .send(ControllerMessage::AddToHistory(
+                                                    gemini_url.clone(),
+                                                ))
                                                 .unwrap();
                                         }
                                         tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
                                     } else {
                                         // Binary download
                                         let f = File::create(local_filename.clone())
-                                            .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename.clone()));
+                                            .unwrap_or_else(|_| {
+                                                panic!(
+                                                    "Unable to open file '{}'",
+                                                    local_filename.clone()
+                                                )
+                                            });
                                         let mut bw = BufWriter::new(f);
                                         let mut buf = [0u8; 1024];
                                         let mut total_written: usize = 0;
                                         loop {
-                                            let bytes_read =
-                                                bufr.read(&mut buf).expect("Could not read from TCP");
+                                            let bytes_read = bufr
+                                                .read(&mut buf)
+                                                .expect("Could not read from TCP");
                                             if bytes_read == 0 {
                                                 break;
                                             }
@@ -370,8 +378,8 @@ impl Controller {
         });
     }
 
-//    fn binary_download(filename: String) {
-//    }
+    //    fn binary_download(filename: String) {
+    //    }
 
     fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
