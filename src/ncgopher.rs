@@ -44,7 +44,7 @@ pub enum UiMessage {
     OpenQueryDialog(Url),
     OpenQueryUrl(Url),
     // TODO: Remove this
-    OpenUrl(Url, ItemType, bool, usize),
+    OpenUrl(Url, bool, usize),
     OpenUrlFromString(String, bool, usize),
     PageSaved(Url, ItemType, String),
     Quit,
@@ -295,16 +295,6 @@ impl NcGopher {
         app.add_global_callback('~', Cursive::toggle_debug_console);
     }
 
-    fn fetch_binary_file(&mut self, url: Url, local_path: String) {
-        let filename = self.get_filename_from_url(url.clone());
-        let path = format!("{}/{}", local_path, filename);
-        self.controller_tx
-            .read()
-            .unwrap()
-            .send(ControllerMessage::FetchBinaryUrl(url, path))
-            .unwrap();
-    }
-
     // TODO: Should be moved to controller
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
@@ -508,17 +498,9 @@ impl NcGopher {
             url.insert_str(0, "gopher://");
         }
         let res = Url::parse(url.as_str());
-        let url: Url;
         match res {
-            Ok(res) => {
-                url = res;
-                match url.scheme() {
-                    "gopher" => {
-                        self.open_gopher_address(url.clone(), ItemType::from_url(url), add_to_history, index)
-                    }
-                    "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
-                    _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
-                }
+            Ok(url) => {
+                self.open_url(url, add_to_history, index);
             }
             Err(e) => {
                 self.set_message(format!("Invalid URL: {}", e).as_str());
@@ -526,8 +508,14 @@ impl NcGopher {
         }
     }
 
-    pub fn open_url(&mut self, url: Url) {
-        self.open_url_string(url.to_string(), true, 0);
+    pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
+        match url.scheme() {
+            "gopher" => {
+                self.open_gopher_address(url.clone(), ItemType::from_url(url), add_to_history, index)
+            }
+            "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
+        }
     }
 
     pub fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
@@ -551,20 +539,41 @@ impl NcGopher {
         index: usize,
     ) {
         self.set_message("Loading ...");
-        let mut app = self.app.write().unwrap();
-        app.call_on_name("main", |v: &mut ui::layout::Layout| {
-            v.set_view("content");
-        });
-        self.controller_tx
-            .read()
-            .unwrap()
-            .send(ControllerMessage::FetchUrl(
-                url,
-                item_type,
-                add_to_history,
-                index,
-            ))
-            .unwrap();
+        {
+            let mut app = self.app.write().unwrap();
+            app.call_on_name("main", |v: &mut ui::layout::Layout| {
+                v.set_view("content");
+            });
+        }
+
+        if ItemType::is_download(item_type) {
+            match dirs::home_dir() {
+                Some(dir) => {
+                    let filename = self.get_filename_from_url(url.clone());
+                    let local_path = dir.into_os_string().into_string().unwrap();
+                    let path = format!("{}/{}", local_path, filename);
+                    self.controller_tx
+                        .read()
+                        .unwrap()
+                        .send(ControllerMessage::FetchBinaryUrl(url, path))
+                        .unwrap();
+                }
+                None => {
+                    self.set_message("Could not find download dir");
+                }
+            };
+        } else {
+            self.controller_tx
+                .read()
+                .unwrap()
+                .send(ControllerMessage::FetchUrl(
+                    url,
+                    item_type,
+                    add_to_history,
+                    index,
+                ))
+                .unwrap();
+        }
     }
 
     fn open_query_dialog(&mut self, url: Url) {
@@ -814,7 +823,6 @@ impl NcGopher {
                             .unwrap()
                             .send(UiMessage::OpenUrl(
                                 entry.url.clone(),
-                                entry.item_type,
                                 true,
                                 0,
                             ))
@@ -865,6 +873,7 @@ impl NcGopher {
 
         // FIXME: Call this from the previous callback
         if !title.is_empty() {
+            trace!("TITLE SET");
             app.call_on_name("main", |v: &mut ui::layout::Layout| {
                 trace!("SET TITLE");
                 v.set_title("content".to_string(), title);
@@ -1527,23 +1536,9 @@ impl NcGopher {
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);
                 }
-                UiMessage::OpenUrl(url, item_type, add_to_history, index) => {
-                    info!("OpenUrl({}, {:?})", url, item_type);
-                    if ItemType::is_download(item_type) {
-                        match dirs::home_dir() {
-                            Some(dir) => {
-                                self.fetch_binary_file(
-                                    url,
-                                    dir.into_os_string().into_string().unwrap(),
-                                );
-                            }
-                            None => {
-                                self.set_message("Could not find download dir");
-                            }
-                        };
-                    } else {
-                        self.open_gopher_address(url, item_type, add_to_history, index);
-                    }
+                UiMessage::OpenUrl(url, add_to_history, index) => {
+                    trace!("OpenUrl({}, {}, {})", url, add_to_history, index);
+                    self.open_url(url, add_to_history, index);
                 }
                 UiMessage::OpenUrlFromString(url, add_to_history, index) => {
                     self.open_url_string(url, add_to_history, index);

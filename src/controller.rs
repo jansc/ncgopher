@@ -122,7 +122,7 @@ impl Controller {
                 .send(UiMessage::AddToBookmarkMenu(entry))?;
         }
         // Add bookmarks to bookmark menu on startup
-        ncgopher.open_url(url);
+        ncgopher.open_url(url, true, 0);
         info!("Controller::new()");
         Ok(controller)
     }
@@ -696,25 +696,14 @@ impl Controller {
         if let Some(h) = history {
             std::mem::drop(guard);
             info!("NAVIGATE_BACK to index {}", h.position);
-            if h.url.scheme() != "gopher" {
-                self.ui
-                    .read()
-                    .unwrap()
-                    .ui_tx
-                    .read()
-                    .unwrap()
-                    .send(UiMessage::OpenUrlFromString(h.url.as_str().to_string(), false, h.position))
-                    .unwrap();
-            } else {
-                self.ui
-                    .read()
-                    .unwrap()
-                    .ui_tx
-                    .read()
-                    .unwrap()
-                    .send(UiMessage::OpenUrl(h.url, ItemType::Dir, false, h.position))
-                    .unwrap();
-            }
+            self.ui
+                .read()
+                .unwrap()
+                .ui_tx
+                .read()
+                .unwrap()
+                .send(UiMessage::OpenUrl(h.url, false, h.position))
+                .unwrap();
         } else {
             std::mem::drop(guard);
             //self.app.add_layer(Dialog::info("No url"))
@@ -886,13 +875,10 @@ impl Controller {
                     }
                     ControllerMessage::ReloadCurrentPage => {
                         let current_url: Url;
-                        let current_item_type: ItemType;
                         let mut index = 0;
                         {
                             let guard = self.current_url.lock().unwrap();
                             current_url = guard.clone();
-                            let guard = self.current_item_type.lock().unwrap();
-                            current_item_type = *guard;
                             let ui = self.ui.read().unwrap();
                             if let Some(i) = ui.get_selected_item_index() {
                                 index = i;
@@ -906,7 +892,6 @@ impl Controller {
                             .unwrap()
                             .send(UiMessage::OpenUrl(
                                 current_url,
-                                current_item_type,
                                 false,
                                 index,
                             ))
