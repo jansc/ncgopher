@@ -451,6 +451,28 @@ impl NcGopher {
                             .send(UiMessage::ShowSearchDialog(url))
                             .unwrap()
                     });
+                })
+                .leaf("OpenBSD man pages...", |app| {
+                    let url = Url::parse("gopher://perso.pw:70/7/man.dcgi").unwrap();
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowSearchDialog(url))
+                            .unwrap()
+                    });
+                })
+                .leaf("searx search...", |app| {
+                    let url = Url::parse("gopher://me0w.net:70/7/searx.dcgi").unwrap();
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowSearchDialog(url))
+                            .unwrap()
+                    });
                 }),
         );
         menubar.add_subtree(
@@ -1239,6 +1261,97 @@ impl NcGopher {
     }
 
     fn move_to_link(&mut self, dir: Direction) {
+        let mut current_view = String::new();
+        {
+            let mut app = self.app.write().expect("Could not get write lock on app");
+            app.call_on_name("main", |v: &mut ui::layout::Layout| {
+                if let Some(v) = v.get_current_view() {
+                    current_view = v;
+                }
+            });
+        }
+        match current_view.as_str() {
+            "content" => self.move_to_link_gopher(dir),
+            "gemini_content" => self.move_to_link_gemini(dir),
+            _ => ()
+        }
+    }
+
+    fn move_to_link_gemini(&mut self, dir: Direction) {
+        let mut app = self.app.write().expect("Could not get write lock on app");
+        let mut view: ViewRef<SelectView<GeminiLine>>;
+        if let Some(v) = app.find_name("gemini_content") {
+            view = v;
+        } else {
+            return;
+        }
+        let cur = match view.selected_id() {
+            Some(id) => id,
+            None => 0,
+        };
+        let mut i: usize = cur;
+        match dir {
+            Direction::Next => {
+                i += 1; // Start at the element after the current row
+                loop {
+                    if i >= view.len() {
+                        i = 0; // Wrap and start from scratch
+                        continue;
+                    }
+                    let (_, item) = view.get_item(i).unwrap();
+                    if i == cur {
+                        break; // Once we reach the current item, we quit
+                    }
+                    if item.line_type == LineType::Link {
+                        break;
+                    }
+                    i += 1;
+                }
+            }
+            Direction::Previous => {
+                if i > 0 {
+                    i -= 1; // Start at the element before the current row
+                } else {
+                    i = view.len() - 1;
+                }
+                loop {
+                    if i == 0 {
+                        i = view.len() - 1; // Wrap and start from the end
+                        continue;
+                    }
+                    let (_, item) = view.get_item(i).unwrap();
+                    if i == cur {
+                        break; // Once we reach the current item, we quit
+                    }
+                    if item.line_type == LineType::Link {
+                        break;
+                    }
+                    i -= 1;
+                }
+            }
+        }
+        view.take_focus(cursive::direction::Direction::front());
+        view.set_selection(i);
+
+        // Scroll to selected row
+        let selected_id = view.selected_id().unwrap();
+        app.call_on_name(
+            "gemini_content_scroll",
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                s.set_offset(cursive::Vec2::new(0, selected_id));
+            },
+        );
+        app.with_user_data(|userdata: &mut UserData| {
+            userdata
+                .ui_tx
+                .read()
+                .unwrap()
+                .send(UiMessage::Trigger)
+                .unwrap()
+        });
+    }
+    
+    fn move_to_link_gopher(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
         let mut view: ViewRef<SelectView<GopherMapEntry>>;
         if let Some(v) = app.find_name("content") {
@@ -1568,7 +1681,6 @@ impl NcGopher {
                     self.set_message(url.as_str());
                 }
                 UiMessage::MoveToLink(direction) => {
-                    warn!("MoveToLink");
                     self.move_to_link(direction);
                 }
                 UiMessage::OpenQueryDialog(url) => {
