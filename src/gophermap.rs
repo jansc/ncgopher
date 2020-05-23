@@ -273,7 +273,7 @@ impl ItemType {
     }
 
     /// Returns the ItemType of an url. Defaults to gophermap (ItemType::Dir 1)
-    pub fn from_url(url: Url) -> ItemType {
+    pub fn from_url(url: &Url) -> ItemType {
         let path = url.path();
         let mut item_type: ItemType = ItemType::Dir;
         let mut chars = path.chars();

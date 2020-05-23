@@ -37,8 +37,6 @@ pub struct Controller {
     content: Arc<Mutex<String>>,
     /// Current URL
     current_url: Arc<Mutex<Url>>,
-    /// Current content type
-    current_item_type: Arc<Mutex<ItemType>>,
 }
 
 /// Defines messages sent between Controller and UI
@@ -88,7 +86,6 @@ impl Controller {
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
-            current_item_type: Arc::new(Mutex::new(ItemType::Dir)),
         };
         ncgopher.setup_ui();
         // Add old entries to history on start-up
@@ -959,13 +956,12 @@ impl Controller {
                     }
                     ControllerMessage::SavePageAs(filename) => {
                         let url: Url;
-                        let item_type: ItemType;
+                        // FIXME add gemini-support
                         {
-                            let guard = self.current_item_type.lock().unwrap();
-                            item_type = *guard;
                             let guard = self.current_url.lock().unwrap();
                             url = guard.clone();
                         }
+                        let item_type = ItemType::from_url(&url);
                         match item_type {
                             ItemType::Dir => self.save_gophermap(filename.clone()),
                             ItemType::File => self.save_textfile(filename.clone()),
@@ -1004,8 +1000,6 @@ impl Controller {
                             guard.push_str(content.as_str());
                             let mut guard = self.current_url.lock().unwrap();
                             *guard = url.clone();
-                            let mut guard = self.current_item_type.lock().unwrap();
-                            *guard = item_type;
                         }
                         self.ui
                             .read()

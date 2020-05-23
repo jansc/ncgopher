@@ -532,7 +532,7 @@ impl NcGopher {
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
         match url.scheme() {
             "gopher" => {
-                self.open_gopher_address(url.clone(), ItemType::from_url(url), add_to_history, index)
+                self.open_gopher_address(url.clone(), ItemType::from_url(&url), add_to_history, index)
             }
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
             _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
