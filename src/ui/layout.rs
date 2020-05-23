@@ -150,6 +150,14 @@ impl Layout {
         }
     }
 
+    pub fn get_current_view(&self) -> Option<String> {
+        if let Some(id) = self.focus.as_ref() {
+            Some(id.to_string())
+        } else {
+            None
+        }
+    }
+
     fn get_current_screen_mut(&mut self) -> Option<&mut Screen> {
         if !self.stack.is_empty() {
             return self.stack.last_mut();

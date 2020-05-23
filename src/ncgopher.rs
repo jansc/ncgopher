@@ -1126,10 +1126,52 @@ impl NcGopher {
     /// If the cursor in the current view is on a link, show
     /// a status message in the statusbar.
     fn show_current_link_info(&mut self) {
+        let mut current_view = String::new();
+        {
+            let mut app = self.app.write().expect("Could not get write lock on app");
+            app.call_on_name("main", |v: &mut ui::layout::Layout| {
+                if let Some(v) = v.get_current_view() {
+                    current_view = v;
+                }
+            });
+        }
+        match current_view.as_str() {
+            "content" => self.show_current_link_info_gopher(),
+            "gemini_content" => self.show_current_link_info_gemini(),
+            _ => ()
+        }
+    }
+
+    fn show_current_link_info_gemini(&mut self) {
+        let mut app = self.app.write().expect("Could not get write lock on app");
+        let view: ViewRef<SelectView<GeminiLine>>;
+        if let Some(v) = app.find_name("gemini_content") {
+            view = v;
+        } else {
+            return;
+        }
+        let cur = match view.selected_id() {
+            Some(id) => id,
+            None => 0,
+        };
+        if let Some((_, item)) = view.get_item(cur) {
+            if let Some(url) = &item.url {
+                app.with_user_data(|userdata: &mut UserData| {
+                    userdata
+                        .ui_tx
+                        .read()
+                        .unwrap()
+                        .send(UiMessage::ShowMessage(format!("URL '{}'", url)))
+                        .unwrap()
+                });
+            }
+        }
+    }
+
+    fn show_current_link_info_gopher(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
         let view: ViewRef<SelectView<GopherMapEntry>>;
-        let v = app.find_name("content");
-        if let Some(v) = v {
+        if let Some(v) = app.find_name("content") {
             view = v;
         } else {
             return;
