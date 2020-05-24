@@ -715,6 +715,9 @@ impl NcGopher {
     // Used for text wrapping
     fn get_viewport_width(&mut self) -> usize {
         let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("content");
+        });
         let mut width = 0;
         app.call_on_name(
             "content_scroll",
@@ -729,6 +732,9 @@ impl NcGopher {
     // Helper function to get the width of the gemini view port
     fn get_gemini_viewport_width(&mut self) -> usize {
         let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
         let mut width = 0;
         app.call_on_name(
             "gemini_content_scroll",
@@ -764,6 +770,9 @@ impl NcGopher {
         trace!("show_gemini()");
         let viewport_width = self.get_gemini_viewport_width() - 10;
         let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
         info!("Viewport-width = {}", viewport_width);
         app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
             v.clear();
@@ -835,17 +844,18 @@ impl NcGopher {
                 });
             });
         });
-        app.call_on_name("main", |v: &mut ui::layout::Layout| {
-            v.set_view("gemini_content");
-        });
     }
 
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
+
         let mut title: String = "".to_string();
         let viewport_width = self.get_viewport_width() - 7;
         info!("Viewport-width = {}", viewport_width);
         let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("content");
+        });
         let msg = String::new();
 
         app.call_on_name("content", |view: &mut SelectView<GopherMapEntry>| {
