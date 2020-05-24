@@ -474,6 +474,28 @@ impl NcGopher {
                             .send(UiMessage::ShowSearchDialog(url))
                             .unwrap()
                     });
+                })
+                .leaf("[gemini] GUS...", |app| {
+                    let url = Url::parse("gemini://gus.guru/search").unwrap();
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::OpenGeminiQueryDialog(url, "Enter query".to_string()))
+                            .unwrap()
+                    });
+                })
+                .leaf("[gemini] Houston...", |app| {
+                    let url = Url::parse("gemini://houston.coder.town/search").unwrap();
+                    app.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::OpenGeminiQueryDialog(url, "Enter query".to_string()))
+                            .unwrap()
+                    });
                 }),
         );
         menubar.add_subtree(

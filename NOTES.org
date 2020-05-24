@@ -35,7 +35,7 @@
 *** DONE [#A] Bugfix: Reload must not add current page to history
 *** TODO Configurable keys
 *** TODO Better keyboard navigation, emacs/vim key presets
-**** SPACE to page
+**** DONE SPACE to page
 *** DONE Settings dialog
 *** TODO Setting for disabling history recording
 *** TODO Tor support
@@ -55,10 +55,11 @@
 *** DONE Show info about link under cursor
 *** DONE Implement reload of page
 ** beta, etc
-*** NEXT [#A] Gemini support [0/2]
+*** NEXT [#A] Gemini support [2/6]
     - [x] Binary downloads
-    - [ ] Automatic text wrapping
-    - [ ] Handle prefomatting toggle lines
+    - [X] Automatic text wrapping
+    - [X] Handle prefomatting toggle lines
+    - [ ] Implement save as text for gemini
     - [ ] Limit number of redirects to 5
     - [ ] Client certificates
     - [ ] TOFU certificate pinning
