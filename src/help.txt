@@ -11,6 +11,8 @@
 | s          | Save current page              |
 | r          | Reload current page            |
 | i          | Show link under cursor         |
+| n          | Go to next link                |
+| p          | Go to previous link            |
 | a          | Add bookmark for current page  |
 |------------+--------------------------------|
 
