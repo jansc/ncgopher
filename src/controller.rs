@@ -223,13 +223,17 @@ impl Controller {
                         }
                         match buf.chars().next().unwrap() {
                             '1' => {
-                                let _status1 = Regex::new(r"^10\s+(\S+)$").unwrap();
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "Gemini input not implemented: {}",
-                                        buf
-                                    )))
-                                    .unwrap();
+                                let status1 = Regex::new(r"^10\s+(.*)$").unwrap();
+                                if let Some(caps) = status1.captures(&buf) {
+                                    let query = caps.get(1).unwrap().as_str();
+                                    info!("Got query: {}", query);
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "Gemini input not implemented: {}",
+                                            query
+                                        )))
+                                        .unwrap();
+                                }
                                 return;
                             }
                             '2' => {
@@ -774,6 +778,11 @@ impl Controller {
         // `file` goes out of scope, and the [filename] file gets closed
     }
 
+    fn save_gemini(&mut self, _filename: String) {
+        // FIXME implement
+        warn!("save_gemini(): NOT IMPLEMENTED");
+    }
+    
     fn save_gophermap(&mut self, filename: String) {
         let content: String;
         {
@@ -956,16 +965,25 @@ impl Controller {
                     }
                     ControllerMessage::SavePageAs(filename) => {
                         let url: Url;
-                        // FIXME add gemini-support
                         {
                             let guard = self.current_url.lock().unwrap();
                             url = guard.clone();
+                            warn!("CURRENT URL = {}", url);
                         }
-                        let item_type = ItemType::from_url(&url);
-                        match item_type {
-                            ItemType::Dir => self.save_gophermap(filename.clone()),
-                            ItemType::File => self.save_textfile(filename.clone()),
-                            _ => (),
+
+                        match url.scheme() {
+                            "gopher" => {
+                                let item_type = ItemType::from_url(&url);
+                                match item_type {
+                                    ItemType::Dir => self.save_gophermap(filename.clone()),
+                                    ItemType::File => self.save_textfile(filename.clone()),
+                                    _ => (),
+                                }
+                            }
+                            "gemini" => {
+                                self.save_gemini(filename.clone())
+                            },
+                            _ => ()
                         }
                         self.ui
                             .read()
@@ -973,7 +991,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::PageSaved(url, item_type, filename))
+                            .send(UiMessage::PageSaved(url, filename))
                             .unwrap();
                     }
                     ControllerMessage::SetGeminiContent(url, gemini_type, content) => {
@@ -981,6 +999,7 @@ impl Controller {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
                             guard.push_str(content.as_str());
+                            warn!("SETGEMINICONTENT {}", url);
                             let mut guard = self.current_url.lock().unwrap();
                             *guard = url.clone();
                         }

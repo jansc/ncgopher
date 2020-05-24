@@ -4,10 +4,12 @@
   New features:
   - Text wrapping
   - Initial Gemini support
+  - Added more search interfaces (OpenBSD man pages, searx)
 
   Bugfixes:
   - Reset console when quitting application
   - Improved error handling
+  - Fixed gopherpedia search
 
   Changes:
   - Added Makefile

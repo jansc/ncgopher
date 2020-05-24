@@ -46,7 +46,7 @@ pub enum UiMessage {
     // TODO: Remove this
     OpenUrl(Url, bool, usize),
     OpenUrlFromString(String, bool, usize),
-    PageSaved(Url, ItemType, String),
+    PageSaved(Url, String),
     Quit,
     ShowAddBookmarkDialog(Url),
     ShowContent(Url, String, ItemType, usize),
@@ -708,7 +708,6 @@ impl NcGopher {
             let lines = content.lines();
             for l in lines {
                 let line = l.to_string();
-                info!("Adding gemini line: {}", line);
                 if let Ok(gemini_line) = GeminiLine::parse(line.clone(), &base_url) {
                     match gemini_line.line_type {
                         LineType::Text => {
@@ -726,7 +725,6 @@ impl NcGopher {
                             }
                         }
                         LineType::UnorderedList => {
-                            info!("Formatting unordered list");
                             let label = gemini_line.clone().label();
                             if label.len() > viewport_width {
                                 let iter = wrap_iter(&label, viewport_width);
@@ -1658,7 +1656,7 @@ impl NcGopher {
                 UiMessage::ClearBookmarksMenu => {
                     self.clear_bookmarks_menu();
                 }
-                UiMessage::PageSaved(_url, _item_type, filename) => {
+                UiMessage::PageSaved(_url, filename) => {
                     self.set_message(format!("Page saved as '{}'.", filename).as_str());
                 }
                 UiMessage::ShowAddBookmarkDialog(url) => {
