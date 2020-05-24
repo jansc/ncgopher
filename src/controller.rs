@@ -53,6 +53,7 @@ pub enum ControllerMessage {
     RemoveBookmark(Bookmark),
     RequestAddBookmarkDialog,
     RequestEditBookmarksDialog,
+    RequestGeminiQueryDialog(Url, String),
     RequestSaveAsDialog,
     RequestSettingsDialog,
     SavePageAs(String),
@@ -228,10 +229,10 @@ impl Controller {
                                     let query = caps.get(1).unwrap().as_str();
                                     info!("Got query: {}", query);
                                     tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "Gemini input not implemented: {}",
-                                            query
-                                        )))
+                                        .send(ControllerMessage::RequestGeminiQueryDialog(
+                                            url,
+                                            query.to_string()
+                                        ))
                                         .unwrap();
                                 }
                                 return;
@@ -732,6 +733,7 @@ impl Controller {
         Ok(())
     }
 
+    /// Saves the current text file to disk
     fn save_textfile(&mut self, filename: String) {
         let content: String;
         {
@@ -782,7 +784,8 @@ impl Controller {
         // FIXME implement
         warn!("save_gemini(): NOT IMPLEMENTED");
     }
-    
+
+    /// Save the current gophermap to disk
     fn save_gophermap(&mut self, filename: String) {
         let content: String;
         {
@@ -935,6 +938,16 @@ impl Controller {
                             .read()
                             .unwrap()
                             .send(UiMessage::ShowEditBookmarksDialog(v))
+                            .unwrap();
+                    }
+                    ControllerMessage::RequestGeminiQueryDialog(url, query) => {
+                        self.ui
+                            .read()
+                            .unwrap()
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::OpenGeminiQueryDialog(url, query))
                             .unwrap();
                     }
                     ControllerMessage::RequestSaveAsDialog => {

@@ -42,6 +42,7 @@ pub enum UiMessage {
     MoveToLink(Direction),
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
+    OpenGeminiQueryDialog(Url, String),
     OpenQueryUrl(Url),
     // TODO: Remove this
     OpenUrl(Url, bool, usize),
@@ -628,6 +629,45 @@ impl NcGopher {
                                     .write()
                                     .unwrap()
                                     .send(UiMessage::OpenQueryUrl(u.clone()))
+                                    .unwrap();
+                            });
+                        } else {
+                            app.pop_layer();
+                        }
+                    }),
+            );
+        }
+        self.trigger();
+    }
+
+    fn open_gemini_query_dialog(&mut self, url: Url, query: String) {
+        {
+            let mut app = self.app.write().unwrap();
+            app.add_layer(
+                Dialog::new()
+                    .title(query)
+                    .content(
+                        EditView::new()
+                            // Call `show_popup` when the user presses `Enter`
+                            //FIXME: create closure with url: .on_submit(search)
+                            .with_name("query")
+                            .fixed_width(30),
+                    )
+                    .button("Ok", move |app| {
+                        let name =
+                            app.call_on_name("query", |view: &mut EditView| view.get_content());
+                        if let Some(n) = name {
+                            let mut u = url.clone();
+                            u.set_query(Some(&n));
+                            info!("open_gemini_query_dialog(): url = {}", u);
+
+                            app.pop_layer(); // Close search dialog
+                            app.with_user_data(|userdata: &mut UserData| {
+                                userdata
+                                    .ui_tx
+                                    .write()
+                                    .unwrap()
+                                    .send(UiMessage::OpenUrlFromString(String::from(u.as_str()), true, 0))
                                     .unwrap();
                             });
                         } else {
@@ -1683,6 +1723,9 @@ impl NcGopher {
                 }
                 UiMessage::OpenQueryDialog(url) => {
                     self.open_query_dialog(url);
+                }
+                UiMessage::OpenGeminiQueryDialog(url, query) => {
+                    self.open_gemini_query_dialog(url, query);
                 }
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);
