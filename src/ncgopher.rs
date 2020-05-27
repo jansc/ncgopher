@@ -656,6 +656,9 @@ impl NcGopher {
                             .with_name("query")
                             .fixed_width(30),
                     )
+                    .button("Cancel", move |app| {
+                        app.pop_layer();
+                    })
                     .button("Ok", move |app| {
                         let name =
                             app.call_on_name("query", |view: &mut EditView| view.get_content());
@@ -698,6 +701,9 @@ impl NcGopher {
                             .with_name("query")
                             .fixed_width(30),
                     )
+                    .button("Cancel", move |app| {
+                        app.pop_layer();
+                    })
                     .button("Ok", move |app| {
                         let name =
                             app.call_on_name("query", |view: &mut EditView| view.get_content());
@@ -1091,6 +1097,9 @@ impl NcGopher {
                             .with_name("search")
                             .fixed_width(30),
                     )
+                    .button("Cancel", move |app| {
+                        app.pop_layer();
+                    })
                     .button("Ok", move |app| {
                         let name =
                             app.call_on_name("search", |view: &mut EditView| view.get_content());
@@ -1107,7 +1116,8 @@ impl NcGopher {
                             app.pop_layer(); // Close search dialog
                             app.add_layer(Dialog::info("No search parameter!"))
                         }
-                    }),
+                    })
+                    ,
             );
         }
         self.trigger();
