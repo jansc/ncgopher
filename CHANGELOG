@@ -5,6 +5,8 @@
   - Text wrapping
   - Initial Gemini support
   - Added more search interfaces (OpenBSD man pages, searx)
+  - New keyboard shortcuts j and k for vim-like navigation
+  - Added more search engines, including gemini search with GUS
 
   Bugfixes:
   - Reset console when quitting application
@@ -15,6 +17,7 @@
   - Added Makefile
   - History is now stored in an SQLite database as the old solution
     performed rather bad
+  - Added cancel buttons to search and query dialogs
 
 ** 0.1.3 [2020-04-02]
 
