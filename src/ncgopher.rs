@@ -1430,7 +1430,7 @@ impl NcGopher {
                 .unwrap()
         });
     }
-    
+
     fn move_to_link(&mut self, dir: Direction) {
         let mut current_view = String::new();
         {
@@ -1521,7 +1521,7 @@ impl NcGopher {
                 .unwrap()
         });
     }
-    
+
     fn move_to_link_gopher(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
         let mut view: ViewRef<SelectView<GopherMapEntry>>;

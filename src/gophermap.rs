@@ -44,6 +44,9 @@ impl GopherMapEntry {
             // Happens e.g. if a text file is parsed as a gophermap
             return Err("Invalid gophermap entry");
         }
+        if l[0].len() == 0 {
+            return Err("Invalid gophermap entry, no item type");
+        }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
         let name = l[0][1..].to_string();
