@@ -31,3 +31,4 @@ borders = "simple" # Alternatives are "none" and "outset"
 	# Lower precision values can use only 3 digits.
 	highlight          = "cyan"
 	highlight_inactive = "cyan"
+        highlight_text     = "black"

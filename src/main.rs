@@ -13,6 +13,7 @@ extern crate toml;
 use clap::{App, Arg};
 use controller::Controller;
 use cursive::Cursive;
+use cursive::CursiveExt;
 use lazy_static::lazy_static;
 use settings::Settings;
 use std::io::{stdout, Write};
