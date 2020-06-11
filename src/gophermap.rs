@@ -44,7 +44,7 @@ impl GopherMapEntry {
             // Happens e.g. if a text file is parsed as a gophermap
             return Err("Invalid gophermap entry");
         }
-        if l[0].len() == 0 {
+        if l[0].is_empty() {
             return Err("Invalid gophermap entry, no item type");
         }
         let ch = l[0].chars().next().unwrap();

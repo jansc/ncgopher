@@ -11,16 +11,22 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use url::Url;
+use lazy_static::lazy_static;
 
 #[cfg(feature = "tls")]
 use native_tls::TlsConnector;
-
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
 use crate::ncgopher::{NcGopher, UiMessage};
 use crate::SETTINGS;
+
+lazy_static! {
+    static ref LAST_REQUEST_ID: Mutex<i64> = {
+        Mutex::new(0)
+    };
+}
 
 #[derive(Clone)]
 pub struct Controller {
@@ -140,6 +146,13 @@ impl Controller {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
+        let request_id : i64;
+        {
+            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+            *guard += 1;
+            request_id = *guard;
+        }
+
         // Local copy of Url will be passed to thread
         let gemini_url = url.clone();
 
@@ -204,6 +217,14 @@ impl Controller {
                         let buf = buf.trim();
                         // "text/gemini; charset=utf-8"
                         info!("Got gemini header: {}:  {}", buf.len(), buf);
+
+                        {
+                            let guard = LAST_REQUEST_ID.lock().unwrap();
+                            if request_id < *guard {
+                                return;
+                            }
+                        }
+
                         // TODO: Check status code
                         // if status[0] == '2'
                         // check mime-type:
@@ -387,6 +408,12 @@ impl Controller {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
+        let request_id : i64;
+        {
+            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+            *guard += 1;
+            request_id = *guard;
+        }
 
         // Local copy of Url will be passed to thread
         let gopher_url = url.clone();
@@ -498,6 +525,13 @@ impl Controller {
                     }
                 };
             }
+            {
+                let guard = LAST_REQUEST_ID.lock().unwrap();
+                if request_id < *guard {
+                    return;
+                }
+            }
+
             let s = String::from_utf8_lossy(&buf);
             if add_to_history {
                 tx_clone
@@ -518,6 +552,7 @@ impl Controller {
 
     fn fetch_binary_url(&self, url: Url, local_filename: String) {
         let tx_clone = self.tx.read().unwrap().clone();
+
         // Local copy of Url will be passed to thread
         let gopher_url = url;
 
