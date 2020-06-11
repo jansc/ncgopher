@@ -1,5 +1,6 @@
 use chrono::Local;
 use cursive::Cursive;
+use chrono::{DateTime, Duration, Utc};
 use regex::Regex;
 use std::error::Error;
 use std::fs::File;
@@ -15,6 +16,7 @@ use lazy_static::lazy_static;
 
 #[cfg(feature = "tls")]
 use native_tls::TlsConnector;
+use x509_parser::parse_x509_der;
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
@@ -189,14 +191,57 @@ impl Controller {
             // FIXME: Should use _server instead?
             let mut buf = String::new();
             let mut builder = TlsConnector::builder();
+            // remove:
             builder.danger_accept_invalid_hostnames(true);
+            // remove:
             builder.danger_accept_invalid_certs(true);
+            // TODO: min_protocol_version(Some(Protocol::Tlsv12))
             if let Ok(connector) = builder.build() {
                 let stream = TcpStream::connect(server_details.clone())
                     .expect("Couldn't connect to the server...");
                 match connector.connect(&server, stream) {
                     Ok(mut stream) => {
                         info!("Connected with TLS");
+
+                        // get peer certificate
+                        match stream.peer_certificate() {
+                            Err(err) => {
+                                error!("Could not get peer certificate: {:?}", err);
+                            },
+                            Ok(option) => {
+                                match option {
+                                    Some(cert) => {
+                                        info!("Peer certificate: {:?}", base64::encode(cert.to_der().unwrap()));
+                                        // TODO: Parse expiration date
+                                        match parse_x509_der(&cert.to_der().unwrap()) {
+                                            Ok((_rem, cert)) => {
+                                                info!("Successfully parsed certificate");
+                                                match cert.tbs_certificate.validity.time_to_expiration() {
+                                                    Some(duration) => {
+                                                        let now = Utc::now();
+                                                        let expires = now.checked_add_signed(Duration::from_std(duration).unwrap());
+                                                        match expires {
+                                                            Some(x) => info!("Certificate expires {}", x),
+                                                            None => warn!("Certificate expire date overflows!"),
+                                                        }
+
+                                                        info!("Certificate valid {:?}", duration);
+                                                    },
+                                                    None => {
+                                                        warn!("Certificate not valid");
+                                                    }
+                                                }
+                                            },
+                                            Err(err) => {
+                                                error!("Could not parse peer certificate: {:?}", err);
+                                            }
+                                        }
+                                        // Store certificate if not known
+                                    },
+                                    _ => ()
+                                }
+                            }
+                        }
                         info!("Writing url '{}'", url.as_str());
                         write!(stream, "{}\r\n", url.as_str()).unwrap();
                         let mut bufr = BufReader::new(stream);

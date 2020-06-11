@@ -9,6 +9,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate textwrap;
 extern crate toml;
+extern crate x509_parser;
+extern crate base64;
 
 use clap::{App, Arg};
 use controller::Controller;

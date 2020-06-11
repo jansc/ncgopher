@@ -37,7 +37,9 @@ regex = "1.3.7"
 textwrap = "0.11.0"
 
 native-tls = { version = "0.2.4", optional = true }
+x509-parser = "0.8.0-beta1"
 pancurses = "0.16.1"
+base64 = "0.12.1"
 
 [dependencies.cursive]
 version = "0.15.0"
