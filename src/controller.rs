@@ -1,6 +1,6 @@
 use chrono::Local;
 use cursive::Cursive;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, Utc};
 use regex::Regex;
 use std::error::Error;
 use std::fs::File;
@@ -197,6 +197,7 @@ impl Controller {
             builder.danger_accept_invalid_certs(true);
             // TODO: min_protocol_version(Some(Protocol::Tlsv12))
             if let Ok(connector) = builder.build() {
+                // FIXME: Error check
                 let stream = TcpStream::connect(server_details.clone())
                     .expect("Couldn't connect to the server...");
                 match connector.connect(&server, stream) {
@@ -209,36 +210,33 @@ impl Controller {
                                 error!("Could not get peer certificate: {:?}", err);
                             },
                             Ok(option) => {
-                                match option {
-                                    Some(cert) => {
-                                        info!("Peer certificate: {:?}", base64::encode(cert.to_der().unwrap()));
-                                        // TODO: Parse expiration date
-                                        match parse_x509_der(&cert.to_der().unwrap()) {
-                                            Ok((_rem, cert)) => {
-                                                info!("Successfully parsed certificate");
-                                                match cert.tbs_certificate.validity.time_to_expiration() {
-                                                    Some(duration) => {
-                                                        let now = Utc::now();
-                                                        let expires = now.checked_add_signed(Duration::from_std(duration).unwrap());
-                                                        match expires {
-                                                            Some(x) => info!("Certificate expires {}", x),
-                                                            None => warn!("Certificate expire date overflows!"),
-                                                        }
-
-                                                        info!("Certificate valid {:?}", duration);
-                                                    },
-                                                    None => {
-                                                        warn!("Certificate not valid");
+                                if let Some(cert) = option {
+                                    info!("Peer certificate: {:?}", base64::encode(cert.to_der().unwrap()));
+                                    // TODO: Parse expiration date
+                                    match parse_x509_der(&cert.to_der().unwrap()) {
+                                        Ok((_rem, cert)) => {
+                                            info!("Successfully parsed certificate");
+                                            match cert.tbs_certificate.validity.time_to_expiration() {
+                                                Some(duration) => {
+                                                    let now = Utc::now();
+                                                    let expires = now.checked_add_signed(Duration::from_std(duration).unwrap());
+                                                    match expires {
+                                                        Some(x) => info!("Certificate expires {}", x),
+                                                        None => warn!("Certificate expire date overflows!"),
                                                     }
+
+                                                    info!("Certificate valid {:?}", duration);
+                                                },
+                                                None => {
+                                                    warn!("Certificate not valid");
                                                 }
-                                            },
-                                            Err(err) => {
-                                                error!("Could not parse peer certificate: {:?}", err);
                                             }
+                                        },
+                                        Err(err) => {
+                                            error!("Could not parse peer certificate: {:?}", err);
                                         }
-                                        // Store certificate if not known
-                                    },
-                                    _ => ()
+                                    }
+                                    // Store certificate if not known
                                 }
                             }
                         }
