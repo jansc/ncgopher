@@ -1,6 +1,7 @@
 use chrono::Local;
-use cursive::Cursive;
 use chrono::{Duration, Utc};
+use cursive::Cursive;
+use lazy_static::lazy_static;
 use regex::Regex;
 use std::error::Error;
 use std::fs::File;
@@ -12,22 +13,19 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use url::Url;
-use lazy_static::lazy_static;
 
-#[cfg(feature = "tls")]
-use native_tls::TlsConnector;
-use x509_parser::parse_x509_der;
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
 use crate::ncgopher::{NcGopher, UiMessage};
 use crate::SETTINGS;
+#[cfg(feature = "tls")]
+use native_tls::{Protocol, TlsConnector};
+use x509_parser::parse_x509_der;
 
 lazy_static! {
-    static ref LAST_REQUEST_ID: Mutex<i64> = {
-        Mutex::new(0)
-    };
+    static ref LAST_REQUEST_ID: Mutex<i64> =  Mutex::new(0);
 }
 
 #[derive(Clone)]
@@ -141,6 +139,7 @@ impl Controller {
                 return filename.to_string();
             }
         }
+        // TODO: Create extension based on mimetype
         "download.bin".to_string()
     }
 
@@ -148,7 +147,7 @@ impl Controller {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
-        let request_id : i64;
+        let request_id: i64;
         {
             let mut guard = LAST_REQUEST_ID.lock().unwrap();
             *guard += 1;
@@ -191,255 +190,311 @@ impl Controller {
             // FIXME: Should use _server instead?
             let mut buf = String::new();
             let mut builder = TlsConnector::builder();
-            // remove:
-            builder.danger_accept_invalid_hostnames(true);
-            // remove:
+            // Self-signed certificates are considered invalid, but they are quite
+            // common for gemini servers. Therefore, we accept invalid certs,
+            // but check for expiration later
             builder.danger_accept_invalid_certs(true);
-            // TODO: min_protocol_version(Some(Protocol::Tlsv12))
-            if let Ok(connector) = builder.build() {
-                // FIXME: Error check
-                let stream = TcpStream::connect(server_details.clone())
-                    .expect("Couldn't connect to the server...");
-                match connector.connect(&server, stream) {
-                    Ok(mut stream) => {
-                        info!("Connected with TLS");
 
-                        // get peer certificate
-                        match stream.peer_certificate() {
-                            Err(err) => {
-                                error!("Could not get peer certificate: {:?}", err);
-                            },
-                            Ok(option) => {
-                                if let Some(cert) = option {
-                                    info!("Peer certificate: {:?}", base64::encode(cert.to_der().unwrap()));
-                                    // TODO: Parse expiration date
-                                    match parse_x509_der(&cert.to_der().unwrap()) {
-                                        Ok((_rem, cert)) => {
-                                            info!("Successfully parsed certificate");
-                                            match cert.tbs_certificate.validity.time_to_expiration() {
-                                                Some(duration) => {
-                                                    let now = Utc::now();
-                                                    let expires = now.checked_add_signed(Duration::from_std(duration).unwrap());
-                                                    match expires {
-                                                        Some(x) => info!("Certificate expires {}", x),
-                                                        None => warn!("Certificate expire date overflows!"),
-                                                    }
-
-                                                    info!("Certificate valid {:?}", duration);
-                                                },
-                                                None => {
-                                                    warn!("Certificate not valid");
-                                                }
-                                            }
-                                        },
-                                        Err(err) => {
-                                            error!("Could not parse peer certificate: {:?}", err);
-                                        }
-                                    }
-                                    // Store certificate if not known
-                                }
-                            }
-                        }
-                        info!("Writing url '{}'", url.as_str());
-                        write!(stream, "{}\r\n", url.as_str()).unwrap();
-                        let mut bufr = BufReader::new(stream);
-                        info!("Reading from gemini stream");
-                        // Read Gemini Header
-                        match bufr.read_line(&mut buf) {
-                            Ok(_) => (),
-                            Err(e) => {
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "I/O error: {}",
-                                        e
-                                    )))
-                                    .unwrap();
-                                return;
-                            }
-                        };
-                        let buf = buf.trim();
-                        // "text/gemini; charset=utf-8"
-                        info!("Got gemini header: {}:  {}", buf.len(), buf);
-
-                        {
-                            let guard = LAST_REQUEST_ID.lock().unwrap();
-                            if request_id < *guard {
-                                return;
-                            }
-                        }
-
-                        // TODO: Check status code
-                        // if status[0] == '2'
-                        // check mime-type:
-                        //  - text/gemini => show as gemini content
-                        //  - text/xxx    => show as text content
-                        //  - otherwise   => download as binary
-                        // status[0] == '3' => redirect
-                        // status[0] == '4' => show specific error message
-                        // status[0] == '5' => show specific error message
-                        // status[0] == '6' => invalid certificate, show specific error message
-                        if buf.is_empty() {
+            // Rust's native-tls does not yet provide Tlsv13 :(
+            // Alternative implementation: rusttls
+            builder.min_protocol_version(Some(Protocol::Tlsv12));
+            match builder.build() {
+                Ok(connector) => {
+                    let tlsstream;
+                    let stream = TcpStream::connect(server_details.clone());
+                    match stream {
+                        Ok(stream) => tlsstream = stream,
+                        Err(err) => {
                             tx_clone
-                                .send(ControllerMessage::ShowMessage(
-                                    "Could not read from stream".to_string(),
-                                ))
+                                .send(ControllerMessage::ShowMessage(format!(
+                                    "Could not connect to server: {}",
+                                    err
+                                )))
                                 .unwrap();
                             return;
                         }
-                        match buf.chars().next().unwrap() {
-                            '1' => {
-                                let status1 = Regex::new(r"^10\s+(.*)$").unwrap();
-                                if let Some(caps) = status1.captures(&buf) {
-                                    let query = caps.get(1).unwrap().as_str();
-                                    info!("Got query: {}", query);
+                    }
+                    match connector.connect(&server, tlsstream) {
+                        Ok(mut stream) => {
+                            info!("Connected with TLS");
+
+                            // get peer certificate
+                            match stream.peer_certificate() {
+                                Err(err) => {
                                     tx_clone
-                                        .send(ControllerMessage::RequestGeminiQueryDialog(
-                                            url,
-                                            query.to_string()
-                                        ))
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "Could not get perr certificate: {:?}",
+                                            err
+                                        )))
                                         .unwrap();
+                                    return;
                                 }
+                                Ok(option) => {
+                                    if let Some(cert) = option {
+                                        info!(
+                                            "Peer certificate: {:?}",
+                                            base64::encode(cert.to_der().unwrap())
+                                        );
+                                        match parse_x509_der(&cert.to_der().unwrap()) {
+                                            Ok((_rem, cert)) => {
+                                                info!("Successfully parsed certificate");
+                                                match cert
+                                                    .tbs_certificate
+                                                    .validity
+                                                    .time_to_expiration()
+                                                {
+                                                    Some(duration) => {
+                                                        let now = Utc::now();
+                                                        let expires = now.checked_add_signed(
+                                                            Duration::from_std(duration).unwrap(),
+                                                        );
+                                                        match expires {
+                                                            Some(x) => info!("Certificate expires {}", x.to_rfc3339()),
+                                                            None => warn!("Certificate expire date overflows!"),
+                                                        }
+
+                                                        info!("Certificate valid {:?}", duration);
+                                                    }
+                                                    None => {
+                                                        tx_clone
+                                                            .send(ControllerMessage::ShowMessage(
+                                                                "Server certificate expired."
+                                                                    .to_string(),
+                                                            ))
+                                                            .unwrap();
+                                                    }
+                                                }
+                                            }
+                                            Err(err) => {
+                                                tx_clone
+                                                    .send(ControllerMessage::ShowMessage(format!(
+                                                        "Could not parse peer certificate: {:?}",
+                                                        err
+                                                    )))
+                                                    .unwrap();
+                                            }
+                                        }
+                                        // Store certificate if not known
+                                    }
+                                }
+                            }
+                            info!("Writing url '{}'", url.as_str());
+                            write!(stream, "{}\r\n", url.as_str()).unwrap();
+                            let mut bufr = BufReader::new(stream);
+                            info!("Reading from gemini stream");
+                            // Read Gemini Header
+                            match bufr.read_line(&mut buf) {
+                                Ok(_) => (),
+                                Err(e) => {
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "I/O error: {}",
+                                            e
+                                        )))
+                                        .unwrap();
+                                    return;
+                                }
+                            };
+                            let buf = buf.trim();
+                            // "text/gemini; charset=utf-8"
+                            info!("Got gemini header: {}:  {}", buf.len(), buf);
+
+                            {
+                                let guard = LAST_REQUEST_ID.lock().unwrap();
+                                if request_id < *guard {
+                                    return;
+                                }
+                            }
+
+                            // TODO: Check status code
+                            // if status[0] == '2'
+                            // check mime-type:
+                            //  - text/gemini => show as gemini content
+                            //  - text/xxx    => show as text content
+                            //  - otherwise   => download as binary
+                            // status[0] == '3' => redirect
+                            // status[0] == '4' => show specific error message
+                            // status[0] == '5' => show specific error message
+                            // status[0] == '6' => invalid certificate, show specific error message
+                            if buf.is_empty() {
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(
+                                        "Could not read from stream".to_string(),
+                                    ))
+                                    .unwrap();
                                 return;
                             }
-                            '2' => {
-                                let status2 = Regex::new(r"^(2[01])\s+(.*);?").unwrap();
-                                if let Some(caps) = status2.captures(&buf) {
-                                    let mimetype = caps.get(2).unwrap().as_str();
-                                    // If mimetype is text/* download as gemini
-                                    // Otherwise initiate a binary download
-                                    if mimetype.starts_with("text/") {
-                                        let mut buf = vec![];
-                                        bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                            tx_clone
-                                                .send(ControllerMessage::ShowMessage(format!(
-                                                    "I/O error: {}",
-                                                    err
-                                                )))
-                                                .unwrap();
-                                            0
-                                        });
-                                        let s = String::from_utf8_lossy(&buf);
+                            match buf.chars().next().unwrap() {
+                                '1' => {
+                                    let status1 = Regex::new(r"^10\s+(.*)$").unwrap();
+                                    if let Some(caps) = status1.captures(&buf) {
+                                        let query = caps.get(1).unwrap().as_str();
+                                        info!("Got query: {}", query);
                                         tx_clone
-                                            .send(ControllerMessage::SetGeminiContent(
-                                                gemini_url.clone(),
-                                                GeminiType::Gemini,
-                                                s.to_string(),
+                                            .send(ControllerMessage::RequestGeminiQueryDialog(
+                                                url,
+                                                query.to_string(),
                                             ))
                                             .unwrap();
-                                        if add_to_history {
+                                    }
+                                    // TODO: Handle password inputs
+                                    return;
+                                }
+                                '2' => {
+                                    let status2 = Regex::new(r"^(2[01])\s+(.*);?").unwrap();
+                                    if let Some(caps) = status2.captures(&buf) {
+                                        let mimetype = caps.get(2).unwrap().as_str();
+                                        // If mimetype is text/* download as gemini
+                                        // Otherwise initiate a binary download
+                                        if mimetype.starts_with("text/") {
+                                            let mut buf = vec![];
+                                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
+                                                tx_clone
+                                                    .send(ControllerMessage::ShowMessage(format!(
+                                                        "I/O error: {}",
+                                                        err
+                                                    )))
+                                                    .unwrap();
+                                                0
+                                            });
+                                            let s = String::from_utf8_lossy(&buf);
                                             tx_clone
-                                                .send(ControllerMessage::AddToHistory(
+                                                .send(ControllerMessage::SetGeminiContent(
                                                     gemini_url.clone(),
+                                                    GeminiType::Gemini,
+                                                    s.to_string(),
+                                                ))
+                                                .unwrap();
+                                            if add_to_history {
+                                                tx_clone
+                                                    .send(ControllerMessage::AddToHistory(
+                                                        gemini_url.clone(),
+                                                    ))
+                                                    .unwrap();
+                                            }
+                                            tx_clone
+                                                .send(ControllerMessage::RedrawHistory)
+                                                .unwrap();
+                                        } else {
+                                            // Binary download
+                                            let f = File::create(local_filename.clone())
+                                                .unwrap_or_else(|_| {
+                                                    panic!(
+                                                        "Unable to open file '{}'",
+                                                        local_filename.clone()
+                                                    )
+                                                });
+                                            let mut bw = BufWriter::new(f);
+                                            let mut buf = [0u8; 1024];
+                                            let mut total_written: usize = 0;
+                                            loop {
+                                                let bytes_read = bufr
+                                                    .read(&mut buf)
+                                                    .expect("Could not read from TCP");
+                                                if bytes_read == 0 {
+                                                    break;
+                                                }
+                                                let bytes_written = bw
+                                                    .write(&buf[..bytes_read])
+                                                    .expect("Could not write to file");
+                                                total_written += bytes_written;
+                                                tx_clone
+                                                    .send(ControllerMessage::ShowMessage(format!(
+                                                        "{} bytes read",
+                                                        total_written
+                                                    )))
+                                                    .unwrap();
+                                            }
+                                            tx_clone
+                                                .send(ControllerMessage::BinaryWritten(
+                                                    local_filename.clone(),
+                                                    total_written,
                                                 ))
                                                 .unwrap();
                                         }
-                                        tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
-                                    } else {
-                                        // Binary download
-                                        let f = File::create(local_filename.clone())
-                                            .unwrap_or_else(|_| {
-                                                panic!(
-                                                    "Unable to open file '{}'",
-                                                    local_filename.clone()
-                                                )
-                                            });
-                                        let mut bw = BufWriter::new(f);
-                                        let mut buf = [0u8; 1024];
-                                        let mut total_written: usize = 0;
-                                        loop {
-                                            let bytes_read = bufr
-                                                .read(&mut buf)
-                                                .expect("Could not read from TCP");
-                                            if bytes_read == 0 {
-                                                break;
-                                            }
-                                            let bytes_written = bw
-                                                .write(&buf[..bytes_read])
-                                                .expect("Could not write to file");
-                                            total_written += bytes_written;
-                                            tx_clone
-                                                .send(ControllerMessage::ShowMessage(format!(
-                                                    "{} bytes read",
-                                                    total_written
-                                                )))
-                                                .unwrap();
-                                        }
-                                        tx_clone
-                                            .send(ControllerMessage::BinaryWritten(
-                                                local_filename.clone(),
-                                                total_written,
-                                            ))
-                                            .unwrap();
-                                    }
-                                } else {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "Invalid status code: {}",
-                                            buf
-                                        )))
-                                        .unwrap();
-                                }
-                            }
-                            '3' => {
-                                let status3 = Regex::new(r"^(3[01])\s+(.*)\s*$?").unwrap();
-                                if let Some(caps) = status3.captures(&buf) {
-                                    // TODO: Should automatically update bookmarks when code is 31
-                                    let _code = caps.get(1).unwrap().as_str();
-                                    let url = caps.get(2).unwrap().as_str();
-                                    // FIXME: Try to parse url, check scheme
-                                    if let Ok(url) = Url::parse(url) {
-                                        tx_clone
-                                            .send(ControllerMessage::FetchGeminiUrl(url, true, 0))
-                                            .unwrap();
                                     } else {
                                         tx_clone
                                             .send(ControllerMessage::ShowMessage(format!(
-                                                "Invalid redirect url: {}",
-                                                url
+                                                "Invalid status code: {}",
+                                                buf
                                             )))
                                             .unwrap();
                                     }
-                                } else {
+                                }
+                                '3' => {
+                                    let status3 = Regex::new(r"^(3[01])\s+(.*)\s*$?").unwrap();
+                                    if let Some(caps) = status3.captures(&buf) {
+                                        // TODO: Should automatically update bookmarks when code is 31
+                                        let _code = caps.get(1).unwrap().as_str();
+                                        let url = caps.get(2).unwrap().as_str();
+                                        // FIXME: Try to parse url, check scheme
+                                        if let Ok(url) = Url::parse(url) {
+                                            tx_clone
+                                                .send(ControllerMessage::FetchGeminiUrl(
+                                                    url, true, 0,
+                                                ))
+                                                .unwrap();
+                                        } else {
+                                            tx_clone
+                                                .send(ControllerMessage::ShowMessage(format!(
+                                                    "Invalid redirect url: {}",
+                                                    url
+                                                )))
+                                                .unwrap();
+                                        }
+                                    } else {
+                                        tx_clone
+                                            .send(ControllerMessage::ShowMessage(format!(
+                                                "Invalid header from server: {}",
+                                                buf
+                                            )))
+                                            .unwrap();
+                                    }
+                                    return;
+                                }
+                                '4' | '5' | '6' => {
+                                    let _status4 = Regex::new(r"^(4[01234])\s+(.*)\s+$?").unwrap();
+                                    let _status5 = Regex::new(r"^(5[01239])\s+(.*)\s+$?").unwrap();
+                                    let _status6 = Regex::new(r"^(6[012345])\s+(.*)\s+$?").unwrap();
                                     tx_clone
                                         .send(ControllerMessage::ShowMessage(format!(
-                                            "Invalid header from server: {}",
+                                            "Gemini error: {}",
                                             buf
                                         )))
                                         .unwrap();
+                                    return;
                                 }
-                                return;
+                                _ => {
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "Unhandled status code: {}",
+                                            buf
+                                        )))
+                                        .unwrap();
+                                    return;
+                                }
                             }
-                            '4' | '5' | '6' => {
-                                let _status4 = Regex::new(r"^(4[01234])\s+(.*)\s+$?").unwrap();
-                                let _status5 = Regex::new(r"^(5[01239])\s+(.*)\s+$?").unwrap();
-                                let _status6 = Regex::new(r"^(6[012345])\s+(.*)\s+$?").unwrap();
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "Gemini error: {}",
-                                        buf
-                                    )))
-                                    .unwrap();
-                                return;
-                            }
-                            _ => {
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "Unhandled status code: {}",
-                                        buf
-                                    )))
-                                    .unwrap();
-                                return;
-                            }
+                            info!("Finished reading from gemini stream");
                         }
-
-                        info!("Finished reading from gemini stream");
-                    }
-                    Err(e) => {
-                        warn!("Could not open tls stream: {} to {}", e, server_details);
+                        Err(err) => {
+                            warn!("Could not open tls stream: {} to {}", err, server_details);
+                            tx_clone
+                                .send(ControllerMessage::ShowMessage(format!(
+                                    "Could not open tls stream to {}: {}",
+                                    server_details, err
+                                )))
+                                .unwrap();
+                        }
                     }
                 }
-            } else {
-                info!("Could not establish tls connection");
+                Err(err) => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "Could not establish connection: {}",
+                            err
+                        )))
+                        .unwrap();
+                }
             }
         });
     }
@@ -451,7 +506,7 @@ impl Controller {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
-        let request_id : i64;
+        let request_id: i64;
         {
             let mut guard = LAST_REQUEST_ID.lock().unwrap();
             *guard += 1;
@@ -977,11 +1032,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(
-                                current_url,
-                                false,
-                                index,
-                            ))
+                            .send(UiMessage::OpenUrl(current_url, false, index))
                             .unwrap();
                     }
                     ControllerMessage::RemoveBookmark(bookmark) => {
@@ -1071,10 +1122,8 @@ impl Controller {
                                     _ => (),
                                 }
                             }
-                            "gemini" => {
-                                self.save_gemini(filename.clone())
-                            },
-                            _ => ()
+                            "gemini" => self.save_gemini(filename.clone()),
+                            _ => (),
                         }
                         self.ui
                             .read()

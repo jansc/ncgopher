@@ -505,7 +505,10 @@ impl NcGopher {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(url, "Enter query".to_string()))
+                            .send(UiMessage::OpenGeminiQueryDialog(
+                                url,
+                                "Enter query".to_string(),
+                            ))
                             .unwrap()
                     });
                 })
@@ -516,7 +519,10 @@ impl NcGopher {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(url, "Enter query".to_string()))
+                            .send(UiMessage::OpenGeminiQueryDialog(
+                                url,
+                                "Enter query".to_string(),
+                            ))
                             .unwrap()
                     });
                 }),
@@ -539,7 +545,7 @@ impl NcGopher {
                                     .send(UiMessage::OpenUrlFromString(
                                         "gopher://jan.bio/1/ncgopher/".to_string(),
                                         false,
-                                        0
+                                        0,
                                     ))
                                     .unwrap();
                             });
@@ -577,9 +583,12 @@ impl NcGopher {
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
         match url.scheme() {
-            "gopher" => {
-                self.open_gopher_address(url.clone(), ItemType::from_url(&url), add_to_history, index)
-            }
+            "gopher" => self.open_gopher_address(
+                url.clone(),
+                ItemType::from_url(&url),
+                add_to_history,
+                index,
+            ),
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
             _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
         }
@@ -594,7 +603,11 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchGeminiUrl(url, add_to_history, index))
+            .send(ControllerMessage::FetchGeminiUrl(
+                url,
+                add_to_history,
+                index,
+            ))
             .unwrap();
     }
 
@@ -718,7 +731,11 @@ impl NcGopher {
                                     .ui_tx
                                     .write()
                                     .unwrap()
-                                    .send(UiMessage::OpenUrlFromString(String::from(u.as_str()), true, 0))
+                                    .send(UiMessage::OpenUrlFromString(
+                                        String::from(u.as_str()),
+                                        true,
+                                        0,
+                                    ))
                                     .unwrap();
                             });
                         } else {
@@ -867,7 +884,11 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrlFromString(String::from(url.as_str()), true, 0))
+                            .send(UiMessage::OpenUrlFromString(
+                                String::from(url.as_str()),
+                                true,
+                                0,
+                            ))
                             .unwrap();
                     }
                 });
@@ -877,7 +898,6 @@ impl NcGopher {
 
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
-
         let mut title: String = "".to_string();
         let viewport_width = self.get_viewport_width() - 7;
         info!("Viewport-width = {}", viewport_width);
@@ -941,11 +961,7 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrl(
-                                entry.url.clone(),
-                                true,
-                                0,
-                            ))
+                            .send(UiMessage::OpenUrl(entry.url.clone(), true, 0))
                             .unwrap();
                     } else if ItemType::is_query(entry.item_type) {
                         userdata
@@ -1116,8 +1132,7 @@ impl NcGopher {
                             app.pop_layer(); // Close search dialog
                             app.add_layer(Dialog::info("No search parameter!"))
                         }
-                    })
-                    ,
+                    }),
             );
         }
         self.trigger();
@@ -1263,7 +1278,7 @@ impl NcGopher {
         match current_view.as_str() {
             "content" => self.show_current_link_info_gopher(),
             "gemini_content" => self.show_current_link_info_gemini(),
-            _ => ()
+            _ => (),
         }
     }
 
@@ -1378,18 +1393,16 @@ impl NcGopher {
                 if let Some(v) = app.find_name("content") {
                     view = v;
                     let callback = match dir {
-                        Direction::Next => {
-                            view.select_down(1)
-                        },
-                        Direction::Previous => {
-                            view.select_up(1)
-                        }
+                        Direction::Next => view.select_down(1),
+                        Direction::Previous => view.select_up(1),
                     };
                     callback(&mut app);
                     if let Some(id) = view.selected_id() {
                         app.call_on_name(
                             "content_scroll",
-                            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>| {
+                            |s: &mut ScrollView<
+                                ResizedView<NamedView<SelectView<GopherMapEntry>>>,
+                            >| {
                                 s.set_offset(cursive::Vec2::new(0, id));
                             },
                         );
@@ -1401,12 +1414,8 @@ impl NcGopher {
                 if let Some(v) = app.find_name("gemini_content") {
                     view = v;
                     let callback = match dir {
-                        Direction::Next => {
-                            view.select_down(1)
-                        },
-                        Direction::Previous => {
-                            view.select_up(1)
-                        }
+                        Direction::Next => view.select_down(1),
+                        Direction::Previous => view.select_up(1),
                     };
                     callback(&mut app);
                     if let Some(id) = view.selected_id() {
@@ -1418,8 +1427,8 @@ impl NcGopher {
                         );
                     }
                 }
-            },
-            _ => ()
+            }
+            _ => (),
         }
         app.with_user_data(|userdata: &mut UserData| {
             userdata
@@ -1444,7 +1453,7 @@ impl NcGopher {
         match current_view.as_str() {
             "content" => self.move_to_link_gopher(dir),
             "gemini_content" => self.move_to_link_gemini(dir),
-            _ => ()
+            _ => (),
         }
     }
 
@@ -1657,7 +1666,11 @@ impl NcGopher {
                                         .read()
                                         .unwrap()
                                         .clone()
-                                        .send(UiMessage::OpenUrlFromString(b.url.to_string(), true, 0))
+                                        .send(UiMessage::OpenUrlFromString(
+                                            b.url.to_string(),
+                                            true,
+                                            0,
+                                        ))
                                         .unwrap()
                                 });
                             }

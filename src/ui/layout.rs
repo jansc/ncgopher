@@ -266,7 +266,7 @@ impl View for Layout {
             if position.y < self.last_size.y.saturating_sub(2 + cmdline_height) {
                 if let Some(ref id) = self.focus {
                     let screen = self.views.get_mut(id).unwrap();
-                    screen.view.on_event(event.relativized(Vec2::new(0, 1)),);
+                    screen.view.on_event(event.relativized(Vec2::new(0, 1)));
                 }
             } else if position.y < self.last_size.y - cmdline_height {
                 self.statusbar.on_event(

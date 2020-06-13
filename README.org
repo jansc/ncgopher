@@ -2,8 +2,8 @@
 
 * ncgopher
 
-=ncgopher= is a gopher client for the modern internet. It uses ncurses
-and is written in Rust.
+=ncgopher= is a gopher and gemini client for the modern internet. It uses
+ncurses and is written in Rust.
 
 The software is still in alpha, and it is also my first application
 written in Rust. Expect lots of bugs and badly written Rust code.
@@ -14,6 +14,12 @@ Gopher was developed in 1991 at the University of Minnesota, and named
 after the school's mascot. Gopher is a menu-driven interface that
 allows a user to browse for text information served off of various
 gopher servers.
+
+** gemini
+
+Gemini is a new application-level internet protocol for the distribution
+of arbitrary files, with some special consideration for serving a
+lightweight hypertext format which facilitates linking between files.
 
 ** Screenshot
 
@@ -26,8 +32,9 @@ Obligatory screenshot:
 
 ** Features
 
+ - Gopher and gemini support
  - Ncurses interface
- - Keyboard command for navigation
+ - Keyboard commands for navigation
  - Bookmarks support including custom title
  - History of visited gopher holes
  - Download of text files and gophermaps (Save as...)
@@ -36,12 +43,14 @@ Obligatory screenshot:
  - Mouse support in some terminals
  - TLS support
  - Darkmode!
- - External commands for HTML and Telnet
+ - Common search providers in search menu for quick access
+ - External commands for HTML, images and Telnet
 
 ** Installation
 
-=ncgopher= has no fancy installation process right now. Clone the
-repository, =cd= to the =ncgopher= directory and run
+=ncgopher= has no fancy installation process right now. Make sure to install
+rust on your system. Clone the repository, =cd= to the =ncgopher= directory
+and run
 
     #+BEGIN_EXAMPLE
     cargo build
@@ -67,6 +76,10 @@ are still not implemented.
 | r          | Reload current page            |
 | i          | Show link under cursor         |
 | a          | Add bookmark for current page  |
+| n          | Go to next link                |
+| p          | Go to previous link            |
+| j          | Move one line down             |
+| k          | Move one line up               |
 |------------+--------------------------------|
 
 ** Debugging
