@@ -26,9 +26,12 @@ lightweight hypertext format which facilitates linking between files.
 Obligatory screenshot:
 
 #+CAPTION: Screenshot of NcGopher
-#+NAME:   screenshot1
+#+NAME:   Light scheme
 [[./screenshots/ncgopher.png]]
 
+#+CAPTION: Screenshot of NcGopher
+#+NAME:   Dark mode
+[[./screenshots/ncgopher-dark.png]]
 
 ** Features
 
