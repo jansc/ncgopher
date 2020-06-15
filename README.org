@@ -31,7 +31,7 @@ Obligatory screenshot:
 
 #+CAPTION: Screenshot of NcGopher
 #+NAME:   Dark mode
-[[./screenshots/ncgopher-dark.png]]
+[[./screenshots/ncgopher-darkmode.png]]
 
 ** Features
 
