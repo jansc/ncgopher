@@ -52,10 +52,17 @@ Obligatory screenshot:
 ** Installation
 
 =ncgopher= has no fancy installation process right now. Make sure to install
-rust on your system. Clone the repository, =cd= to the =ncgopher= directory
-and run
+rust on your system, but the latest release can be installed through cargo:
 
     #+BEGIN_EXAMPLE
+    cargo install ncgopher
+    #+END_EXAMPLE
+
+To install the latest development version:
+
+    #+BEGIN_EXAMPLE
+    git clone https://github.com/jansc/ncgopher.git
+    cd ncgopher
     cargo build
     cargo run
     #+END_EXAMPLE
