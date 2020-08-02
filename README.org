@@ -5,9 +5,6 @@
 =ncgopher= is a gopher and gemini client for the modern internet. It uses
 ncurses and is written in Rust.
 
-The software is still in alpha, and it is also my first application
-written in Rust. Expect lots of bugs and badly written Rust code.
-
 ** gopher
 
 Gopher was developed in 1991 at the University of Minnesota, and named
@@ -93,6 +90,9 @@ are still not implemented.
 |------------+--------------------------------|
 
 ** Debugging
+
+The software is still in alpha, and it is also my first application
+written in Rust. Expect lots of bugs and badly written Rust code.
 
 If the application crashes, I'd be interested in a backtrace. Start
 the application with ~RUST_BACKTRACE=1 cargo run~.  There is also a
