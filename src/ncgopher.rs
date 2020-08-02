@@ -1103,13 +1103,29 @@ impl NcGopher {
         let ui_tx_clone = self.ui_tx.read().unwrap().clone();
         {
             let mut app = self.app.write().unwrap();
+            let queryurl = url.clone();
             app.add_layer(
                 Dialog::new()
                     .title("Enter search term")
                     .content(
                         EditView::new()
-                            // Call `show_popup` when the user presses `Enter`
-                            //FIXME: create closure with url: .on_submit(search)
+                            .on_submit(move |app, query| {
+                                app.pop_layer();
+                                let mut u = queryurl.clone();
+                                let mut path = u.path().to_string();
+                                path.push_str("%09");
+                                path.push_str(&query);
+                                u.set_path(path.as_str());
+                                info!("show_search_dialog(): url = {}", u);
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .ui_tx
+                                        .read()
+                                        .unwrap()
+                                        .send(UiMessage::OpenQueryUrl(u))
+                                        .unwrap()
+                                });
+                            })
                             .with_name("search")
                             .fixed_width(30),
                     )
