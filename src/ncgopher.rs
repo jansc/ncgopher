@@ -254,6 +254,7 @@ impl NcGopher {
             });
         });
         app.add_global_callback(Key::Esc, |s| s.select_menubar());
+        app.add_global_callback('?', |s| s.add_layer(Dialog::info(include_str!("help.txt"))));
 
         // Create text view
         let textview = SelectView::<String>::new();

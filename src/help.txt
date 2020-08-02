@@ -14,5 +14,6 @@
 | n          | Go to next link                |
 | p          | Go to previous link            |
 | a          | Add bookmark for current page  |
+| ?          | Display this help text         |
 |------------+--------------------------------|
 
