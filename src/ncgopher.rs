@@ -1245,7 +1245,7 @@ impl NcGopher {
             let mut app = self.app.write().unwrap();
             app.add_layer(
                 Dialog::new()
-                    .title("Enter gopher URL:")
+                    .title("Enter gopher or gemini URL:")
                     .content(
                         EditView::new()
                             .on_submit(NcGopher::open_url_action)
