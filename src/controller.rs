@@ -777,6 +777,10 @@ impl Controller {
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
         let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
         let b: Bookmark = Bookmark { title, url, tags };
+        // Check if bookmark exists
+        if self.bookmarks.lock().unwrap().exists(b.clone().url) {
+            self.bookmarks.lock().unwrap().remove(b.clone().url);
+        }
         self.bookmarks.lock().unwrap().add(b.clone());
         b
     }
@@ -1041,9 +1045,15 @@ impl Controller {
                     }
                     ControllerMessage::RequestAddBookmarkDialog => {
                         let current_url: Url;
+                        let bookmark: Bookmark;
                         {
                             let guard = self.current_url.lock().unwrap();
                             current_url = guard.clone();
+                            bookmark = Bookmark {
+                                title: String::new(),
+                                url: current_url.clone(),
+                                tags: Vec::new(),
+                            };
                         }
                         self.ui
                             .read()
@@ -1051,7 +1061,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::ShowAddBookmarkDialog(current_url))
+                            .send(UiMessage::ShowAddBookmarkDialog(bookmark))
                             .unwrap();
                     }
                     ControllerMessage::RequestEditBookmarksDialog => {

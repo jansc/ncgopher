@@ -50,7 +50,7 @@ pub enum UiMessage {
     OpenUrlFromString(String, bool, usize),
     PageSaved(Url, String),
     Quit,
-    ShowAddBookmarkDialog(Url),
+    ShowAddBookmarkDialog(Bookmark),
     ShowContent(Url, String, ItemType, usize),
     ShowGeminiContent(Url, GeminiType, String),
     ShowEditBookmarksDialog(Vec<Bookmark>),
@@ -1044,53 +1044,51 @@ impl NcGopher {
         });
     }
 
-    fn show_add_bookmark_dialog(&mut self, url: Url) {
+    fn show_add_bookmark_dialog(&mut self, bookmark: Bookmark) {
         {
             let mut app = self.app.write().unwrap();
-            let newurl = url;
+            let url = bookmark.url;
+            let title = bookmark.title;
+            let tags = bookmark.tags;
             app.add_layer(
                 Dialog::new()
                     .title("Add Bookmark")
                     .content(
                         LinearLayout::vertical()
                             .child(TextView::new("URL:"))
-                            .child(TextView::new(newurl.clone().into_string().as_str()))
+                            .child(EditView::new().content(url.clone().into_string().as_str()).with_name("url").fixed_width(30))
                             .child(TextView::new("\nTitle:"))
-                            .child(EditView::new().with_name("title").fixed_width(30))
+                            .child(EditView::new().content(title.as_str()).with_name("title").fixed_width(30))
                             .child(TextView::new("Tags (comma separated):"))
-                            .child(EditView::new().with_name("tags").fixed_width(30)),
+                            .child(EditView::new().content(tags.join(",").as_str()).with_name("tags").fixed_width(30)),
                     )
                     .button("Ok", move |app| {
-                        let sometitle =
-                            app.call_on_name("title", |view: &mut EditView| view.get_content());
-                        let sometags =
-                            app.call_on_name("tags", |view: &mut EditView| view.get_content());
-                        app.pop_layer(); // Close edit bookmark
-                        let title: String;
-                        let tags: String;
-                        if let Some(n) = sometitle {
-                            title = n.to_string();
+                        let url =
+                            app.call_on_name("url", |view: &mut EditView| view.get_content()).unwrap();
+                        let title =
+                            app.call_on_name("title", |view: &mut EditView| view.get_content()).unwrap();
+                        let tags =
+                            app.call_on_name("tags", |view: &mut EditView| view.get_content()).unwrap();
+
+                        // Validate URL
+                        if let Ok(_url) = Url::parse(&url) {
+                            app.pop_layer(); // Close edit bookmark
+                            app.with_user_data(|userdata: &mut UserData| {
+                                userdata
+                                    .controller_tx
+                                    .read()
+                                    .unwrap()
+                                    .clone()
+                                    .send(ControllerMessage::AddBookmark(
+                                        _url.clone(),
+                                        title.to_string(),
+                                        tags.to_string(),
+                                    ))
+                                    .unwrap()
+                            });
                         } else {
-                            title = String::new()
+                            app.add_layer(Dialog::info("Invalid URL!"));
                         }
-                        if let Some(n) = sometags {
-                            tags = n.to_string();
-                        } else {
-                            tags = String::new()
-                        }
-                        app.with_user_data(|userdata: &mut UserData| {
-                            userdata
-                                .controller_tx
-                                .read()
-                                .unwrap()
-                                .clone()
-                                .send(ControllerMessage::AddBookmark(
-                                    newurl.clone(),
-                                    title.to_string(),
-                                    tags.to_string(),
-                                ))
-                                .unwrap()
-                        });
                     })
                     .button("Cancel", |app| {
                         app.pop_layer(); // Close edit bookmark
@@ -1692,6 +1690,32 @@ impl NcGopher {
                                 });
                             }
                         }
+                    }).
+                    button("Edit", |app| {
+                        let selected = app
+                            .call_on_name("bookmarks", |view: &mut SelectView<Bookmark>| {
+                                view.selection()
+                            })
+                            .unwrap();
+                        match selected {
+                            None => (),
+                            Some(b) => {
+                                let bookmark =  Bookmark {
+                                    url: b.url.clone(),
+                                    title: b.title.clone(),
+                                    tags: b.tags.clone()
+                                };
+                                app.pop_layer();
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .ui_tx
+                                        .read()
+                                        .unwrap()
+                                        .send(UiMessage::ShowAddBookmarkDialog(bookmark))
+                                        .unwrap()
+                                });
+                            }
+                        }
                     })
                     .button("Close", |app| {
                         app.pop_layer();
@@ -1862,8 +1886,8 @@ impl NcGopher {
                 UiMessage::PageSaved(_url, filename) => {
                     self.set_message(format!("Page saved as '{}'.", filename).as_str());
                 }
-                UiMessage::ShowAddBookmarkDialog(url) => {
-                    self.show_add_bookmark_dialog(url);
+                UiMessage::ShowAddBookmarkDialog(bookmark) => {
+                    self.show_add_bookmark_dialog(bookmark);
                 }
                 UiMessage::ShowContent(url, content, item_type, index) => {
                     if ItemType::is_dir(item_type) {

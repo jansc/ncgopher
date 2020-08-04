@@ -72,6 +72,11 @@ impl Bookmarks {
         confdir
     }
 
+    // Checks if a bookmark with a given url exists
+    pub fn exists(&self, url: Url) -> bool {
+        return self.entries.iter().any(|v| v.url == url)
+    }
+
     pub fn add(&mut self, entry: Bookmark) {
         info!("Adding entry to bookmark: {:?}", entry);
         self.entries.push(entry);

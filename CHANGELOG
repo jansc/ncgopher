@@ -1,6 +1,10 @@
 * NcGopher Changelog
 
 ** [unreleased]
+  New features:
+  - New keyborad shortcut for help: ?
+  - Edit bookmarks
+
   Changes:
   - Search query by pressing enter
 
