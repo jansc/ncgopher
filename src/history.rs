@@ -62,7 +62,7 @@ impl History {
             .sql
             .query_row(
                 "SELECT id FROM history WHERE url=?1",
-                params![&entry.url],
+                params![&entry.url.to_string()],
                 |_| Ok(()),
             )
             .is_ok()
@@ -70,8 +70,8 @@ impl History {
             trace!("History::add(): Row exists, updating");
             let mut stmt = self
                 .sql
-                .prepare("UPDATE history SET visitedcount=visitedcount+1 WHERE url=?1")?;
-            stmt.query(params![&entry.url.to_string()])?;
+                .prepare("UPDATE history SET visitedcount=visitedcount+1,timestmp=datetime('NOW') WHERE url=?1")?;
+            stmt.execute(params![&entry.url.to_string()])?;
         } else {
             trace!("History::add(): Adding entry");
             self.sql.execute(

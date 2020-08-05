@@ -51,6 +51,7 @@ pub enum UiMessage {
     PageSaved(Url, String),
     Quit,
     ShowAddBookmarkDialog(Bookmark),
+    ShowEditHistoryDialog(Vec<HistoryEntry>),
     ShowContent(Url, String, ItemType, usize),
     ShowGeminiContent(Url, GeminiType, String),
     ShowEditBookmarksDialog(Vec<Bookmark>),
@@ -391,7 +392,15 @@ impl NcGopher {
             "History",
             MenuTree::new()
                 .leaf("Show all history...", |s| {
-                    s.add_layer(Dialog::info("Show history not implemented"))
+                    s.with_user_data(|userdata: &mut UserData| {
+                        userdata
+                            .controller_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(ControllerMessage::RequestEditHistoryDialog)
+                            .unwrap()
+                    });
                 })
                 .leaf("Clear history", |app| {
                     app.add_layer(
@@ -1056,19 +1065,37 @@ impl NcGopher {
                     .content(
                         LinearLayout::vertical()
                             .child(TextView::new("URL:"))
-                            .child(EditView::new().content(url.clone().into_string().as_str()).with_name("url").fixed_width(30))
+                            .child(
+                                EditView::new()
+                                    .content(url.into_string().as_str())
+                                    .with_name("url")
+                                    .fixed_width(30),
+                            )
                             .child(TextView::new("\nTitle:"))
-                            .child(EditView::new().content(title.as_str()).with_name("title").fixed_width(30))
+                            .child(
+                                EditView::new()
+                                    .content(title.as_str())
+                                    .with_name("title")
+                                    .fixed_width(30),
+                            )
                             .child(TextView::new("Tags (comma separated):"))
-                            .child(EditView::new().content(tags.join(",").as_str()).with_name("tags").fixed_width(30)),
+                            .child(
+                                EditView::new()
+                                    .content(tags.join(",").as_str())
+                                    .with_name("tags")
+                                    .fixed_width(30),
+                            ),
                     )
                     .button("Ok", move |app| {
-                        let url =
-                            app.call_on_name("url", |view: &mut EditView| view.get_content()).unwrap();
-                        let title =
-                            app.call_on_name("title", |view: &mut EditView| view.get_content()).unwrap();
-                        let tags =
-                            app.call_on_name("tags", |view: &mut EditView| view.get_content()).unwrap();
+                        let url = app
+                            .call_on_name("url", |view: &mut EditView| view.get_content())
+                            .unwrap();
+                        let title = app
+                            .call_on_name("title", |view: &mut EditView| view.get_content())
+                            .unwrap();
+                        let tags = app
+                            .call_on_name("tags", |view: &mut EditView| view.get_content())
+                            .unwrap();
 
                         // Validate URL
                         if let Ok(_url) = Url::parse(&url) {
@@ -1092,6 +1119,96 @@ impl NcGopher {
                     })
                     .button("Cancel", |app| {
                         app.pop_layer(); // Close edit bookmark
+                    }),
+            );
+        }
+        self.trigger();
+    }
+
+    fn show_edit_history_dialog(&mut self, entries: Vec<HistoryEntry>) {
+        let mut view: SelectView<HistoryEntry> = SelectView::new();
+        for e in entries {
+            let mut url: String = format!("{:<20}", e.url.clone().as_str());
+            url.truncate(50);
+            view.add_item(
+                format!(
+                    "{:>4} {:<20} {}",
+                    e.visited_count,
+                    e.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                    url
+                ),
+                e,
+            );
+        }
+        {
+            let mut app = self.app.write().unwrap();
+            app.add_layer(
+                Dialog::new()
+                    .title("Show history")
+                    .content(
+                        LinearLayout::vertical()
+                            .child(TextView::new("#Vis Last Visited         URL"))
+                            .child(
+                                LinearLayout::vertical()
+                                    .child(view.with_name("entries").scrollable()),
+                            ),
+                    )
+                    .button("Clear all history", move |app| {
+                        app.add_layer(
+                            Dialog::around(TextView::new("Do you want to delete the history?"))
+                                .button("Cancel", |app| {
+                                    app.pop_layer();
+                                })
+                                .button("Ok", |app| {
+                                    app.pop_layer();
+                                    app.call_on_name(
+                                        "entries",
+                                        |view: &mut SelectView<HistoryEntry>| view.clear(),
+                                    );
+                                    app.with_user_data(|userdata: &mut UserData| {
+                                        userdata
+                                            .controller_tx
+                                            .read()
+                                            .unwrap()
+                                            .send(ControllerMessage::ClearHistory)
+                                            .unwrap()
+                                    });
+                                }),
+                        );
+                    })
+                    /*
+                    ??
+                    .button("Clear last hour", move |app| {
+                    })
+                    */
+                    .button("Open URL", move |app| {
+                        let selected = app
+                            .call_on_name("entries", |view: &mut SelectView<HistoryEntry>| {
+                                view.selection()
+                            })
+                            .unwrap();
+                        app.pop_layer();
+                        match selected {
+                            None => (),
+                            Some(b) => {
+                                app.with_user_data(|userdata: &mut UserData| {
+                                    userdata
+                                        .ui_tx
+                                        .read()
+                                        .unwrap()
+                                        .clone()
+                                        .send(UiMessage::OpenUrlFromString(
+                                            b.url.to_string(),
+                                            true,
+                                            0,
+                                        ))
+                                        .unwrap()
+                                });
+                            }
+                        }
+                    })
+                    .button("Close", |app| {
+                        app.pop_layer(); // Close dialog
                     }),
             );
         }
@@ -1690,8 +1807,8 @@ impl NcGopher {
                                 });
                             }
                         }
-                    }).
-                    button("Edit", |app| {
+                    })
+                    .button("Edit", |app| {
                         let selected = app
                             .call_on_name("bookmarks", |view: &mut SelectView<Bookmark>| {
                                 view.selection()
@@ -1700,10 +1817,10 @@ impl NcGopher {
                         match selected {
                             None => (),
                             Some(b) => {
-                                let bookmark =  Bookmark {
+                                let bookmark = Bookmark {
                                     url: b.url.clone(),
                                     title: b.title.clone(),
-                                    tags: b.tags.clone()
+                                    tags: b.tags.clone(),
                                 };
                                 app.pop_layer();
                                 app.with_user_data(|userdata: &mut UserData| {
@@ -1888,6 +2005,9 @@ impl NcGopher {
                 }
                 UiMessage::ShowAddBookmarkDialog(bookmark) => {
                     self.show_add_bookmark_dialog(bookmark);
+                }
+                UiMessage::ShowEditHistoryDialog(entries) => {
+                    self.show_edit_history_dialog(entries);
                 }
                 UiMessage::ShowContent(url, content, item_type, index) => {
                     if ItemType::is_dir(item_type) {

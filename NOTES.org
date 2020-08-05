@@ -6,13 +6,13 @@
 *** DONE [#A] Download of binary files
 *** DONE [#A] Refactor: Get rid of server/port/path - use url::URL
 *** DONE [#A] Error handling for URLs
-*** NEXT [#B] Refactor: Move non-ui functions to controller
+*** DONE [#B] Refactor: Move non-ui functions to controller
 *** DONE Refactor: get rid of contenttype, use itemtype
-*** TODO [#B] Implement open history entries [5/6]
+*** DONE [#B] Implement open history entries [6/6]
     - [X] Open URL from history-menu
     - [X] Add count to history
     - [X] Handle duplicate history entries (not nesassary)
-    - [ ] Implement show all history dialog
+    - [X] Implement show all history dialog
     - [X] Write history to file
     - [X] Read history from file on startup
 *** DONE [#B] Implement simple bookmark handling [2/2]
@@ -31,10 +31,10 @@
 *** DONE [#B] Implement download of files (text/gophermap)
 *** DONE [#C] Write README.org
 ** post-alpha
-*** TODO [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
+*** DONE [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
 *** DONE [#A] Bugfix: Reload must not add current page to history
 *** TODO Configurable keys
-*** TODO Better keyboard navigation, emacs/vim key presets
+*** DONE Better keyboard navigation, emacs/vim key presets
 **** DONE SPACE to page
 *** DONE Settings dialog
 *** TODO Setting for disabling history recording
@@ -61,7 +61,8 @@
     - [X] Handle prefomatting toggle lines
     - [ ] Implement save as text for gemini
     - [ ] Limit number of redirects to 5
-    - [ ] Client certificates
+    - [ ] Warning when redirecting to external server
+    - [ ] Client certificates, see [[https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl)][Alex' gemini wiki]]
     - [ ] TOFU certificate pinning
 *** TODO Open local file (gophermap/textfile)
 *** TODO Auto moka pona (rss-like?), maybe rss support

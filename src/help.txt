@@ -2,6 +2,7 @@
 | Key        | Command                        |
 |------------+--------------------------------|
 | Arrow keys | Move around in text            |
+| j/k        | Move around in text (like vi)  |
 | Enter      | Open the link under the cursor |
 | Esc        | Go to menubar                  |
 | Space      | Scroll down one page           |

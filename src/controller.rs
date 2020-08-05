@@ -25,7 +25,7 @@ use native_tls::{Protocol, TlsConnector};
 use x509_parser::parse_x509_der;
 
 lazy_static! {
-    static ref LAST_REQUEST_ID: Mutex<i64> =  Mutex::new(0);
+    static ref LAST_REQUEST_ID: Mutex<i64> = Mutex::new(0);
 }
 
 #[derive(Clone)]
@@ -58,6 +58,7 @@ pub enum ControllerMessage {
     ReloadCurrentPage,
     RemoveBookmark(Bookmark),
     RequestAddBookmarkDialog,
+    RequestEditHistoryDialog,
     RequestEditBookmarksDialog,
     RequestGeminiQueryDialog(Url, String),
     RequestSaveAsDialog,
@@ -1062,6 +1063,22 @@ impl Controller {
                             .read()
                             .unwrap()
                             .send(UiMessage::ShowAddBookmarkDialog(bookmark))
+                            .unwrap();
+                    }
+                    ControllerMessage::RequestEditHistoryDialog => {
+                        let entries = self
+                            .history
+                            .lock()
+                            .unwrap()
+                            .get_latest_history(500)
+                            .expect("Could not get latest history");
+                        self.ui
+                            .read()
+                            .unwrap()
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowEditHistoryDialog(entries))
                             .unwrap();
                     }
                     ControllerMessage::RequestEditBookmarksDialog => {
