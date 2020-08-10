@@ -162,7 +162,7 @@ impl Controller {
         let p = gemini_url.port();
         if let Some(p) = p {
             port = p
-        };
+        }
         let s = gemini_url.host();
         let mut server: String = "host.error".to_string();
         if let Some(s) = s {
@@ -295,7 +295,7 @@ impl Controller {
                                         .unwrap();
                                     return;
                                 }
-                            };
+                            }
                             let buf = buf.trim();
                             // "text/gemini; charset=utf-8"
                             info!("Got gemini header: {}:  {}", buf.len(), buf);
@@ -521,7 +521,7 @@ impl Controller {
         let p = gopher_url.port();
         if let Some(p) = p {
             port = p
-        };
+        }
         let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
         if let Some(s) = s {
