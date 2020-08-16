@@ -5,6 +5,10 @@
   - New keyborad shortcut for help: ?
   - Edit bookmarks
   - History management dialog
+  - Certificate pinning (TOFU) for gemini
+
+  Bugfixes:
+  - Fixed opening of http/https-URLs from gemini
 
   Changes:
   - Search query by pressing enter
