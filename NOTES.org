@@ -56,11 +56,11 @@
 *** DONE Show info about link under cursor
 *** DONE Implement reload of page
 ** beta, etc
-*** NEXT [#A] Gemini support [4/9]
+*** NEXT [#A] Gemini support [5/9]
     - [X] Binary downloads
     - [X] Automatic text wrapping
     - [X] Handle prefomatting toggle lines
-    - [ ] Bugfix: Can't open WWW links from gemini
+    - [X] Bugfix: Can't open WWW links from gemini
     - [ ] Implement save as text for gemini
     - [ ] Limit number of redirects to 5
     - [ ] Warning when redirecting to external server

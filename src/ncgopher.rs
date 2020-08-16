@@ -12,6 +12,7 @@ use cursive::views::{
     SelectView, TextView, ViewRef,
 };
 use cursive::Cursive;
+use regex::Regex;
 use std::str;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
@@ -578,9 +579,13 @@ impl NcGopher {
         let mut url = url;
 
         // Default-protocol is gopher
-        if !url.starts_with("gemini://") && !url.starts_with("gopher://") {
+        let scheme_regex = Regex::new(r"^[a-zA-Z]+://").unwrap();
+        if let Some(_scheme) = scheme_regex.captures(&url) {
+            // Scheme present
+        } else {
             url.insert_str(0, "gopher://");
         }
+
         let res = Url::parse(url.as_str());
         match res {
             Ok(url) => {
@@ -601,6 +606,14 @@ impl NcGopher {
                 index,
             ),
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "http" | "https" => {
+                self.controller_tx
+                    .read()
+                    .unwrap()
+                    .send(ControllerMessage::OpenHtml(url.clone()))
+                    .unwrap();
+            }
+            // .send(ControllerMessage::OpenHtml(entry.url.clone()))
             _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
         }
     }
