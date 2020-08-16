@@ -38,6 +38,7 @@
 **** DONE SPACE to page
 *** DONE Settings dialog
 *** TODO Setting for disabling history recording
+*** TODO Setting for text wrap column
 *** TODO Tor support
 *** TODO Handle tags for bookmarks
 *** TODO Search in text
@@ -55,15 +56,16 @@
 *** DONE Show info about link under cursor
 *** DONE Implement reload of page
 ** beta, etc
-*** NEXT [#A] Gemini support [2/6]
-    - [x] Binary downloads
+*** NEXT [#A] Gemini support [4/9]
+    - [X] Binary downloads
     - [X] Automatic text wrapping
     - [X] Handle prefomatting toggle lines
+    - [ ] Bugfix: Can't open WWW links from gemini
     - [ ] Implement save as text for gemini
     - [ ] Limit number of redirects to 5
     - [ ] Warning when redirecting to external server
     - [ ] Client certificates, see [[https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl)][Alex' gemini wiki]]
-    - [ ] TOFU certificate pinning
+    - [X] TOFU certificate pinning
 *** TODO Open local file (gophermap/textfile)
 *** TODO Auto moka pona (rss-like?), maybe rss support
 *** TODO Download gopherhole for offline reading

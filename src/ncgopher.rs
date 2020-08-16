@@ -53,6 +53,7 @@ pub enum UiMessage {
     ShowAddBookmarkDialog(Bookmark),
     ShowEditHistoryDialog(Vec<HistoryEntry>),
     ShowContent(Url, String, ItemType, usize),
+    ShowCertificateChangedDialog(Url, String),
     ShowGeminiContent(Url, GeminiType, String),
     ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
@@ -1053,6 +1054,35 @@ impl NcGopher {
         });
     }
 
+    fn show_certificate_changed_dialog(&mut self, url: Url, fingerprint: String) {
+        {
+            let mut app = self.app.write().unwrap();
+            app.add_layer(
+                Dialog::new()
+                    .title("Certificate warning")
+                    .content(TextView::new(format!("The certificate for the following URL has changed:\n{}\nDo you want to continue?", url.as_str())))
+                    .button("Cancel", |app| {
+                        app.pop_layer(); // Close edit bookmark
+                    })
+                    .button("Accept the risk", move |app| {
+                        app.pop_layer(); // Close edit bookmark
+
+                        app.with_user_data(|userdata: &mut UserData| {
+                            userdata
+                                .controller_tx
+                                .read()
+                                .unwrap()
+                                .clone()
+                                .send(ControllerMessage::UpdateCertificateAndOpen(url.clone(), fingerprint.clone())
+                                )
+                                .unwrap()
+                        });
+                    })
+            );
+        }
+        self.trigger();
+    }
+
     fn show_add_bookmark_dialog(&mut self, bookmark: Bookmark) {
         {
             let mut app = self.app.write().unwrap();
@@ -2016,6 +2046,9 @@ impl NcGopher {
                         self.show_text_file(content);
                     }
                     self.set_message(url.as_str());
+                }
+                UiMessage::ShowCertificateChangedDialog(url, fingerprint) => {
+                    self.show_certificate_changed_dialog(url, fingerprint);
                 }
                 UiMessage::ShowGeminiContent(url, gemini_type, content) => {
                     if gemini_type == GeminiType::Text {

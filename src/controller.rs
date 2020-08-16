@@ -3,6 +3,7 @@ use chrono::{Duration, Utc};
 use cursive::Cursive;
 use lazy_static::lazy_static;
 use regex::Regex;
+use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -15,6 +16,7 @@ use std::thread;
 use url::Url;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
+use crate::certificates::{Certificate, Certificates};
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
@@ -39,6 +41,8 @@ pub struct Controller {
     history: Arc<Mutex<History>>,
     /// Bookmarks
     bookmarks: Arc<Mutex<Bookmarks>>,
+    /// Known hosts for gemini TOFU
+    certificates: Arc<Mutex<Certificates>>,
     /// Current textual content
     content: Arc<Mutex<String>>,
     /// Current URL
@@ -48,6 +52,7 @@ pub struct Controller {
 /// Defines messages sent between Controller and UI
 pub enum ControllerMessage {
     AddBookmark(Url, String, String),
+    AddCertificate(String, String),
     AddToHistory(Url),
     BinaryWritten(String, usize),
     ClearHistory,
@@ -58,6 +63,7 @@ pub enum ControllerMessage {
     ReloadCurrentPage,
     RemoveBookmark(Bookmark),
     RequestAddBookmarkDialog,
+    RequestCertificateChangedDialog(Url, String),
     RequestEditHistoryDialog,
     RequestEditBookmarksDialog,
     RequestGeminiQueryDialog(Url, String),
@@ -67,6 +73,7 @@ pub enum ControllerMessage {
     SetContent(Url, String, ItemType, usize),
     SetGeminiContent(Url, GeminiType, String),
     ShowMessage(String),
+    UpdateCertificateAndOpen(Url, String),
     RedrawBookmarks,
     RedrawHistory,
     FetchGeminiUrl(Url, bool, usize),
@@ -92,6 +99,7 @@ impl Controller {
             ui: Arc::new(RwLock::new(ncgopher.clone())),
             history: Arc::new(Mutex::new(History::new()?)),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
+            certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
         };
@@ -130,6 +138,19 @@ impl Controller {
         ncgopher.open_url(url, true, 0);
         info!("Controller::new()");
         Ok(controller)
+    }
+
+    fn get_host_from_url(url: &Url) -> String {
+        let host = url.host().unwrap();
+        let _scheme = url.scheme();
+
+        // TODO: get default port from scheme
+        let mut port: u16 = 1965;
+        let p = url.port();
+        if let Some(p) = p {
+            port = p
+        }
+        format!("{}:{}", host, port)
     }
 
     // Used for gemini downloads
@@ -187,6 +208,9 @@ impl Controller {
             }
         }
         let local_filename = self.get_filename_from_url(&url);
+        let host = server_details.clone();
+        // Get known certificate fingerprint for host
+        let fingerprint = self.certificates.lock().unwrap().fingerprint_by_host(&host);
         thread::spawn(move || {
             // FIXME: Should use _server instead?
             let mut buf = String::new();
@@ -224,7 +248,7 @@ impl Controller {
                                 Err(err) => {
                                     tx_clone
                                         .send(ControllerMessage::ShowMessage(format!(
-                                            "Could not get perr certificate: {:?}",
+                                            "Could not get peer certificate: {:?}",
                                             err
                                         )))
                                         .unwrap();
@@ -232,10 +256,46 @@ impl Controller {
                                 }
                                 Ok(option) => {
                                     if let Some(cert) = option {
-                                        info!(
-                                            "Peer certificate: {:?}",
-                                            base64::encode(cert.to_der().unwrap())
-                                        );
+                                        // TOFU: Check if we already have a certificate fingerprint for a given host
+                                        let cert_fingerprint = cert.to_der().unwrap();
+                                        // create a Sha256 object
+                                        let mut hasher = Sha256::new();
+                                        hasher.update(cert_fingerprint);
+                                        let cert_fingerprint = base64::encode(hasher.finalize());
+
+                                        info!("Peer certificate: {:?}", cert_fingerprint);
+                                        match fingerprint {
+                                            Some(f) => {
+                                                if f != cert_fingerprint {
+                                                    // Invalid CERTIFICATE, notify user
+                                                    tx_clone
+                                                        .send(ControllerMessage::ShowMessage(
+                                                            format!("Certificate fingerprint DOES NOT match for {}", url)
+                                                        )).unwrap();
+                                                    tx_clone
+                                                        .send(ControllerMessage::RequestCertificateChangedDialog(
+                                                            url, cert_fingerprint
+                                                        )).unwrap();
+                                                    return;
+                                                } else {
+                                                    tx_clone
+                                                        .send(ControllerMessage::ShowMessage(
+                                                            "Certificate fingerprint matches"
+                                                                .to_string(),
+                                                        ))
+                                                        .unwrap();
+                                                }
+                                            }
+                                            None => {
+                                                // 1st time visit: add fingerprint
+                                                tx_clone
+                                                    .send(ControllerMessage::AddCertificate(
+                                                        host,
+                                                        cert_fingerprint,
+                                                    ))
+                                                    .unwrap()
+                                            }
+                                        }
                                         match parse_x509_der(&cert.to_der().unwrap()) {
                                             Ok((_rem, cert)) => {
                                                 info!("Successfully parsed certificate");
@@ -275,7 +335,6 @@ impl Controller {
                                                     .unwrap();
                                             }
                                         }
-                                        // Store certificate if not known
                                     }
                                 }
                             }
@@ -786,6 +845,18 @@ impl Controller {
         b
     }
 
+    fn add_certificate(&mut self, host: String, fingerprint: String) -> Certificate {
+        let c: Certificate = Certificate {
+            host: host.clone(),
+            fingerprint,
+        };
+        if self.certificates.lock().unwrap().exists(host.clone()) {
+            self.certificates.lock().unwrap().remove(host);
+        }
+        self.certificates.lock().unwrap().add(c.clone());
+        c
+    }
+
     fn remove_bookmark(&mut self, b: Bookmark) {
         self.bookmarks.lock().unwrap().remove(b.url);
         let tx_clone = self.tx.read().unwrap().clone();
@@ -998,6 +1069,9 @@ impl Controller {
                             .send(UiMessage::AddToBookmarkMenu(b))
                             .unwrap();
                     }
+                    ControllerMessage::AddCertificate(host, fingerprint) => {
+                        self.add_certificate(host, fingerprint);
+                    }
                     ControllerMessage::AddToHistory(url) => {
                         let h = self.add_to_history(url);
                         self.ui
@@ -1063,6 +1137,17 @@ impl Controller {
                             .read()
                             .unwrap()
                             .send(UiMessage::ShowAddBookmarkDialog(bookmark))
+                            .unwrap();
+                    }
+                    ControllerMessage::RequestCertificateChangedDialog(url, fingerprint) => {
+                        info!("RequestCertificateChangedDialog({}, {})", url, fingerprint);
+                        self.ui
+                            .read()
+                            .unwrap()
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .send(UiMessage::ShowCertificateChangedDialog(url, fingerprint))
                             .unwrap();
                     }
                     ControllerMessage::RequestEditHistoryDialog => {
@@ -1236,6 +1321,21 @@ impl Controller {
                     }
                     ControllerMessage::FetchBinaryUrl(url, local_path) => {
                         self.fetch_binary_url(url, local_path);
+                    }
+                    ControllerMessage::UpdateCertificateAndOpen(url, fingerprint) => {
+                        // TODO: Update certificate
+                        let host = Controller::get_host_from_url(&url);
+                        info!("Adding fingerprint for host {}: {}", host, fingerprint);
+                        self.add_certificate(host, fingerprint);
+                        self.ui
+                            .read()
+                            .unwrap()
+                            .ui_tx
+                            .read()
+                            .unwrap()
+                            .clone()
+                            .send(UiMessage::OpenUrl(url.clone(), true, 0))
+                            .unwrap()
                     }
                     ControllerMessage::RedrawBookmarks => {
                         trace!("Controller: Clearing bookmarks");
