@@ -613,7 +613,6 @@ impl NcGopher {
                     .send(ControllerMessage::OpenHtml(url.clone()))
                     .unwrap();
             }
-            // .send(ControllerMessage::OpenHtml(entry.url.clone()))
             _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
         }
     }

@@ -17,16 +17,18 @@ use url::Url;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::{Certificate, Certificates};
-use crate::gemini::GeminiType;
+use crate::gemini::{GeminiType};
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
 use crate::ncgopher::{NcGopher, UiMessage};
 use crate::SETTINGS;
-#[cfg(feature = "tls")]
 use native_tls::{Protocol, TlsConnector};
 use x509_parser::parse_x509_der;
 
 lazy_static! {
+    // Gobal to keep track of the latest request. When the user
+    // triggers several requests, only the last request will be
+    // displayed, the other will be canceled
     static ref LAST_REQUEST_ID: Mutex<i64> = Mutex::new(0);
 }
 
@@ -88,7 +90,7 @@ impl Drop for Controller {
 }
 
 impl Controller {
-    /// Create a new controller
+    /// Create a new controller (created in main.rs)
     pub fn new(app: Cursive, url: Url) -> Result<Controller, Box<dyn Error>> {
         let (tx, rx) = mpsc::channel::<ControllerMessage>();
         let mut ncgopher = NcGopher::new(app, tx.clone());
@@ -140,14 +142,14 @@ impl Controller {
         Ok(controller)
     }
 
+    // Returns the host and port extracted from url
     fn get_host_from_url(url: &Url) -> String {
         let host = url.host().unwrap();
         let _scheme = url.scheme();
 
         // TODO: get default port from scheme
         let mut port: u16 = 1965;
-        let p = url.port();
-        if let Some(p) = p {
+        if let Some(p) = url.port() {
             port = p
         }
         format!("{}:{}", host, port)
@@ -179,19 +181,13 @@ impl Controller {
         // Local copy of Url will be passed to thread
         let gemini_url = url.clone();
 
-        let mut port: u16 = 1965;
-        let p = gemini_url.port();
-        if let Some(p) = p {
-            port = p
-        }
-        let s = gemini_url.host();
         let mut server: String = "host.error".to_string();
-        if let Some(s) = s {
+        if let Some(s) = gemini_url.host() {
             server = s.to_string()
         }
-        info!("fetch_gemini_url(): About to open gemini URL {}", url);
 
-        let server_details = format!("{}:{}", server, port);
+        let server_details = Controller::get_host_from_url(&url);
+        
         let _server: Vec<_>;
         match server_details.as_str().to_socket_addrs() {
             Ok(s) => {
@@ -209,12 +205,15 @@ impl Controller {
         }
         let local_filename = self.get_filename_from_url(&url);
         let host = server_details.clone();
+
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().fingerprint_by_host(&host);
+
         thread::spawn(move || {
             // FIXME: Should use _server instead?
             let mut buf = String::new();
             let mut builder = TlsConnector::builder();
+
             // Self-signed certificates are considered invalid, but they are quite
             // common for gemini servers. Therefore, we accept invalid certs,
             // but check for expiration later
@@ -296,6 +295,8 @@ impl Controller {
                                                     .unwrap()
                                             }
                                         }
+
+                                        // Check certificate expiration date
                                         match parse_x509_der(&cert.to_der().unwrap()) {
                                             Ok((_rem, cert)) => {
                                                 info!("Successfully parsed certificate");
@@ -338,6 +339,8 @@ impl Controller {
                                     }
                                 }
                             }
+
+                            // Handshake done, request URL from gemini server
                             info!("Writing url '{}'", url.as_str());
                             write!(stream, "{}\r\n", url.as_str()).unwrap();
                             let mut bufr = BufReader::new(stream);
@@ -360,6 +363,7 @@ impl Controller {
                             info!("Got gemini header: {}:  {}", buf.len(), buf);
 
                             {
+                                // Abort request, if user triggered a newer request
                                 let guard = LAST_REQUEST_ID.lock().unwrap();
                                 if request_id < *guard {
                                     return;
@@ -577,13 +581,11 @@ impl Controller {
         let gopher_url = url.clone();
 
         let mut port: u16 = 70;
-        let p = gopher_url.port();
-        if let Some(p) = p {
+        if let Some(p) = gopher_url.port() {
             port = p
         }
-        let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
-        if let Some(s) = s {
+        if let Some(s) = gopher_url.host() {
             server = s.to_string()
         }
         let path = gopher_url.path();
@@ -618,41 +620,38 @@ impl Controller {
             // FIXME: Should use _server instead?
             let mut tls = false;
             let mut buf = vec![];
-            if cfg!(feature = "tls") {
-                if port != 70 {
-                    if let Ok(connector) = TlsConnector::new() {
-                        let stream = TcpStream::connect(server_details.clone())
-                            .expect("Couldn't connect to the server...");
-                        match connector.connect(&server, stream) {
-                            Ok(mut stream) => {
-                                tls = true;
-                                info!("Connected with TLS");
-                                writeln!(stream, "{}", path).unwrap();
+            // TLS-support. If non-standard-port, try to connect with TLS
+            if port != 70 {
+                if let Ok(connector) = TlsConnector::new() {
+                    let stream = TcpStream::connect(server_details.clone())
+                        .expect("Couldn't connect to the server...");
+                    match connector.connect(&server, stream) {
+                        Ok(mut stream) => {
+                            tls = true;
+                            info!("Connected with TLS");
+                            writeln!(stream, "{}", path).unwrap();
 
-                                loop {
-                                    match stream.read_to_end(&mut buf) {
-                                        Ok(_) => break,
-                                        Err(e) => {
-                                            tx_clone
-                                                .send(ControllerMessage::ShowMessage(format!(
-                                                    "I/O error: {}",
-                                                    e
-                                                )))
-                                                .unwrap();
-                                        }
-                                    };
-                                }
-                            }
-                            Err(e) => {
-                                warn!("Could not open tls stream: {} to {}", e, server_details);
+                            loop {
+                                match stream.read_to_end(&mut buf) {
+                                    Ok(_) => break,
+                                    Err(e) => {
+                                        tx_clone
+                                            .send(ControllerMessage::ShowMessage(format!(
+                                                "I/O error: {}",
+                                                e
+                                            )))
+                                            .unwrap();
+                                    }
+                                };
                             }
                         }
-                    } else {
-                        info!("Could not establish tls connection");
+                        Err(e) => {
+                            warn!("Could not open tls stream: {} to {}", e, server_details);
+                        }
                     }
+                } else {
+                    info!("Could not establish tls connection");
                 }
-            } else {
-                info!("TLS not configured");
             }
             if !tls {
                 match TcpStream::connect(server_details.clone()) {
@@ -715,13 +714,11 @@ impl Controller {
         let gopher_url = url;
 
         let mut port: u16 = 70;
-        let p = gopher_url.port();
-        if let Some(p) = p {
+        if let Some(p) = gopher_url.port() {
             port = p
         }
-        let s = gopher_url.host();
         let mut server: String = "host.error".to_string();
-        if let Some(s) = s {
+        if let Some(s) = gopher_url.host() {
             server = s.to_string()
         }
         let mut path = gopher_url.path().to_string();
@@ -758,46 +755,42 @@ impl Controller {
             let mut bw = BufWriter::new(f);
             let mut buf = [0u8; 1024];
             let mut total_written: usize = 0;
-            if cfg!(feature = "tls") {
-                if port != 70 {
-                    if let Ok(connector) = TlsConnector::new() {
-                        let stream =
-                            TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
-                                panic!("Couldn't connect to the server {}", server_details)
-                            });
-                        match connector.connect(&server, stream) {
-                            Ok(mut stream) => {
-                                tls = true;
-                                info!("Connected with TLS");
-                                writeln!(stream, "{}", path).unwrap();
-                                loop {
-                                    let bytes_read =
-                                        stream.read(&mut buf).expect("Could not read from TCP");
-                                    if bytes_read == 0 {
-                                        break;
-                                    }
-                                    let bytes_written = bw
-                                        .write(&buf[..bytes_read])
-                                        .expect("Could not write to file");
-                                    total_written += bytes_written;
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "{} bytes read",
-                                            total_written
-                                        )))
-                                        .unwrap();
+            if port != 70 {
+                if let Ok(connector) = TlsConnector::new() {
+                    let stream =
+                        TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
+                            panic!("Couldn't connect to the server {}", server_details)
+                        });
+                    match connector.connect(&server, stream) {
+                        Ok(mut stream) => {
+                            tls = true;
+                            info!("Connected with TLS");
+                            writeln!(stream, "{}", path).unwrap();
+                            loop {
+                                let bytes_read =
+                                    stream.read(&mut buf).expect("Could not read from TCP");
+                                if bytes_read == 0 {
+                                    break;
                                 }
-                            }
-                            Err(e) => {
-                                warn!("Could not open tls stream: {} to {}", e, server_details);
+                                let bytes_written = bw
+                                    .write(&buf[..bytes_read])
+                                    .expect("Could not write to file");
+                                total_written += bytes_written;
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(format!(
+                                        "{} bytes read",
+                                        total_written
+                                    )))
+                                    .unwrap();
                             }
                         }
-                    } else {
-                        info!("Could not establish tls connection");
+                        Err(e) => {
+                            warn!("Could not open tls stream: {} to {}", e, server_details);
+                        }
                     }
+                } else {
+                    info!("Could not establish tls connection");
                 }
-            } else {
-                info!("TLS not configured");
             }
             if !tls {
                 let mut stream = TcpStream::connect(server_details.clone())
@@ -989,9 +982,49 @@ impl Controller {
         // `file` goes out of scope, and the [filename] file gets closed
     }
 
-    fn save_gemini(&mut self, _filename: String) {
-        // FIXME implement
-        warn!("save_gemini(): NOT IMPLEMENTED");
+    fn save_gemini(&mut self, filename: String) {
+        let gemini_content: String;
+        {
+            let guard = self.content.lock().unwrap();
+            gemini_content = guard.clone();
+        }
+        let tx_clone = self.tx.read().unwrap().clone();
+        let lines = gemini_content.lines();
+        let mut txtlines = Vec::<String>::new();
+        for l in lines {
+            txtlines.push(l.to_string());
+        }
+        info!("Save textfile: {}", filename);
+        // Create a path to the desired file
+        let path = Path::new(filename.as_str());
+        let display = path.display();
+
+        let mut file = match File::create(&path) {
+            Err(err) => {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(format!(
+                        "Could open: {}: {}",
+                        display, err
+                    )))
+                    .unwrap();
+                return;
+            }
+            Ok(file) => file,
+        };
+
+        // Read the file contents into a string, returns `io::Result<usize>`
+        for l in txtlines {
+            if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(format!(
+                        "Could not write: {}: {}",
+                        display, err
+                    )))
+                    .unwrap();
+                return;
+            }
+        }
+        // `file` goes out of scope and the file gets closed
     }
 
     /// Save the current gophermap to disk

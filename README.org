@@ -89,9 +89,15 @@ are still not implemented.
 | k          | Move one line up               |
 |------------+--------------------------------|
 
+ * Mouse support
+
+=ncgopher= supports mouse interaction for menus and buttons in dialogs.
+If you want to select text, most terminal support selection while 
+pressing =SHIFT=.
+
 ** Debugging
 
-The software is still in alpha, and it is also my first application
+The software is still in beta, and it is also my first application
 written in Rust. Expect lots of bugs and badly written Rust code.
 
 If the application crashes, I'd be interested in a backtrace. Start

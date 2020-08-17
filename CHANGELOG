@@ -6,12 +6,14 @@
   - Edit bookmarks
   - History management dialog
   - Certificate pinning (TOFU) for gemini
+  - Download of gemini source (shortcut "s")
 
   Bugfixes:
   - Fixed opening of http/https-URLs from gemini
 
   Changes:
   - Search query by pressing enter
+  - TLS is no longer optional (since required by gemini)
 
 ** 0.1.4
   New features:
