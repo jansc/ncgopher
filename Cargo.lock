@@ -554,7 +554,7 @@ dependencies = [
 
 [[package]]
 name = "ncgopher"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.15 (registry+https://github.com/rust-lang/crates.io-index)",

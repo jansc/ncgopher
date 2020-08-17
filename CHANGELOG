@@ -1,6 +1,8 @@
 * NcGopher Changelog
 
 ** [unreleased]
+
+** 0.1.5
   New features:
   - New keyborad shortcut for help: ?
   - Edit bookmarks
