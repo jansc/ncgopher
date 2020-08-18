@@ -14,6 +14,7 @@ use cursive::views::{
 use cursive::Cursive;
 use regex::Regex;
 use std::str;
+use std::path::Path;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use textwrap::wrap_iter;
@@ -327,10 +328,17 @@ impl NcGopher {
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
         let last_seg = segments.pop();
-        if let Some(filename) = last_seg {
-            return filename.to_string();
+        let mut download_path = String::new();
+        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
+            download_path = path.to_string();
         }
-        "download.bin".to_string()
+        if let Some(filename) = last_seg {
+            // Get download_path from settings
+            let path = Path::new(download_path.as_str()).join(filename);
+            return path.display().to_string();
+        }
+        let path = Path::new(download_path.as_str()).join("download.bin");
+        return path.display().to_string();
     }
 
     fn binary_written(&mut self, filename: String, bytes: usize) {
@@ -650,21 +658,12 @@ impl NcGopher {
         }
 
         if ItemType::is_download(item_type) {
-            match dirs::home_dir() {
-                Some(dir) => {
-                    let filename = self.get_filename_from_url(url.clone());
-                    let local_path = dir.into_os_string().into_string().unwrap();
-                    let path = format!("{}/{}", local_path, filename);
-                    self.controller_tx
-                        .read()
-                        .unwrap()
-                        .send(ControllerMessage::FetchBinaryUrl(url, path))
-                        .unwrap();
-                }
-                None => {
-                    self.set_message("Could not find download dir");
-                }
-            };
+            let filename = self.get_filename_from_url(url.clone());
+            self.controller_tx
+                .read()
+                .unwrap()
+                .send(ControllerMessage::FetchBinaryUrl(url, filename))
+                .unwrap();
         } else {
             self.controller_tx
                 .read()

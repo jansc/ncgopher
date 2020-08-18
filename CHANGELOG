@@ -1,6 +1,8 @@
 * NcGopher Changelog
 
 ** [unreleased]
+  Bugfixes:
+  - Use download path from setting for downloading files
 
 ** 0.1.5
   New features:

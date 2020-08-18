@@ -157,14 +157,22 @@ impl Controller {
 
     // Used for gemini downloads
     fn get_filename_from_url(&self, url: &Url) -> String {
+        let mut download_path = String::new();
+        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
+            download_path = path.to_string();
+        }
         if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
             let last_seg = segments.pop();
             if let Some(filename) = last_seg {
-                return filename.to_string();
+                // Get download_path from settings
+                let path = Path::new(download_path.as_str()).join(filename);
+                return path.display().to_string();
             }
         }
         // TODO: Create extension based on mimetype
-        "download.bin".to_string()
+        // Use download_path from settings
+        let path = Path::new(download_path.as_str()).join("download.bin");
+        return path.display().to_string();
     }
 
     fn fetch_gemini_url(&self, url: Url, add_to_history: bool, _index: usize) {
@@ -995,8 +1003,13 @@ impl Controller {
             txtlines.push(l.to_string());
         }
         info!("Save textfile: {}", filename);
+
         // Create a path to the desired file
-        let path = Path::new(filename.as_str());
+        let mut download_path = String::new();
+        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
+            download_path = path.to_string();
+        }
+        let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 
         let mut file = match File::create(&path) {
@@ -1054,7 +1067,11 @@ impl Controller {
         }
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
-        let path = Path::new(filename.as_str());
+        let mut download_path = String::new();
+        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
+            download_path = path.to_string();
+        }
+        let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 
         let mut file = match File::create(&path) {
