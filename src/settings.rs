@@ -63,6 +63,7 @@ impl Settings {
         settings.config.set_default("html_command", "")?;
         settings.config.set_default("image_command", "")?;
         settings.config.set_default("telnet_command", "")?;
+        settings.config.set_default("textwrap", "80")?;
         settings.themes.insert(
             "darkmode".to_string(),
             include_str!("themes/darkmode.toml").to_string(),

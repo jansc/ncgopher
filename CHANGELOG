@@ -1,6 +1,9 @@
 * NcGopher Changelog
 
 ** [unreleased]
+  New features:
+  - Setting for automatic text wrapping of gemini content
+
   Bugfixes:
   - Use download path from setting for downloading files
 

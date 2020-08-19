@@ -576,7 +576,8 @@ impl NcGopher {
                         ";               ncgopher v{}\n\
                          ;     A Gopher client for the modern internet\n\
                          ; (c) 2019-2020 by Jan Schreiber <jan@mecinus.com>\n\
-                         ;               gopher://jan.bio",
+                         ;               gopher://jan.bio\n\
+                         ;               gemini://jan.bio",
                         env!("CARGO_PKG_VERSION")
                     )))
                 }),
@@ -836,7 +837,10 @@ impl NcGopher {
     /// Renders a gemini site in a cursive::TextView
     fn show_gemini(&mut self, base_url: &Url, content: &str) {
         trace!("show_gemini()");
-        let viewport_width = self.get_gemini_viewport_width() - 10;
+        let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
+        let textwrap_int = textwrap.parse::<usize>().unwrap();
+        let mut viewport_width = self.get_gemini_viewport_width() - 10;
+        viewport_width = std::cmp::min(textwrap_int, viewport_width);
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("gemini_content");
@@ -921,7 +925,10 @@ impl NcGopher {
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
-        let viewport_width = self.get_viewport_width() - 7;
+        let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
+        let textwrap_int = textwrap.parse::<usize>().unwrap();
+        let mut viewport_width = self.get_viewport_width() - 7;
+        viewport_width = std::cmp::min(textwrap_int, viewport_width);
         info!("Viewport-width = {}", viewport_width);
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
@@ -1041,7 +1048,11 @@ impl NcGopher {
 
     /// Renders a text file in a cursive::TextView
     fn show_text_file(&mut self, content: String) {
-        let viewport_width = self.get_viewport_width() - 2;
+        let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
+        let textwrap_int = textwrap.parse::<usize>().unwrap();
+        let mut viewport_width = self.get_viewport_width() - 2;
+        viewport_width = std::cmp::min(textwrap_int, viewport_width);
+        info!("Viewport-width = {}", viewport_width);
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("text");
@@ -1319,6 +1330,7 @@ impl NcGopher {
         let image_command = SETTINGS.read().unwrap().get_str("image_command").unwrap();
         let telnet_command = SETTINGS.read().unwrap().get_str("telnet_command").unwrap();
         let darkmode = theme == "darkmode";
+        let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         {
             let mut app = self.app.write().unwrap();
             app.add_layer(
@@ -1338,8 +1350,9 @@ impl NcGopher {
                             .child(TextView::new("Telnet client:"))
                             .child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
                             .child(TextView::new("Dark mode:"))
-                            .child(Checkbox::new().with_name("darkmode")
-                            )
+                            .child(Checkbox::new().with_name("darkmode"))
+                            .child(TextView::new("Text wrap column:"))
+                            .child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
                     )
                     .button("Cancel", |app| {
                         app.pop_layer();
@@ -1363,6 +1376,9 @@ impl NcGopher {
                         let telnet_command = app.call_on_name("telnet_command", |view: &mut EditView| {
                             view.get_content()
                         }).unwrap();
+                        let textwrap = app.call_on_name("textwrap", |view: &mut EditView| {
+                            view.get_content()
+                        }).unwrap();
                         app.pop_layer();
                         if let Ok(_url) = Url::parse(&homepage) {
                             SETTINGS.write().unwrap().set::<String>("homepage", homepage.clone().to_string()).unwrap();
@@ -1370,6 +1386,7 @@ impl NcGopher {
                             SETTINGS.write().unwrap().set::<String>("html_command", html_command.to_string()).unwrap();
                             SETTINGS.write().unwrap().set::<String>("image_command", image_command.to_string()).unwrap();
                             SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.to_string()).unwrap();
+                            SETTINGS.write().unwrap().set::<String>("textwrap", textwrap.to_string()).unwrap();
                             let theme = if darkmode { "darkmode" } else { "lightmode" };
                             app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
                             SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
