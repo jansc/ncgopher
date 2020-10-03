@@ -1,10 +1,9 @@
 use config::{Config, ConfigError, File, Value};
 use std::collections::HashMap;
 use std::env;
-use std::fs;
-use std::fs::File as FsFile;
+use std::fs::{self, DirBuilder, File as FsFile};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 //use cursive::theme::{Theme, BorderStyle};
 //use cursive::theme::BaseColor::*;
 //use cursive::theme::Color::*;
@@ -54,7 +53,29 @@ impl Settings {
         println!("Looking for config file {}", confdir);
 
         // Set defaults
-        settings.config.set_default("download_path", "Downloads")?;
+
+        // Try to determine a sensible default download dir and create it if need be.
+        let dl_dir = if let Ok(home) = env::var("HOME") {
+            Some([&home, "Downloads"].iter().collect::<PathBuf>())
+        } else {
+            if let Ok(tmp) = env::var("TMP") {
+                Some(PathBuf::from(tmp))
+            } else {
+                if let Ok(cwd) = env::current_exe() {
+                    Some(cwd)
+                } else {
+                    None
+                }
+            }
+        };
+
+        if let Some(dl_dir) = dl_dir {
+            DirBuilder::new().recursive(true).create(&dl_dir).ok(); // Continue on failure.
+            settings
+                .config
+                .set_default("download_path", dl_dir.to_str())?;
+        }
+
         settings
             .config
             .set_default("homepage", "gopher://jan.bio:70/1/ncgopher/")?;
