@@ -980,9 +980,17 @@ impl NcGopher {
                 }
             }
             view.set_on_submit(|app, entry| {
+                let settings = SETTINGS.read().unwrap();
                 app.with_user_data(|userdata: &mut UserData| {
                     // FIXME Remove duplicate code
-                    if ItemType::is_download(entry.item_type)
+                    if ItemType::is_image(entry.item_type) && !settings.get_str("image_command").unwrap().is_empty() {
+                        userdata
+                            .controller_tx
+                            .write()
+                            .unwrap()
+                            .send(ControllerMessage::OpenImage(entry.url.clone()))
+                            .unwrap();
+                    } else if ItemType::is_download(entry.item_type)
                         || ItemType::is_text(entry.item_type)
                         || ItemType::is_dir(entry.item_type)
                     {
@@ -1005,13 +1013,6 @@ impl NcGopher {
                             .write()
                             .unwrap()
                             .send(ControllerMessage::OpenHtml(entry.url.clone()))
-                            .unwrap();
-                    } else if ItemType::is_image(entry.item_type) {
-                        userdata
-                            .controller_tx
-                            .write()
-                            .unwrap()
-                            .send(ControllerMessage::OpenImage(entry.url.clone()))
                             .unwrap();
                     } else if ItemType::is_telnet(entry.item_type) {
                         userdata
