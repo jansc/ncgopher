@@ -587,10 +587,7 @@ impl Controller {
         // Local copy of Url will be passed to thread
         let gopher_url = url.clone();
 
-        let mut port: u16 = 70;
-        if let Some(p) = gopher_url.port() {
-            port = p
-        }
+        let port = gopher_url.port().unwrap_or(70);
         let mut server: String = "host.error".to_string();
         if let Some(s) = gopher_url.host() {
             server = s.to_string()
@@ -720,10 +717,7 @@ impl Controller {
         // Local copy of Url will be passed to thread
         let gopher_url = url;
 
-        let mut port: u16 = 70;
-        if let Some(p) = gopher_url.port() {
-            port = p
-        }
+        let port = gopher_url.port().unwrap_or(70);
         let mut server: String = "host.error".to_string();
         if let Some(s) = gopher_url.host() {
             server = s.to_string()
