@@ -147,7 +147,7 @@ impl Controller {
         let host = url.host().unwrap();
         let scheme = url.scheme();
 
-        let port = url.port().unwrap_or_else(|| match scheme {
+        let port = url.port_or_known_default().unwrap_or_else(|| match scheme {
             "gemini" => 1965,
             "gopher" => 70,
             _ => todo!("unknow port number for URL scheme {}", scheme),
