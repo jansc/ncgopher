@@ -67,23 +67,20 @@ fn main() {
         )
         .get_matches();
 
-    let mut homepage = Url::parse(
-        SETTINGS
-            .read()
-            .unwrap()
-            .get_str("homepage")
-            .expect("Could not find homepage in config")
-            .as_str(),
-    )
-    .unwrap();
-    if let Some(url) = matches.value_of("URL") {
-        match Url::parse(url) {
-            Ok(url) => homepage = url,
-            Err(e) => {
-                panic!("Invalid URL: {} ({})", url, e);
-            }
-        }
-    }
+    let homepage = matches
+        .value_of("URL")
+        .map(|url| Url::parse(url).expect(&format!("Invalid URL: {}", url)))
+        .unwrap_or_else(|| {
+            Url::parse(
+                SETTINGS
+                    .read()
+                    .unwrap()
+                    .get_str("homepage")
+                    .expect("Could not find homepage in config")
+                    .as_str(),
+            )
+            .expect("Invalid URL for configured homepage")
+        });
 
     let mut app = Cursive::default();
     //app.set_theme(SETTINGS.read().unwrap().get_theme());

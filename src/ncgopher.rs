@@ -13,8 +13,8 @@ use cursive::views::{
 };
 use cursive::Cursive;
 use regex::Regex;
-use std::str;
 use std::path::Path;
+use std::str;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
 use textwrap::wrap_iter;
