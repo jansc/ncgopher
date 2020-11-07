@@ -328,17 +328,19 @@ impl NcGopher {
     fn get_filename_from_url(&mut self, url: Url) -> String {
         let mut segments = url.path_segments().map(|c| c.collect::<Vec<_>>()).unwrap();
         let last_seg = segments.pop();
-        let mut download_path = String::new();
-        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
-            download_path = path.to_string();
-        }
+        let download_path = SETTINGS
+            .read()
+            .unwrap()
+            .get_str("download_path")
+            .unwrap_or_default();
+
         if let Some(filename) = last_seg {
             // Get download_path from settings
             let path = Path::new(download_path.as_str()).join(filename);
             return path.display().to_string();
         }
         let path = Path::new(download_path.as_str()).join("download.bin");
-        return path.display().to_string();
+        path.display().to_string()
     }
 
     fn binary_written(&mut self, filename: String, bytes: usize) {

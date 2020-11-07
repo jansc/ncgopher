@@ -95,7 +95,7 @@ impl GopherMapEntry {
         })
     }
 
-    pub fn label(self: Self) -> String {
+    pub fn label(self) -> String {
         self.name
     }
 }
@@ -210,69 +210,48 @@ impl ItemType {
     }
 
     pub fn is_download(item_type: ItemType) -> bool {
-        match item_type {
+        matches!(
+            item_type,
             ItemType::BinHex
-            | ItemType::Dos
-            | ItemType::Uuencoded
-            | ItemType::Binary
-            | ItemType::Gif
-            | ItemType::Image
-            | ItemType::Document
-            | ItemType::Video
-            | ItemType::MIME
-            | ItemType::Calendar
-            | ItemType::Sound => true,
-            _ => false,
-        }
+                | ItemType::Dos
+                | ItemType::Uuencoded
+                | ItemType::Binary
+                | ItemType::Gif
+                | ItemType::Image
+                | ItemType::Document
+                | ItemType::Video
+                | ItemType::MIME
+                | ItemType::Calendar
+                | ItemType::Sound
+        )
     }
 
     pub fn is_text(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::File => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::File)
     }
 
     pub fn is_dir(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::Dir => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::Dir)
     }
 
     pub fn is_query(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::IndexServer => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::IndexServer)
     }
 
     pub fn is_inline(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::Inline => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::Inline)
     }
 
     pub fn is_image(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::Gif | ItemType::Image => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::Gif | ItemType::Image)
     }
 
     pub fn is_telnet(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::Telnet => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::Telnet)
     }
 
     pub fn is_html(item_type: ItemType) -> bool {
-        match item_type {
-            ItemType::Html => true,
-            _ => false,
-        }
+        matches!(item_type, ItemType::Html)
     }
 
     /// Returns the ItemType of an url. Defaults to gophermap (ItemType::Dir 1)

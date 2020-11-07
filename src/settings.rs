@@ -57,16 +57,12 @@ impl Settings {
         // Try to determine a sensible default download dir and create it if need be.
         let dl_dir = if let Ok(home) = env::var("HOME") {
             Some([&home, "Downloads"].iter().collect::<PathBuf>())
+        } else if let Ok(tmp) = env::var("TMP") {
+            Some(PathBuf::from(tmp))
+        } else if let Ok(cwd) = env::current_exe() {
+            Some(cwd)
         } else {
-            if let Ok(tmp) = env::var("TMP") {
-                Some(PathBuf::from(tmp))
-            } else {
-                if let Ok(cwd) = env::current_exe() {
-                    Some(cwd)
-                } else {
-                    None
-                }
-            }
+            None
         };
 
         if let Some(dl_dir) = dl_dir {

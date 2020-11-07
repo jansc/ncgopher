@@ -20,7 +20,6 @@ use cursive::CursiveExt;
 use lazy_static::lazy_static;
 use settings::Settings;
 use std::io::{stdout, Write};
-use std::process::exit;
 use std::sync::RwLock;
 use url::Url;
 
@@ -35,15 +34,7 @@ mod settings;
 mod ui;
 
 lazy_static! {
-    static ref SETTINGS: RwLock<Settings> = RwLock::new(match Settings::new() {
-        Ok(settings) => {
-            settings
-        }
-        Err(e) => {
-            println!("Could not read settings: {}", e);
-            exit(1);
-        }
-    });
+    static ref SETTINGS: RwLock<Settings> = RwLock::new(Settings::new().expect("could not read settings"));
 }
 
 fn main() {
@@ -69,7 +60,7 @@ fn main() {
 
     let homepage = matches
         .value_of("URL")
-        .map(|url| Url::parse(url).expect(&format!("Invalid URL: {}", url)))
+        .map(|url| Url::parse(url).unwrap_or_else(|_| panic!("Invalid URL: {}", url)))
         .unwrap_or_else(|| {
             Url::parse(
                 SETTINGS

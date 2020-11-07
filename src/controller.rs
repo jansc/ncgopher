@@ -157,10 +157,12 @@ impl Controller {
 
     // Used for gemini downloads
     fn get_filename_from_url(&self, url: &Url) -> String {
-        let mut download_path = String::new();
-        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
-            download_path = path.to_string();
-        }
+        let download_path = SETTINGS
+            .read()
+            .unwrap()
+            .get_str("download_path")
+            .unwrap_or_default();
+
         if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
             let last_seg = segments.pop();
             if let Some(filename) = last_seg {
@@ -172,7 +174,7 @@ impl Controller {
         // TODO: Create extension based on mimetype
         // Use download_path from settings
         let path = Path::new(download_path.as_str()).join("download.bin");
-        return path.display().to_string();
+        path.display().to_string()
     }
 
     fn fetch_gemini_url(&self, url: Url, add_to_history: bool, _index: usize) {
@@ -449,12 +451,13 @@ impl Controller {
                                                 .unwrap();
                                         } else {
                                             // Binary download
-                                            let f = File::create(local_filename.clone()).expect(
-                                                &format!(
-                                                    "Unable to open file '{}'",
-                                                    local_filename.clone()
-                                                ),
-                                            );
+                                            let f = File::create(local_filename.clone())
+                                                .unwrap_or_else(|_| {
+                                                    panic!(
+                                                        "Unable to open file '{}'",
+                                                        local_filename.clone()
+                                                    )
+                                                });
                                             let mut bw = BufWriter::new(f);
                                             let mut buf = [0u8; 1024];
                                             let mut total_written: usize = 0;
@@ -752,16 +755,15 @@ impl Controller {
             // FIXME: Error handling!
             let mut tls = false;
             let f = File::create(local_filename.clone())
-                .expect(&format!("Unable to open file '{}'", local_filename.clone()));
+                .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename));
             let mut bw = BufWriter::new(f);
             let mut buf = [0u8; 1024];
             let mut total_written: usize = 0;
             if port != 70 {
                 if let Ok(connector) = TlsConnector::new() {
-                    let stream = TcpStream::connect(server_details.clone()).expect(&format!(
-                        "Couldn't connect to the server {}",
-                        server_details
-                    ));
+                    let stream = TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
+                        panic!("Couldn't connect to the server {}", server_details)
+                    });
                     match connector.connect(&server, stream) {
                         Ok(mut stream) => {
                             tls = true;
@@ -998,10 +1000,12 @@ impl Controller {
         info!("Save textfile: {}", filename);
 
         // Create a path to the desired file
-        let mut download_path = String::new();
-        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
-            download_path = path.to_string();
-        }
+        let download_path = SETTINGS
+            .read()
+            .unwrap()
+            .get_str("download_path")
+            .unwrap_or_default();
+
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 
@@ -1060,10 +1064,12 @@ impl Controller {
         }
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
-        let mut download_path = String::new();
-        if let Ok(path) = SETTINGS.read().unwrap().get_str("download_path") {
-            download_path = path.to_string();
-        }
+        let download_path = SETTINGS
+            .read()
+            .unwrap()
+            .get_str("download_path")
+            .unwrap_or_default();
+
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 

@@ -85,7 +85,7 @@ impl GeminiLine {
         })
     }
 
-    pub fn label(self: Self) -> String {
+    pub fn label(self) -> String {
         self.text
     }
 }
