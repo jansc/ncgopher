@@ -399,7 +399,7 @@ impl Controller {
                             // <META> always starts at the 4th char
                             // (it might contain leading whitespace)
                             let meta = buf.chars().skip(3).collect::<String>();
-                            // check maximum size of <META>
+                            // <META> has a maximum size
                             if meta.len() > 1024 {
                                 tx_clone
                                     .send(ControllerMessage::ShowMessage(
@@ -464,7 +464,6 @@ impl Controller {
                                                 .unwrap();
                                         }
                                     }
-                                    return;
                                 }
                                 Some('2') => {
                                     // SUCCESS
@@ -546,23 +545,23 @@ impl Controller {
                                     if other == Some('1') {
                                         // redirect is permanent
                                         // TODO: Should automatically update bookmarks
+                                    } else if !check(other) {
+                                        return;
                                     }
-                                    if check(other) {
-                                        match Url::parse(&meta) {
-                                            Ok(_url) => {
-                                                // FIXME: Try to parse url, check scheme
-                                            }
-                                            Err(_) => {
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "invalid redirect url: {}",
-                                                        meta
-                                                    )))
-                                                    .unwrap();
-                                            }
+                                    match Url::parse(&meta) {
+                                        Ok(url) => {
+                                            // FIXME: Try to parse url, check scheme
+                                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
+                                        }
+                                        Err(_) => {
+                                            tx_clone
+                                                .send(ControllerMessage::ShowMessage(format!(
+                                                    "invalid redirect url: {}",
+                                                    meta
+                                                )))
+                                                .unwrap();
                                         }
                                     }
-                                    return;
                                 }
                                 Some('4') // FAILURE
                                 | Some('5') // PERMANENT FAILURE
@@ -576,7 +575,6 @@ impl Controller {
                                             )))
                                             .unwrap();
                                     }
-                                    return;
                                 }
                                 other => {
                                     tx_clone
@@ -586,10 +584,9 @@ impl Controller {
                                             format!("invalid header from server: missing status code: {}", buf)
                                         }))
                                         .unwrap();
-                                    return;
                                 }
                             }
-                            info!("Finished reading from gemini stream");
+                            info!("finished reading from gemini stream");
                         }
                         Err(err) => {
                             warn!("Could not open tls stream: {} to {}", err, server_details);
