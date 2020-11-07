@@ -9,7 +9,7 @@ documentation = "https://github.com/jansc/ncgopher/blob/master/README.org"
 readme = "README.org"
 homepage = "https://github.com/jansc/ncgopher"
 repository = "https://github.com/jansc/ncgopher"
-keywords = ["cli", "gopher", "client"]
+keywords = ["cli", "gopher", "gemini", "client"]
 categories = ["command-line-utilities", "network-programming"]
 exclude = ["screenshots/**"]
 
