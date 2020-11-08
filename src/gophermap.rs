@@ -52,7 +52,8 @@ impl GopherMapEntry {
         let name = l[0][1..].to_string();
         let selector = l[1].to_string();
         let host = l[2].to_string();
-        let port = l[3].parse().unwrap();
+        // Parse port, ignore invalid values
+        let port = l[3].parse().unwrap_or_else(|_| 70);
         let mut path = selector.clone();
         path.insert(0, ch);
 
