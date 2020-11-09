@@ -210,9 +210,9 @@ impl ItemType {
         .to_string()
     }
 
-    pub fn is_download(item_type: ItemType) -> bool {
+    pub fn is_download(self) -> bool {
         matches!(
-            item_type,
+            self,
             ItemType::BinHex
                 | ItemType::Dos
                 | ItemType::Uuencoded
@@ -227,32 +227,32 @@ impl ItemType {
         )
     }
 
-    pub fn is_text(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::File)
+    pub fn is_text(self) -> bool {
+        matches!(self, ItemType::File)
     }
 
-    pub fn is_dir(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::Dir)
+    pub fn is_dir(self) -> bool {
+        matches!(self, ItemType::Dir)
     }
 
-    pub fn is_query(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::IndexServer)
+    pub fn is_query(self) -> bool {
+        matches!(self, ItemType::IndexServer)
     }
 
-    pub fn is_inline(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::Inline)
+    pub fn is_inline(self) -> bool {
+        matches!(self, ItemType::Inline)
     }
 
-    pub fn is_image(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::Gif | ItemType::Image)
+    pub fn is_image(self) -> bool {
+        matches!(self, ItemType::Gif | ItemType::Image)
     }
 
-    pub fn is_telnet(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::Telnet)
+    pub fn is_telnet(self) -> bool {
+        matches!(self, ItemType::Telnet)
     }
 
-    pub fn is_html(item_type: ItemType) -> bool {
-        matches!(item_type, ItemType::Html)
+    pub fn is_html(self) -> bool {
+        matches!(self, ItemType::Html)
     }
 
     /// Returns the ItemType of an url. Defaults to gophermap (ItemType::Dir 1)
