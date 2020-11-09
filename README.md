@@ -47,8 +47,26 @@ Obligatory screenshot:
 
 ## Installation
 
-`ncgopher` has no fancy installation process right now. Make sure to install
-rust on your system, but the latest release can be installed through cargo:
+`ncgopher` has no fancy installation process right now. There are some external
+dependencies which have to be installed. First and foremost you will of course
+need to have Rust installed. Further dependencies are the *openssl*, *ncurses*
+and *sqlite3* libraries. If these are not installed, the build will fail but
+you will most likely be able to tell what is missing.
+
+---
+### Debian-based Linux
+
+    sudo apt install build-essential pkg-config libssl-dev libncurses-dev libsql3-dev
+
+### Arch-based Linux
+
+    sudo pacman -S base-devel pkg-config openssl ncurses sqlite
+---
+
+If you know how to install the listed dependencies on your operating system and it is
+not listed, please make a pull request to add it.
+
+After installing these dependencies run
 
     cargo install ncgopher
 
