@@ -660,7 +660,7 @@ impl NcGopher {
             });
         }
 
-        if ItemType::is_download(item_type) {
+        if item_type.is_download() {
             let filename = self.get_filename_from_url(url.clone());
             self.controller_tx
                 .read()
@@ -984,9 +984,9 @@ impl NcGopher {
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
                     // FIXME Remove duplicate code
-                    if ItemType::is_download(entry.item_type)
-                        || ItemType::is_text(entry.item_type)
-                        || ItemType::is_dir(entry.item_type)
+                    if entry.item_type.is_download()
+                        || entry.item_type.is_text()
+                        || entry.item_type.is_dir()
                     {
                         userdata
                             .ui_tx
@@ -994,28 +994,28 @@ impl NcGopher {
                             .unwrap()
                             .send(UiMessage::OpenUrl(entry.url.clone(), true, 0))
                             .unwrap();
-                    } else if ItemType::is_query(entry.item_type) {
+                    } else if entry.item_type.is_query() {
                         userdata
                             .ui_tx
                             .write()
                             .unwrap()
                             .send(UiMessage::OpenQueryDialog(entry.url.clone()))
                             .unwrap();
-                    } else if ItemType::is_html(entry.item_type) {
+                    } else if entry.item_type.is_html() {
                         userdata
                             .controller_tx
                             .write()
                             .unwrap()
                             .send(ControllerMessage::OpenHtml(entry.url.clone()))
                             .unwrap();
-                    } else if ItemType::is_image(entry.item_type) {
+                    } else if entry.item_type.is_image() {
                         userdata
                             .controller_tx
                             .write()
                             .unwrap()
                             .send(ControllerMessage::OpenImage(entry.url.clone()))
                             .unwrap();
-                    } else if ItemType::is_telnet(entry.item_type) {
+                    } else if entry.item_type.is_telnet() {
                         userdata
                             .controller_tx
                             .write()
@@ -1748,7 +1748,7 @@ impl NcGopher {
                     if i == cur {
                         break; // Once we reach the current item, we quit
                     }
-                    if !ItemType::is_inline(item.item_type) {
+                    if !item.item_type.is_inline() {
                         break;
                     }
                     i += 1;
@@ -1769,7 +1769,7 @@ impl NcGopher {
                     if i == cur {
                         break; // Once we reach the current item, we quit
                     }
-                    if !ItemType::is_inline(item.item_type) {
+                    if !item.item_type.is_inline() {
                         break;
                     }
                     i -= 1;
@@ -2070,9 +2070,9 @@ impl NcGopher {
                     self.show_edit_history_dialog(entries);
                 }
                 UiMessage::ShowContent(url, content, item_type, index) => {
-                    if ItemType::is_dir(item_type) {
+                    if item_type.is_dir() {
                         self.show_gophermap(content, index);
-                    } else if ItemType::is_text(item_type) {
+                    } else if item_type.is_text() {
                         self.show_text_file(content);
                     }
                     self.set_message(url.as_str());
