@@ -472,6 +472,7 @@ impl Controller {
                                     if check(buf.chars().nth(1)) {
                                         // If mimetype is text/* download as gemini
                                         // Otherwise initiate a binary download
+                                        // FIXME: for now assumes all text is gemini text
                                         if meta.starts_with("text/") {
                                             let mut buf = vec![];
                                             bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
