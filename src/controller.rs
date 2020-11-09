@@ -2,7 +2,6 @@ use chrono::Local;
 use chrono::{Duration, Utc};
 use cursive::Cursive;
 use lazy_static::lazy_static;
-use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fs::File;
@@ -398,29 +397,85 @@ impl Controller {
                                     .unwrap();
                                 return;
                             }
-                            match buf.chars().next().unwrap() {
-                                '1' => {
-                                    let status1 = Regex::new(r"^10\s+(.*)$").unwrap();
-                                    if let Some(caps) = status1.captures(&buf) {
-                                        let query = caps.get(1).unwrap().as_str();
-                                        info!("Got query: {}", query);
-                                        tx_clone
-                                            .send(ControllerMessage::RequestGeminiQueryDialog(
-                                                url,
-                                                query.to_string(),
-                                            ))
-                                            .unwrap();
-                                    }
-                                    // TODO: Handle password inputs
-                                    return;
+
+                            // <META> always starts at the 4th char
+                            // (it might contain leading whitespace)
+                            let meta = buf.chars().skip(3).collect::<String>();
+                            // <META> has a maximum size
+                            if meta.len() > 1024 {
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(
+                                        "invalid header from server: <META> too large".to_string(),
+                                    ))
+                                    .unwrap();
+                            }
+
+                            // A function to check the second digit of a status code in the default
+                            // branch. I.e. the second digit should be zero.
+                            //
+                            // Returns false if the status code is invalid and thus the response
+                            // header is invalid.
+                            let check = |other: Option<char>| -> bool {
+                                if other == Some('0') {
+                                    // ok
+                                } else if matches!(other, Some(c) if c.is_ascii_digit()) {
+                                    // the second char is an ASCII digit, but this code is not handled
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "unknown status code {}",
+                                            buf.chars().take(2).collect::<String>(),
+                                        )))
+                                        .unwrap();
+                                } else {
+                                    // either the second char is not an ASCII digit
+                                    // or does not exist at all
+                                    tx_clone
+                                        .send(ControllerMessage::ShowMessage(format!(
+                                            "invalid header from server: invalid status code: {}",
+                                            buf
+                                        )))
+                                        .unwrap();
+                                    // the header is already invalid, no need to check further
+                                    return false;
                                 }
-                                '2' => {
-                                    let status2 = Regex::new(r"^(2[01])\s+(.*);?").unwrap();
-                                    if let Some(caps) = status2.captures(&buf) {
-                                        let mimetype = caps.get(2).unwrap().as_str();
+                                // after the two digit status code there should be a space
+                                // otherwhise the header is invalid too
+                                buf.chars().nth(2) == Some(' ')
+                            };
+
+                            match buf.chars().next() {
+                                Some('1') => {
+                                    // INPUT
+                                    match buf.chars().nth(1) {
+                                        Some('1') => {
+                                            // TODO: Handle password inputs
+                                        }
+                                        other => {
+                                            if check(other) {
+                                                info!("Got query: {}", meta);
+                                                tx_clone
+                                                    .send(
+                                                        ControllerMessage::RequestGeminiQueryDialog(
+                                                            url, meta,
+                                                        ),
+                                                    )
+                                                    .unwrap();
+                                            }
+                                            tx_clone
+                                                .send(ControllerMessage::RedrawHistory)
+                                                .unwrap();
+                                        }
+                                    }
+                                }
+                                Some('2') => {
+                                    // SUCCESS
+                                    // there are not yet any other status codes
+                                    // than 20 in this category
+                                    if check(buf.chars().nth(1)) {
                                         // If mimetype is text/* download as gemini
                                         // Otherwise initiate a binary download
-                                        if mimetype.starts_with("text/") {
+                                        // FIXME: for now assumes all text is gemini text
+                                        if meta.starts_with("text/") {
                                             let mut buf = vec![];
                                             bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
                                                 tx_clone
@@ -451,13 +506,12 @@ impl Controller {
                                                 .unwrap();
                                         } else {
                                             // Binary download
-                                            let f = File::create(local_filename.clone())
-                                                .unwrap_or_else(|_| {
-                                                    panic!(
-                                                        "Unable to open file '{}'",
-                                                        local_filename.clone()
-                                                    )
-                                                });
+                                            let f = File::create(local_filename.clone()).expect(
+                                                &format!(
+                                                    "Unable to open file '{}'",
+                                                    local_filename.clone()
+                                                ),
+                                            );
                                             let mut bw = BufWriter::new(f);
                                             let mut buf = [0u8; 1024];
                                             let mut total_written: usize = 0;
@@ -486,69 +540,56 @@ impl Controller {
                                                 ))
                                                 .unwrap();
                                         }
-                                    } else {
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(format!(
-                                                "Invalid status code: {}",
-                                                buf
-                                            )))
-                                            .unwrap();
                                     }
                                 }
-                                '3' => {
-                                    let status3 = Regex::new(r"^(3[01])\s+(.*)\s*$?").unwrap();
-                                    if let Some(caps) = status3.captures(&buf) {
-                                        // TODO: Should automatically update bookmarks when code is 31
-                                        let _code = caps.get(1).unwrap().as_str();
-                                        let url = caps.get(2).unwrap().as_str();
-                                        // FIXME: Try to parse url, check scheme
-                                        if let Ok(url) = Url::parse(url) {
-                                            tx_clone
-                                                .send(ControllerMessage::FetchGeminiUrl(
-                                                    url, true, 0,
-                                                ))
-                                                .unwrap();
-                                        } else {
+                                Some('3') => {
+                                    // REDIRECT
+                                    let other = buf.chars().nth(1);
+                                    if other == Some('1') {
+                                        // redirect is permanent
+                                        // TODO: Should automatically update bookmarks
+                                    } else if !check(other) {
+                                        return;
+                                    }
+                                    match Url::parse(&meta) {
+                                        Ok(url) => {
+                                            // FIXME: Try to parse url, check scheme
+                                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
+                                        }
+                                        Err(_) => {
                                             tx_clone
                                                 .send(ControllerMessage::ShowMessage(format!(
-                                                    "Invalid redirect url: {}",
-                                                    url
+                                                    "invalid redirect url: {}",
+                                                    meta
                                                 )))
                                                 .unwrap();
                                         }
-                                    } else {
+                                    }
+                                }
+                                Some('4') // FAILURE
+                                | Some('5') // PERMANENT FAILURE
+                                | Some('6') // CLIENT CERTIFICATE
+                                => {
+                                    if check(buf.chars().nth(1)) {
                                         tx_clone
                                             .send(ControllerMessage::ShowMessage(format!(
-                                                "Invalid header from server: {}",
+                                                "Gemini error: {}",
                                                 buf
                                             )))
                                             .unwrap();
                                     }
-                                    return;
                                 }
-                                '4' | '5' | '6' => {
-                                    let _status4 = Regex::new(r"^(4[01234])\s+(.*)\s+$?").unwrap();
-                                    let _status5 = Regex::new(r"^(5[01239])\s+(.*)\s+$?").unwrap();
-                                    let _status6 = Regex::new(r"^(6[012345])\s+(.*)\s+$?").unwrap();
+                                other => {
                                     tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "Gemini error: {}",
-                                            buf
-                                        )))
+                                        .send(ControllerMessage::ShowMessage(if other.is_some() {
+                                            format!("invalid header from server: invalid status code: {}", buf)
+                                        } else {
+                                            format!("invalid header from server: missing status code: {}", buf)
+                                        }))
                                         .unwrap();
-                                    return;
-                                }
-                                _ => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "Unhandled status code: {}",
-                                            buf
-                                        )))
-                                        .unwrap();
-                                    return;
                                 }
                             }
-                            info!("Finished reading from gemini stream");
+                            info!("finished reading from gemini stream");
                         }
                         Err(err) => {
                             warn!("Could not open tls stream: {} to {}", err, server_details);
