@@ -190,36 +190,15 @@ impl Controller {
         // Local copy of Url will be passed to thread
         let gemini_url = url.clone();
 
-        let mut server: String = "host.error".to_string();
-        if let Some(s) = gemini_url.host() {
-            server = s.to_string()
-        }
-
+        let host = url.host_str().unwrap().to_string();
         let server_details = Controller::get_host_from_url(&url);
 
-        let _server: Vec<_>;
-        match server_details.as_str().to_socket_addrs() {
-            Ok(s) => {
-                _server = s.collect();
-            }
-            Err(e) => {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Unable to resolve domain: {}",
-                        e
-                    )))
-                    .unwrap();
-                return;
-            }
-        }
         let local_filename = self.get_filename_from_url(&url);
-        let host = server_details.clone();
 
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().fingerprint_by_host(&host);
 
         thread::spawn(move || {
-            // FIXME: Should use _server instead?
             let mut buf = String::new();
             let mut builder = TlsConnector::builder();
 
@@ -231,219 +210,235 @@ impl Controller {
             // Rust's native-tls does not yet provide Tlsv13 :(
             // Alternative implementation: rusttls
             builder.min_protocol_version(Some(Protocol::Tlsv12));
-            match builder.build() {
-                Ok(connector) => {
-                    let tlsstream;
-                    let stream = TcpStream::connect(server_details.clone());
-                    match stream {
-                        Ok(stream) => tlsstream = stream,
-                        Err(err) => {
+
+            let connector = match builder.build() {
+                Ok(connector) => connector,
+                Err(err) => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "Could not establish connection: {}",
+                            err
+                        )))
+                        .unwrap();
+                    return;
+                }
+            };
+
+            let stream = match TcpStream::connect(&server_details) {
+                Ok(stream) => stream,
+                Err(err) => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "Could not connect to server: {}",
+                            err
+                        )))
+                        .unwrap();
+                    return;
+                }
+            };
+
+            let mut stream = match connector.connect(&host, stream) {
+                Ok(stream) => stream,
+                Err(err) => {
+                    warn!("Could not open tls stream: {} to {}", err, server_details);
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "Could not open tls stream to {}: {}",
+                            server_details, err
+                        )))
+                        .unwrap();
+                    return;
+                }
+            };
+
+            info!("Connected with TLS");
+
+            // try to get peer certificate
+            let cert_opt = match stream.peer_certificate() {
+                Ok(cert_opt) => cert_opt,
+                Err(err) => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "Could not get peer certificate: {:?}",
+                            err
+                        )))
+                        .unwrap();
+                    return;
+                }
+            };
+
+            // check certificate
+            if let Some(cert) = cert_opt {
+                // TOFU: Check if we already have a certificate fingerprint for a given host
+                let cert_fingerprint = cert.to_der().unwrap();
+                // create a Sha256 object
+                let mut hasher = Sha256::new();
+                hasher.update(cert_fingerprint);
+                let cert_fingerprint = base64::encode(hasher.finalize());
+
+                info!("Peer certificate: {:?}", cert_fingerprint);
+                match fingerprint {
+                    Some(f) => {
+                        if f != cert_fingerprint {
+                            // Invalid CERTIFICATE, notify user
                             tx_clone
                                 .send(ControllerMessage::ShowMessage(format!(
-                                    "Could not connect to server: {}",
-                                    err
+                                    "Certificate fingerprint DOES NOT match for {}",
+                                    url
                                 )))
                                 .unwrap();
+                            tx_clone
+                                .send(ControllerMessage::RequestCertificateChangedDialog(
+                                    url,
+                                    cert_fingerprint,
+                                ))
+                                .unwrap();
                             return;
+                        } else {
+                            tx_clone
+                                .send(ControllerMessage::ShowMessage(
+                                    "Certificate fingerprint matches".to_string(),
+                                ))
+                                .unwrap();
                         }
                     }
-                    match connector.connect(&server, tlsstream) {
-                        Ok(mut stream) => {
-                            info!("Connected with TLS");
+                    None => {
+                        // 1st time visit: add fingerprint
+                        tx_clone
+                            .send(ControllerMessage::AddCertificate(host, cert_fingerprint))
+                            .unwrap()
+                    }
+                }
 
-                            // get peer certificate
-                            match stream.peer_certificate() {
-                                Err(err) => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "Could not get peer certificate: {:?}",
-                                            err
-                                        )))
-                                        .unwrap();
-                                    return;
+                // Check certificate expiration date
+                match parse_x509_der(&cert.to_der().unwrap()) {
+                    Ok((_rem, cert)) => {
+                        info!("Successfully parsed certificate");
+                        match cert.tbs_certificate.validity.time_to_expiration() {
+                            Some(duration) => {
+                                let now = Utc::now();
+                                let expires =
+                                    now.checked_add_signed(Duration::from_std(duration).unwrap());
+                                match expires {
+                                    Some(x) => info!("Certificate expires {}", x.to_rfc3339()),
+                                    None => warn!("Certificate expire date overflows!"),
                                 }
-                                Ok(option) => {
-                                    if let Some(cert) = option {
-                                        // TOFU: Check if we already have a certificate fingerprint for a given host
-                                        let cert_fingerprint = cert.to_der().unwrap();
-                                        // create a Sha256 object
-                                        let mut hasher = Sha256::new();
-                                        hasher.update(cert_fingerprint);
-                                        let cert_fingerprint = base64::encode(hasher.finalize());
 
-                                        info!("Peer certificate: {:?}", cert_fingerprint);
-                                        match fingerprint {
-                                            Some(f) => {
-                                                if f != cert_fingerprint {
-                                                    // Invalid CERTIFICATE, notify user
-                                                    tx_clone
-                                                        .send(ControllerMessage::ShowMessage(
-                                                            format!("Certificate fingerprint DOES NOT match for {}", url)
-                                                        )).unwrap();
-                                                    tx_clone
-                                                        .send(ControllerMessage::RequestCertificateChangedDialog(
-                                                            url, cert_fingerprint
-                                                        )).unwrap();
-                                                    return;
-                                                } else {
-                                                    tx_clone
-                                                        .send(ControllerMessage::ShowMessage(
-                                                            "Certificate fingerprint matches"
-                                                                .to_string(),
-                                                        ))
-                                                        .unwrap();
-                                                }
-                                            }
-                                            None => {
-                                                // 1st time visit: add fingerprint
-                                                tx_clone
-                                                    .send(ControllerMessage::AddCertificate(
-                                                        host,
-                                                        cert_fingerprint,
-                                                    ))
-                                                    .unwrap()
-                                            }
-                                        }
-
-                                        // Check certificate expiration date
-                                        match parse_x509_der(&cert.to_der().unwrap()) {
-                                            Ok((_rem, cert)) => {
-                                                info!("Successfully parsed certificate");
-                                                match cert
-                                                    .tbs_certificate
-                                                    .validity
-                                                    .time_to_expiration()
-                                                {
-                                                    Some(duration) => {
-                                                        let now = Utc::now();
-                                                        let expires = now.checked_add_signed(
-                                                            Duration::from_std(duration).unwrap(),
-                                                        );
-                                                        match expires {
-                                                            Some(x) => info!("Certificate expires {}", x.to_rfc3339()),
-                                                            None => warn!("Certificate expire date overflows!"),
-                                                        }
-
-                                                        info!("Certificate valid {:?}", duration);
-                                                    }
-                                                    None => {
-                                                        tx_clone
-                                                            .send(ControllerMessage::ShowMessage(
-                                                                "Server certificate expired."
-                                                                    .to_string(),
-                                                            ))
-                                                            .unwrap();
-                                                    }
-                                                }
-                                            }
-                                            Err(err) => {
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "Could not parse peer certificate: {:?}",
-                                                        err
-                                                    )))
-                                                    .unwrap();
-                                            }
-                                        }
-                                    }
-                                }
+                                info!("Certificate valid {:?}", duration);
                             }
-
-                            // Handshake done, request URL from gemini server
-                            info!("Writing url '{}'", url.as_str());
-                            write!(stream, "{}\r\n", url.as_str()).unwrap();
-                            let mut bufr = BufReader::new(stream);
-                            info!("Reading from gemini stream");
-                            // Read Gemini Header
-                            match bufr.read_line(&mut buf) {
-                                Ok(_) => (),
-                                Err(e) => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "I/O error: {}",
-                                            e
-                                        )))
-                                        .unwrap();
-                                    return;
-                                }
-                            }
-                            let buf = buf.trim();
-                            // "text/gemini; charset=utf-8"
-                            info!("Got gemini header: {}:  {}", buf.len(), buf);
-
-                            {
-                                // Abort request, if user triggered a newer request
-                                let guard = LAST_REQUEST_ID.lock().unwrap();
-                                if request_id < *guard {
-                                    return;
-                                }
-                            }
-
-                            // TODO: Check status code
-                            // if status[0] == '2'
-                            // check mime-type:
-                            //  - text/gemini => show as gemini content
-                            //  - text/xxx    => show as text content
-                            //  - otherwise   => download as binary
-                            // status[0] == '3' => redirect
-                            // status[0] == '4' => show specific error message
-                            // status[0] == '5' => show specific error message
-                            // status[0] == '6' => invalid certificate, show specific error message
-                            if buf.is_empty() {
+                            None => {
                                 tx_clone
                                     .send(ControllerMessage::ShowMessage(
-                                        "Could not read from stream".to_string(),
-                                    ))
-                                    .unwrap();
-                                return;
-                            }
-
-                            // <META> always starts at the 4th char
-                            // (it might contain leading whitespace)
-                            let meta = buf.chars().skip(3).collect::<String>();
-                            // <META> has a maximum size
-                            if meta.len() > 1024 {
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(
-                                        "invalid header from server: <META> too large".to_string(),
+                                        "Server certificate expired.".to_string(),
                                     ))
                                     .unwrap();
                             }
+                        }
+                    }
+                    Err(err) => {
+                        tx_clone
+                            .send(ControllerMessage::ShowMessage(format!(
+                                "Could not parse peer certificate: {:?}",
+                                err
+                            )))
+                            .unwrap();
+                    }
+                }
+            }
 
-                            // A function to check the second digit of a status code in the default
-                            // branch. I.e. the second digit should be zero.
-                            //
-                            // Returns false if the status code is invalid and thus the response
-                            // header is invalid.
-                            let check = |other: Option<char>| -> bool {
-                                if other == Some('0') {
-                                    // ok
-                                } else if matches!(other, Some(c) if c.is_ascii_digit()) {
-                                    // the second char is an ASCII digit, but this code is not handled
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "unknown status code {}",
-                                            buf.chars().take(2).collect::<String>(),
-                                        )))
-                                        .unwrap();
-                                } else {
-                                    // either the second char is not an ASCII digit
-                                    // or does not exist at all
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "invalid header from server: invalid status code: {}",
-                                            buf
-                                        )))
-                                        .unwrap();
-                                    // the header is already invalid, no need to check further
-                                    return false;
-                                }
-                                // after the two digit status code there should be a space
-                                // otherwhise the header is invalid too
-                                buf.chars().nth(2) == Some(' ')
-                            };
+            // Handshake done, request URL from gemini server
+            info!("Writing url '{}'", url.as_str());
+            write!(stream, "{}\r\n", url.as_str()).unwrap();
 
-                            match buf.chars().next() {
+            let mut bufr = BufReader::new(stream);
+            info!("Reading from gemini stream");
+            // Read Gemini Header
+            match bufr.read_line(&mut buf) {
+                Ok(_) => (),
+                Err(e) => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
+                        .unwrap();
+                    return;
+                }
+            }
+            let buf = buf.trim();
+            // "text/gemini; charset=utf-8"
+            info!("Got gemini header: {}:  {}", buf.len(), buf);
+
+            {
+                // Abort request, if user triggered a newer request
+                let guard = LAST_REQUEST_ID.lock().unwrap();
+                if request_id < *guard {
+                    return;
+                }
+            }
+
+            // TODO: Check status code
+            // if status[0] == '2'
+            // check mime-type:
+            //  - text/gemini => show as gemini content
+            //  - text/xxx    => show as text content
+            //  - otherwise   => download as binary
+            // status[0] == '3' => redirect
+            // status[0] == '4' => show specific error message
+            // status[0] == '5' => show specific error message
+            // status[0] == '6' => invalid certificate, show specific error message
+            if buf.is_empty() {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(
+                        "Could not read from stream".to_string(),
+                    ))
+                    .unwrap();
+                return;
+            }
+
+            // <META> always starts at the 4th char
+            // (it might contain leading whitespace)
+            let meta = buf.chars().skip(3).collect::<String>();
+            // <META> has a maximum size
+            if meta.len() > 1024 {
+                tx_clone
+                    .send(ControllerMessage::ShowMessage(
+                        "invalid header from server: <META> too large".to_string(),
+                    ))
+                    .unwrap();
+            }
+
+            // A function to check the second digit of a status code in the default
+            // branch. I.e. the second digit should be zero.
+            //
+            // Returns false if the status code is invalid and thus the response
+            // header is invalid.
+            let check = |other: Option<char>| -> bool {
+                if other == Some('0') {
+                    // ok
+                } else if matches!(other, Some(c) if c.is_ascii_digit()) {
+                    // the second char is an ASCII digit, but this code is not handled
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "unknown status code {}",
+                            buf.chars().take(2).collect::<String>(),
+                        )))
+                        .unwrap();
+                } else {
+                    // either the second char is not an ASCII digit
+                    // or does not exist at all
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(format!(
+                            "invalid header from server: invalid status code: {}",
+                            buf
+                        )))
+                        .unwrap();
+                    // the header is already invalid, no need to check further
+                    return false;
+                }
+                // after the two digit status code there should be a space
+                // otherwhise the header is invalid too
+                buf.chars().nth(2) == Some(' ')
+            };
+
+            match buf.chars().next() {
                                 Some('1') => {
                                     // INPUT
                                     match buf.chars().nth(1) {
@@ -589,28 +584,7 @@ impl Controller {
                                         .unwrap();
                                 }
                             }
-                            info!("finished reading from gemini stream");
-                        }
-                        Err(err) => {
-                            warn!("Could not open tls stream: {} to {}", err, server_details);
-                            tx_clone
-                                .send(ControllerMessage::ShowMessage(format!(
-                                    "Could not open tls stream to {}: {}",
-                                    server_details, err
-                                )))
-                                .unwrap();
-                        }
-                    }
-                }
-                Err(err) => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "Could not establish connection: {}",
-                            err
-                        )))
-                        .unwrap();
-                }
-            }
+            info!("finished reading from gemini stream");
         });
     }
 
