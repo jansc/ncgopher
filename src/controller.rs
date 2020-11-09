@@ -348,7 +348,7 @@ impl Controller {
 
             // Handshake done, request URL from gemini server
             info!("Writing url '{}'", url.as_str());
-            write!(stream, "{}\r\n", url.as_str()).unwrap();
+            stream.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
 
             let mut bufr = BufReader::new(stream);
             info!("Reading from gemini stream");
