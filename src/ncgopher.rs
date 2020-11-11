@@ -804,35 +804,13 @@ impl NcGopher {
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("gemini_content");
         });
-        let mut width = 0;
         app.call_on_name(
             "gemini_content_scroll",
             |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
-                let rect = s.content_viewport();
-                width = rect.width();
+                s.content_viewport().width()
             },
-        );
-        width
+        ).unwrap_or(0)
     }
-
-    /*
-    // Helper function to get the width of the view port
-    // Used for text wrapping
-    fn get_text_viewport_width(&mut self) -> usize {
-        let mut app = self.app.write().unwrap();
-        let mut width = 0;
-        // FIXME: Does not call the closure for some reason
-        app.call_on_name(
-            "text_scroll",
-            |s: &mut ScrollView<ResizedView<NamedView<SelectView>>>| {
-                info!("TEXT_SCROLL");
-                let rect = s.content_viewport();
-                width = rect.width() - 2;
-            },
-        );
-        width
-    }
-    */
 
     /// Renders a gemini site in a cursive::TextView
     fn show_gemini(&mut self, base_url: &Url, content: &str) {
@@ -1228,11 +1206,6 @@ impl NcGopher {
                                 }),
                         );
                     })
-                    /*
-                    ??
-                    .button("Clear last hour", move |app| {
-                    })
-                    */
                     .button("Open URL", move |app| {
                         let selected = app
                             .call_on_name("entries", |view: &mut SelectView<HistoryEntry>| {

@@ -144,12 +144,6 @@ impl Settings {
         self.config.set::<T>(key, value)
     }
 
-    /*
-    pub fn get<'de, T: Deserialize<'de>>(&self, key: &'de str) -> Result<T, ConfigError> {
-        self.config.get::<T>(key)
-    }
-    */
-
     pub fn get_str(&self, key: &str) -> Result<String, ConfigError> {
         self.config.get_str(key)
     }
