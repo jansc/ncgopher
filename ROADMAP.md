@@ -37,7 +37,6 @@ config-auto Ignore config-filechanges while running for now
  - [X] [#C] Write README.org
 
 ## post-alpha
-----------
 
  - [X] [#A] Bugfix: Prohibit duplicate bookmark entries, open existing entry
  - [X] [#A] Bugfix: Reload must not add current page to history
@@ -46,7 +45,7 @@ config-auto Ignore config-filechanges while running for now
  - [X] SPACE to page
  - [X] Settings dialog
  - [ ] Setting for disabling history recording
- - [ ] Setting for text wrap column
+ - [X] Setting for text wrap column
  - [ ] Tor support for gopher
  - [ ] Handle tags for bookmarks
  - [ ] Search in text
