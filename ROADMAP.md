@@ -25,7 +25,7 @@
  - [X] Implement settings dialog [4/5]
    - [X] Set homepage
    - [X] Default directory for downloads
-   - [ ] Search engines (maybe later?)
+   - [X] Search engines (maybe later?)
    - [X] Read config from file (<https://github.com/mehcode/config-rs>)
    - [X] Write configuration to file
 
@@ -46,7 +46,7 @@ config-auto Ignore config-filechanges while running for now
  - [X] SPACE to page
  - [X] Settings dialog
  - [ ] Setting for disabling history recording
- - [ ] Setting for text wrap column
+ - [X] Setting for text wrap column
  - [ ] Tor support for gopher
  - [ ] Handle tags for bookmarks
  - [ ] Search in text
