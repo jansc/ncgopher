@@ -60,15 +60,6 @@ impl Layout {
         }
     }
 
-    /*
-    pub fn enable_cmdline(&mut self) {
-        if !self.cmdline_focus {
-            self.cmdline.set_content(":");
-            self.cmdline_focus = true;
-        }
-    }
-    */
-
     pub fn add_view<S: Into<String>, T: IntoBoxedView>(&mut self, id: S, view: T, title: S) {
         let s = id.into();
         let screen = Screen {
@@ -90,34 +81,7 @@ impl Layout {
         self.cmdline_focus = false;
         self.screenchange = true;
         self.stack.clear();
-
-        // trigger a redraw
-        //       self.ev.trigger();
     }
-
-    //    pub fn set_result(&mut self, result: Result<Option<String>, String>) {
-    //        self.result = result;
-    //        self.result_time = Some(SystemTime::now());
-    //    }
-
-    /*
-        pub fn clear_cmdline(&mut self) {
-            self.cmdline.set_content("");
-            self.cmdline_focus = false;
-    //        self.result = Ok(None);
-    //        self.result_time = None;
-        }
-        */
-
-    //    fn get_result(&self) -> Result<Option<String>, String> {
-    //        if let Some(t) = self.result_time {
-    //            if t.elapsed().unwrap() > Duration::from_secs(5) {
-    //                return Ok(None);
-    //            }
-
-    //        }
-    //        self.result.clone()
-    //    }
 
     pub fn set_title(&mut self, id: String, title: String) {
         warn!("set_title({}, {}", id, title);
@@ -125,19 +89,6 @@ impl Layout {
             view.title = title;
         }
     }
-
-    /*
-    pub fn push_view(&mut self, view: Box<dyn ViewExt>) {
-        let title = view.title();
-        let screen = Screen { title, view };
-
-        self.stack.push(screen);
-    }
-
-    pub fn pop_view(&mut self) {
-        self.stack.pop();
-    }
-    */
 
     fn get_current_screen(&self) -> Option<&Screen> {
         if !self.stack.is_empty() {
@@ -204,25 +155,6 @@ impl View for Layout {
         self.statusbar
             .draw(&printer.offset((0, printer.size.y - 2 - cmdline_height)));
 
-        //      if let Ok(Some(r)) = result {
-        //           printer.print_hline((0, printer.size.y - cmdline_height), printer.size.x, " ");
-        //            printer.print((0, printer.size.y - cmdline_height), &r);
-        //        } else if let Err(e) = result {
-        //            let style = ColorStyle::new(
-        //                ColorType::Color(*self.theme.palette.custom("error").unwrap()),
-        //                ColorType::Color(*self.theme.palette.custom("error_bg").unwrap()),
-        //            );
-
-        /*
-        printer.with_color(style, |printer| {
-            printer.print_hline((0, printer.size.y - cmdline_height), printer.size.x, " ");
-            printer.print(
-                (0, printer.size.y - cmdline_height),
-                &format!("ERROR: {}", e),
-            );
-        });
-        */
-
         if cmdline_visible {
             let printer = &printer.offset((0, printer.size.y - 1));
             self.cmdline.draw(&printer);
@@ -242,7 +174,6 @@ impl View for Layout {
         // the focus view has changed, let the views know so they can redraw
         // their items
         if self.screenchange {
-            //debug!("layout: new screen selected: {:?}", self.focus);
             self.screenchange = false;
         }
     }
@@ -253,15 +184,8 @@ impl View for Layout {
 
     fn on_event(&mut self, event: Event) -> EventResult {
         if let Event::Mouse { position, .. } = event {
-            //let result = self.get_result();
-
             let cmdline_visible = self.cmdline.get_content().len() > 0;
             let cmdline_height = if cmdline_visible { 1 } else { 0 };
-            /*
-            if result.as_ref().map(Option::is_some).unwrap_or(true) {
-                cmdline_height += 1;
-            }
-            */
 
             if position.y < self.last_size.y.saturating_sub(2 + cmdline_height) {
                 if let Some(ref id) = self.focus {

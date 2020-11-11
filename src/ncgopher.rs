@@ -1451,7 +1451,7 @@ impl NcGopher {
                 .read()
                 .unwrap()
                 .send(UiMessage::OpenUrlFromString(name.to_string(), true, 0))
-                .unwrap()
+                .unwrap();
         });
     }
 

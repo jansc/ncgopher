@@ -34,7 +34,8 @@ mod settings;
 mod ui;
 
 lazy_static! {
-    static ref SETTINGS: RwLock<Settings> = RwLock::new(Settings::new().expect("could not read settings"));
+    static ref SETTINGS: RwLock<Settings> =
+        RwLock::new(Settings::new().expect("could not read settings"));
 }
 
 fn main() {
