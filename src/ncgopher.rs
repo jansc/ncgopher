@@ -626,6 +626,12 @@ impl NcGopher {
             }
             _ => self.set_message(format!("Invalid URL: {}", url).as_str()),
         }
+        self.app
+            .write()
+            .expect("could not get write lock on app")
+            .call_on_name("main", |v: &mut ui::layout::Layout| {
+                v.set_title(v.get_current_view(), url.to_string())
+            });
     }
 
     pub fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
