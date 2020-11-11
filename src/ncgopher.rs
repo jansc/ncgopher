@@ -846,7 +846,6 @@ impl NcGopher {
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("gemini_content");
-            v.set_title("gemini_content".to_string(), base_url.to_string());
         });
         info!("Viewport-width = {}", viewport_width);
         app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
@@ -926,7 +925,7 @@ impl NcGopher {
     }
 
     /// Renders a gophermap in a cursive::TextView
-    fn show_gophermap(&mut self, base_url: &Url, content: String, index: usize) {
+    fn show_gophermap(&mut self, content: String, index: usize) {
         let mut title: String = "".to_string();
         let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         let textwrap_int = textwrap.parse::<usize>().unwrap();
@@ -936,7 +935,6 @@ impl NcGopher {
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("content");
-            v.set_title("content".to_string(), base_url.to_string());
         });
         let msg = String::new();
 
@@ -1051,7 +1049,7 @@ impl NcGopher {
     }
 
     /// Renders a text file in a cursive::TextView
-    fn show_text_file(&mut self, base_url: &Url, content: String) {
+    fn show_text_file(&mut self, content: String) {
         let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         let textwrap_int = textwrap.parse::<usize>().unwrap();
         let mut viewport_width = self.get_viewport_width() - 2;
@@ -1060,7 +1058,6 @@ impl NcGopher {
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("text");
-            v.set_title("text".to_string(), base_url.to_string());
         });
         app.call_on_name("text", |v: &mut SelectView| {
             v.clear();
@@ -2074,9 +2071,9 @@ impl NcGopher {
                 }
                 UiMessage::ShowContent(url, content, item_type, index) => {
                     if item_type.is_dir() {
-                        self.show_gophermap(&url, content, index);
+                        self.show_gophermap(content, index);
                     } else if item_type.is_text() {
-                        self.show_text_file(&url, content);
+                        self.show_text_file(content);
                     }
                     self.set_message(url.as_str());
                 }
@@ -2085,7 +2082,7 @@ impl NcGopher {
                 }
                 UiMessage::ShowGeminiContent(url, gemini_type, content) => {
                     if gemini_type == GeminiType::Text {
-                        self.show_text_file(&url, content);
+                        self.show_text_file(content);
                     } else {
                         self.show_gemini(&url, &content);
                     }
