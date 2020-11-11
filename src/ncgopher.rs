@@ -591,9 +591,7 @@ impl NcGopher {
 
         // Default-protocol is gopher
         let scheme_regex = Regex::new(r"^[a-zA-Z]+://").unwrap();
-        if let Some(_scheme) = scheme_regex.captures(&url) {
-            // Scheme present
-        } else {
+        if scheme_regex.captures(&url).is_none() {
             url.insert_str(0, "gopher://");
         }
 
@@ -1458,15 +1456,13 @@ impl NcGopher {
     /// If the cursor in the current view is on a link, show
     /// a status message in the statusbar.
     fn show_current_link_info(&mut self) {
-        let mut current_view = String::new();
-        {
-            let mut app = self.app.write().expect("Could not get write lock on app");
-            app.call_on_name("main", |v: &mut ui::layout::Layout| {
-                if let Some(v) = v.get_current_view() {
-                    current_view = v;
-                }
-            });
-        }
+        let current_view = self
+            .app
+            .write()
+            .expect("Could not get write lock on app")
+            .call_on_name("main", |v: &mut ui::layout::Layout| v.get_current_view())
+            .expect("View main missing");
+
         match current_view.as_str() {
             "content" => self.show_current_link_info_gopher(),
             "gemini_content" => self.show_current_link_info_gemini(),
@@ -1476,16 +1472,10 @@ impl NcGopher {
 
     fn show_current_link_info_gemini(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let view: ViewRef<SelectView<GeminiLine>>;
-        if let Some(v) = app.find_name("gemini_content") {
-            view = v;
-        } else {
-            return;
-        }
-        let cur = match view.selected_id() {
-            Some(id) => id,
-            None => 0,
-        };
+        let view: ViewRef<SelectView<GeminiLine>> = app
+            .find_name("gemini_content")
+            .expect("View gemini missing");
+        let cur = view.selected_id().unwrap_or(0);
         if let Some((_, item)) = view.get_item(cur) {
             if let Some(url) = &item.url {
                 app.with_user_data(|userdata: &mut UserData| {
@@ -1502,16 +1492,9 @@ impl NcGopher {
 
     fn show_current_link_info_gopher(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let view: ViewRef<SelectView<GopherMapEntry>>;
-        if let Some(v) = app.find_name("content") {
-            view = v;
-        } else {
-            return;
-        }
-        let cur = match view.selected_id() {
-            Some(id) => id,
-            None => 0,
-        };
+        let view: ViewRef<SelectView<GopherMapEntry>> =
+            app.find_name("content").expect("View content missing");
+        let cur = view.selected_id().unwrap_or(0);
         if let Some((_, item)) = view.get_item(cur) {
             match item.item_type {
                 ItemType::Html => {
@@ -1554,70 +1537,53 @@ impl NcGopher {
 
     pub fn get_selected_item_index(&self) -> Option<usize> {
         let mut app = self.app.write().expect("Could not get read lock on app");
-        let view: ViewRef<SelectView<GopherMapEntry>>;
-        if let Some(v) = app.find_name("content") {
-            view = v;
-        } else {
-            warn!("Could not find content");
-            return None;
-        }
-        let cur = match view.selected_id() {
-            Some(id) => id,
-            None => 0,
-        };
-        let i: usize = cur;
-        warn!("get_selected_item_index() => {}", i);
-        Some(i)
+        let view: ViewRef<SelectView<GopherMapEntry>> =
+            app.find_name("content").expect("View content missing");
+        let cur = view.selected_id().unwrap_or(0);
+        warn!("get_selected_item_index() => {}", cur);
+        Some(cur)
     }
 
     fn move_selection(&mut self, dir: Direction) {
         trace!("move_selection({:?})", dir);
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut current_view = String::new();
-        app.call_on_name("main", |v: &mut ui::layout::Layout| {
-            if let Some(v) = v.get_current_view() {
-                current_view = v;
-            }
-        });
+        let current_view = app
+            .call_on_name("main", |v: &mut ui::layout::Layout| v.get_current_view())
+            .expect("View main missing");
         match current_view.as_str() {
             "content" => {
-                let mut view: ViewRef<SelectView<GopherMapEntry>>;
-                if let Some(v) = app.find_name("content") {
-                    view = v;
-                    let callback = match dir {
-                        Direction::Next => view.select_down(1),
-                        Direction::Previous => view.select_up(1),
-                    };
-                    callback(&mut app);
-                    if let Some(id) = view.selected_id() {
-                        app.call_on_name(
-                            "content_scroll",
-                            |s: &mut ScrollView<
-                                ResizedView<NamedView<SelectView<GopherMapEntry>>>,
-                            >| {
-                                s.set_offset(cursive::Vec2::new(0, id));
-                            },
-                        );
-                    }
+                let mut view: ViewRef<SelectView<GopherMapEntry>> =
+                    app.find_name("content").expect("View content missing");
+                let callback = match dir {
+                    Direction::Next => view.select_down(1),
+                    Direction::Previous => view.select_up(1),
+                };
+                callback(&mut app);
+                if let Some(id) = view.selected_id() {
+                    app.call_on_name(
+                        "content_scroll",
+                        |s: &mut ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>| {
+                            s.set_offset(cursive::Vec2::new(0, id));
+                        },
+                    );
                 }
             }
             "gemini_content" => {
-                let mut view: ViewRef<SelectView<GeminiLine>>;
-                if let Some(v) = app.find_name("gemini_content") {
-                    view = v;
-                    let callback = match dir {
-                        Direction::Next => view.select_down(1),
-                        Direction::Previous => view.select_up(1),
-                    };
-                    callback(&mut app);
-                    if let Some(id) = view.selected_id() {
-                        app.call_on_name(
-                            "gemini_content_scroll",
-                            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
-                                s.set_offset(cursive::Vec2::new(0, id));
-                            },
-                        );
-                    }
+                let mut view: ViewRef<SelectView<GeminiLine>> = app
+                    .find_name("gemini_content")
+                    .expect("View gemini_content missing");
+                let callback = match dir {
+                    Direction::Next => view.select_down(1),
+                    Direction::Previous => view.select_up(1),
+                };
+                callback(&mut app);
+                if let Some(id) = view.selected_id() {
+                    app.call_on_name(
+                        "gemini_content_scroll",
+                        |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                            s.set_offset(cursive::Vec2::new(0, id));
+                        },
+                    );
                 }
             }
             _ => (),
@@ -1633,15 +1599,12 @@ impl NcGopher {
     }
 
     fn move_to_link(&mut self, dir: Direction) {
-        let mut current_view = String::new();
-        {
-            let mut app = self.app.write().expect("Could not get write lock on app");
-            app.call_on_name("main", |v: &mut ui::layout::Layout| {
-                if let Some(v) = v.get_current_view() {
-                    current_view = v;
-                }
-            });
-        }
+        let current_view = self
+            .app
+            .write()
+            .expect("Could not get write lock on app")
+            .call_on_name("main", |v: &mut ui::layout::Layout| v.get_current_view())
+            .expect("View main missing");
         match current_view.as_str() {
             "content" => self.move_to_link_gopher(dir),
             "gemini_content" => self.move_to_link_gemini(dir),
@@ -1651,16 +1614,10 @@ impl NcGopher {
 
     fn move_to_link_gemini(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut view: ViewRef<SelectView<GeminiLine>>;
-        if let Some(v) = app.find_name("gemini_content") {
-            view = v;
-        } else {
-            return;
-        }
-        let cur = match view.selected_id() {
-            Some(id) => id,
-            None => 0,
-        };
+        let mut view: ViewRef<SelectView<GeminiLine>> = app
+            .find_name("gemini_content")
+            .expect("View gemini_content missing");
+        let cur = view.selected_id().unwrap_or(0);
         let mut i: usize = cur;
         match dir {
             Direction::Next => {
@@ -1725,16 +1682,9 @@ impl NcGopher {
 
     fn move_to_link_gopher(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut view: ViewRef<SelectView<GopherMapEntry>>;
-        if let Some(v) = app.find_name("content") {
-            view = v;
-        } else {
-            return;
-        }
-        let cur = match view.selected_id() {
-            Some(id) => id,
-            None => 0,
-        };
+        let mut view: ViewRef<SelectView<GopherMapEntry>> =
+            app.find_name("content").expect("View content missing");
+        let cur = view.selected_id().unwrap_or(0);
         let mut i: usize = cur;
         match dir {
             Direction::Next => {

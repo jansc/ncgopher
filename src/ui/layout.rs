@@ -90,35 +90,30 @@ impl Layout {
         }
     }
 
-    fn get_current_screen(&self) -> Option<&Screen> {
+    fn get_current_screen(&self) -> &Screen {
         if !self.stack.is_empty() {
-            return self.stack.last();
-        }
-
-        if let Some(id) = self.focus.as_ref() {
-            self.views.get(id)
+            self.stack.last().unwrap()
         } else {
-            None
+            let id = self.get_current_view();
+            self.views.get(&id).expect(&format!("View {} missing", id))
         }
     }
 
-    pub fn get_current_view(&self) -> Option<String> {
-        if let Some(id) = self.focus.as_ref() {
-            Some(id.to_string())
-        } else {
-            None
-        }
+    pub fn get_current_view(&self) -> String {
+        self.focus
+            .as_ref()
+            .cloned()
+            .expect("Layout loaded without views")
     }
 
-    fn get_current_screen_mut(&mut self) -> Option<&mut Screen> {
+    fn get_current_screen_mut(&mut self) -> &mut Screen {
         if !self.stack.is_empty() {
-            return self.stack.last_mut();
-        }
-
-        if let Some(id) = self.focus.as_ref() {
-            self.views.get_mut(id)
+            self.stack.last_mut().unwrap()
         } else {
-            None
+            let id = self.get_current_view();
+            self.views
+                .get_mut(&id)
+                .expect(&format!("View {} missing", id))
         }
     }
 }
@@ -133,24 +128,23 @@ impl View for Layout {
         //            cmdline_height += 1;
         //        }
 
-        if let Some(screen) = self.get_current_screen() {
-            // screen title
-            printer.with_color(ColorStyle::title_primary(), |printer| {
-                let offset = HAlign::Center.get_offset(screen.title.width(), printer.size.x);
-                printer.print((offset, 0), &screen.title);
+        let screen = self.get_current_screen();
+        // screen title
+        printer.with_color(ColorStyle::title_primary(), |printer| {
+            let offset = HAlign::Center.get_offset(screen.title.width(), printer.size.x);
+            printer.print((offset, 0), &screen.title);
 
-                if !self.stack.is_empty() {
-                    printer.print((1, 0), "<");
-                }
-            });
+            if !self.stack.is_empty() {
+                printer.print((1, 0), "<");
+            }
+        });
 
-            // screen content
-            let printer = &printer
-                .offset((0, 1))
-                .cropped((printer.size.x, printer.size.y - 3 - cmdline_height))
-                .focused(true);
-            screen.view.draw(printer);
-        }
+        // screen content
+        let printer = &printer
+            .offset((0, 1))
+            .cropped((printer.size.x, printer.size.y - 3 - cmdline_height))
+            .focused(true);
+        screen.view.draw(printer);
 
         self.statusbar
             .draw(&printer.offset((0, printer.size.y - 2 - cmdline_height)));
@@ -167,9 +161,9 @@ impl View for Layout {
         self.statusbar.layout(Vec2::new(size.x, 2));
         self.cmdline.layout(Vec2::new(size.x, 1));
 
-        if let Some(screen) = self.get_current_screen_mut() {
-            screen.view.layout(Vec2::new(size.x, size.y - 3));
-        }
+        self.get_current_screen_mut()
+            .view
+            .layout(Vec2::new(size.x, size.y - 3));
 
         // the focus view has changed, let the views know so they can redraw
         // their items
@@ -198,35 +192,23 @@ impl View for Layout {
                 );
             }
 
-            return EventResult::Consumed(None);
-        }
-
-        if self.cmdline_focus {
-            return self.cmdline.on_event(event);
-        }
-
-        if let Some(screen) = self.get_current_screen_mut() {
-            screen.view.on_event(event)
+            EventResult::Consumed(None)
+        } else if self.cmdline_focus {
+            self.cmdline.on_event(event)
         } else {
-            EventResult::Ignored
+            self.get_current_screen_mut().view.on_event(event)
         }
     }
 
     fn call_on_any<'a>(&mut self, s: &Selector, c: AnyCb<'a>) {
-        if let Some(screen) = self.get_current_screen_mut() {
-            screen.view.call_on_any(s, c);
-        }
+        self.get_current_screen_mut().view.call_on_any(s, c)
     }
 
     fn take_focus(&mut self, source: Direction) -> bool {
         if self.cmdline_focus {
-            return self.cmdline.take_focus(source);
-        }
-
-        if let Some(screen) = self.get_current_screen_mut() {
-            screen.view.take_focus(source)
+            self.cmdline.take_focus(source)
         } else {
-            false
+            self.get_current_screen_mut().view.take_focus(source)
         }
     }
 }
