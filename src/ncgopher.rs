@@ -815,7 +815,8 @@ impl NcGopher {
             |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
                 s.content_viewport().width()
             },
-        ).unwrap_or(0)
+        )
+        .unwrap_or(0)
     }
 
     /// Renders a gemini site in a cursive::TextView
@@ -1518,9 +1519,9 @@ impl NcGopher {
         let mut app = self.app.write().expect("Could not get read lock on app");
         if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
             content.selected_id()
-        }else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
+        } else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
             content.selected_id()
-        }else{
+        } else {
             panic!("view content and gemini_content missing");
         }
     }

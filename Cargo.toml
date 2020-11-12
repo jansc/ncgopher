@@ -40,6 +40,5 @@ base64 = "0.12.3"
 
 [dependencies.cursive]
 version = "0.15.0"
-#git = "https://github.com/gyscos/cursive"
 default-features = false
 features = ["pancurses-backend", "toml"]

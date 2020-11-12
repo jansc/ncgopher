@@ -4,7 +4,6 @@ use std::fs::File as FsFile;
 use std::io::Write;
 use std::path::Path;
 
-
 /// Manages server certificates for use in TOFU for the gemini protocol.
 /// This could be modelled as a hashmap instead of a vector with structs,
 /// but we might later extend the list with ip-address and cypher type.
