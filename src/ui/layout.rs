@@ -84,7 +84,6 @@ impl Layout {
     }
 
     pub fn set_title(&mut self, id: String, title: String) {
-        warn!("set_title({}, {}", id, title);
         if let Some(view) = self.views.get_mut(&id) {
             view.title = title;
         }
