@@ -64,7 +64,7 @@ impl GeminiLine {
                 "gopher" => "[GPH]".to_string(),
                 "mailto" => "[ \u{2709} ]".to_string(),
                 // show first three letters of scheme, lower case to differentiate
-                other => format!("[{}]",other.chars().take(3).collect::<String>()),
+                other => format!("[{}]", other.chars().take(3).collect::<String>()),
             };
             return Ok(GeminiLine {
                 line_type: LineType::Link,

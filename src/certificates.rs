@@ -4,11 +4,10 @@ use std::fs::File as FsFile;
 use std::io::Write;
 use std::path::Path;
 
-/*
-  Manages server certificates for use in TOFU for the gemini protocol.
-  This could be modelled as a hashmap instead of a vector with structs,
-  but we might later extend the list with ip-address and cypher type.
-*/
+
+/// Manages server certificates for use in TOFU for the gemini protocol.
+/// This could be modelled as a hashmap instead of a vector with structs,
+/// but we might later extend the list with ip-address and cypher type.
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct Certificate {
@@ -93,16 +92,6 @@ impl Certificates {
         }
         None
     }
-
-    /*
-    pub fn get_known_hosts(&self) -> Vec<Certificate> {
-        let mut res = Vec::<Certificate>::new();
-        for i in 0..self.entries.len() {
-            res.push(self.entries[i].clone());
-        }
-        res
-    }
-    */
 
     pub fn write_known_hosts_to_file(&mut self) -> std::io::Result<()> {
         let filename = Certificates::get_known_hosts_filename();

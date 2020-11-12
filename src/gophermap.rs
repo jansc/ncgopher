@@ -1,12 +1,5 @@
 use url::Url;
 
-/// A list of Gopher resources.
-/*
-pub struct GopherMap {
-    pub entities: Vec<GopherMapEntry>,
-}
-*/
-
 /// An menu item in a directory of Gopher resources.
 #[derive(Clone, Debug)]
 pub struct GopherMapEntry {
