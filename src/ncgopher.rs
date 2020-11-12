@@ -138,7 +138,6 @@ impl NcGopher {
 
     /// Setup of UI, register global keys
     pub fn setup_ui(&mut self) {
-        cursive::logger::init();
         info!("NcGopher::setup_ui()");
         self.create_menubar();
         let mut app = self.app.write().unwrap();
@@ -320,8 +319,6 @@ impl NcGopher {
             .view("gemini_content", gemini_event_view, "Gemini");
         layout.set_view("content");
         app.add_fullscreen_layer(layout.with_name("main"));
-
-        app.add_global_callback('~', Cursive::toggle_debug_console);
     }
 
     // TODO: Should be moved to controller
@@ -815,7 +812,8 @@ impl NcGopher {
             |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
                 s.content_viewport().width()
             },
-        ).unwrap_or(0)
+        )
+        .unwrap_or(0)
     }
 
     /// Renders a gemini site in a cursive::TextView
@@ -1518,9 +1516,9 @@ impl NcGopher {
         let mut app = self.app.write().expect("Could not get read lock on app");
         if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
             content.selected_id()
-        }else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
+        } else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
             content.selected_id()
-        }else{
+        } else {
             panic!("view content and gemini_content missing");
         }
     }

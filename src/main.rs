@@ -19,6 +19,7 @@ use cursive::Cursive;
 use cursive::CursiveExt;
 use lazy_static::lazy_static;
 use settings::Settings;
+use std::fs::File;
 use std::io::{stdout, Write};
 use std::sync::RwLock;
 use url::Url;
@@ -38,6 +39,42 @@ lazy_static! {
         RwLock::new(Settings::new().expect("could not read settings"));
 }
 
+struct Logger {
+    file: std::sync::RwLock<File>,
+}
+
+impl Logger {
+    fn new(file: File) -> Self {
+        Self {
+            file: std::sync::RwLock::new(file),
+        }
+    }
+}
+
+impl log::Log for Logger {
+    fn enabled(&self, _: &log::Metadata) -> bool {
+        true
+    }
+    fn log(&self, record: &log::Record) {
+        self.file
+            .write()
+            .unwrap()
+            .write_all(
+                format!(
+                    "{} [{:5}] {}\n",
+                    chrono::Local::now(),
+                    record.level(),
+                    record.args()
+                )
+                .as_bytes(),
+            )
+            .unwrap_or(());
+    }
+    fn flush(&self) {
+        self.file.write().unwrap().flush().unwrap_or(());
+    }
+}
+
 fn main() {
     let app_name = env!("CARGO_PKG_NAME");
     let matches = App::new(app_name)
@@ -49,7 +86,7 @@ fn main() {
                 .short("d")
                 .long("debug")
                 .value_name("FILE")
-                .help("Enable debug logging to the specified file")
+                .help("Enable debug logging to the specified file. If the file already exists, new content will be appended.")
                 .takes_value(true),
         )
         .arg(
@@ -73,6 +110,17 @@ fn main() {
             )
             .expect("Invalid URL for configured homepage")
         });
+    if let Some(log_file) = matches.value_of("FILE") {
+        let file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(log_file)
+            .expect("could not create log file");
+        log::set_boxed_logger(Box::new(Logger::new(file)))
+            .unwrap_or_else(|e| panic!("could not start debug logger: {}", e));
+        log::set_max_level(log::LevelFilter::Trace);
+        info!("new program run");
+        eprintln!("logging into file {}", log_file);
+    }
 
     let mut app = Cursive::default();
     //app.set_theme(SETTINGS.read().unwrap().get_theme());

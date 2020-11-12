@@ -1,5 +1,4 @@
-use chrono::Local;
-use chrono::{Duration, Utc};
+use chrono::{Duration, Local, Utc};
 use cursive::Cursive;
 use lazy_static::lazy_static;
 use sha2::{Digest, Sha256};
