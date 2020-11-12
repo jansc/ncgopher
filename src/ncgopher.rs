@@ -1914,18 +1914,15 @@ impl NcGopher {
             if tree.len() > HISTORY_LEN + 3 {
                 tree.remove(tree.len() - 1);
             }
-            // TODO: Refactor.
-            // There must be a more ideomatic way than h->h2->h3
-            let h2 = h.clone();
-            tree.insert_leaf(3, h.title.as_str(), move |app| {
-                let h3 = h2.clone();
-                app.with_user_data(|userdata: &mut UserData| {
+            let title = h.title.clone();
+            tree.insert_leaf(3, title, move |app| {
+                app.with_user_data(|userdata: &mut UserData|{
                     userdata
                         .ui_tx
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(h3.url.to_string(), true, 0))
+                        .send(UiMessage::OpenUrlFromString(h.url.to_string(), true, 0))
                         .unwrap()
                 });
             });
