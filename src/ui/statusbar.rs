@@ -22,31 +22,24 @@ impl StatusBar {
 impl View for StatusBar {
     fn draw(&self, printer: &Printer<'_, '_>) {
         if printer.size.x == 0 {
+            warn!("status bar height is zero");
             return;
         }
         let msg = self.ui.get_message();
-        let style = ColorStyle::new(
-            //ColorType::Color(*printer.theme.palette.xxx.unwrap()),
-            //ColorType::Color(*printer.theme.palette.xxxbg.unwrap())
-            ColorStyle::highlight().front,
-            ColorStyle::highlight().back,
-        );
-        printer.with_color(style, |printer| {
-            printer.print(
-                (0, 0),
-                &vec![' '; printer.size.x].into_iter().collect::<String>(),
-            )
-        });
-        printer.print(
-            (0, 1),
-            &vec![' '; printer.size.x].into_iter().collect::<String>(),
-        );
-        printer.print(
-            (1, 1),
-            "Commands: Use the arrow keys to move. 'b' for back, 'g' for open URL, 'ESC' for menu",
-        );
-        printer.with_color(style, |printer| {
+        printer.with_color(ColorStyle::highlight_inactive(), |printer| {
+            // clear line
+            printer.print_hline((0, 0), printer.size.x, " ");
+            // write content
             printer.print((1, 0), msg.as_str());
+        });
+        printer.with_color(ColorStyle::tertiary(), |printer|{
+            // clear line
+            printer.print_hline((0, 1), printer.size.x, " ");
+            // write content
+            printer.print(
+                (1, 1),
+                "Commands: Use the arrow keys to move. 'b' for back, 'g' for open URL, 'ESC' for menu"
+            );
         });
     }
 
