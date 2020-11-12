@@ -607,16 +607,15 @@ impl Controller {
         let gopher_url = url.clone();
 
         let port = gopher_url.port().unwrap_or(70);
-        let mut server: String = "host.error".to_string();
-        if let Some(s) = gopher_url.host() {
-            server = s.to_string()
-        }
+        let server = gopher_url
+            .host()
+            .map_or("host.error".to_string(), |host| host.to_string());
         let path = gopher_url.path();
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
             //let x = path[0..1].to_string();
-            // TODO: Sjekk om x[0] == / og x[1] == itemtype
+            // TODO: check x[0] == / and x[1] == itemtype
             path = path[2..].to_string();
         } else {
             path = "".to_string();
@@ -737,18 +736,16 @@ impl Controller {
         let gopher_url = url;
 
         let port = gopher_url.port().unwrap_or(70);
-        let mut server: String = "host.error".to_string();
-        if let Some(s) = gopher_url.host() {
-            server = s.to_string()
-        }
-        let mut path = gopher_url.path().to_string();
-        if path.len() > 2 {
+        let server = gopher_url
+            .host()
+            .map_or("host.error".to_string(), |host| host.to_string());
+        let path = if gopher_url.path().len() > 2 {
             //let x = path[0..1].to_string();
-            // TODO: Sjekk om x[0] == / og x[1] == itemtype
-            path = path[2..].to_string();
+            // TODO: check x[0] == / and x[1] == itemtype
+            gopher_url.path()[2..].to_string()
         } else {
-            path = "".to_string();
-        }
+            String::new()
+        };
 
         let server_details = format!("{}:{}", server, port);
         let _server: Vec<_>;

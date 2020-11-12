@@ -1916,7 +1916,7 @@ impl NcGopher {
             }
             let title = h.title.clone();
             tree.insert_leaf(3, title, move |app| {
-                app.with_user_data(|userdata: &mut UserData|{
+                app.with_user_data(|userdata: &mut UserData| {
                     userdata
                         .ui_tx
                         .read()
