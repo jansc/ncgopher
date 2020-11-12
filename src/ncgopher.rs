@@ -138,7 +138,6 @@ impl NcGopher {
 
     /// Setup of UI, register global keys
     pub fn setup_ui(&mut self) {
-        cursive::logger::init();
         info!("NcGopher::setup_ui()");
         self.create_menubar();
         let mut app = self.app.write().unwrap();
@@ -320,8 +319,6 @@ impl NcGopher {
             .view("gemini_content", gemini_event_view, "Gemini");
         layout.set_view("content");
         app.add_fullscreen_layer(layout.with_name("main"));
-
-        app.add_global_callback('~', Cursive::toggle_debug_console);
     }
 
     // TODO: Should be moved to controller
