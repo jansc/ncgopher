@@ -1510,11 +1510,13 @@ impl NcGopher {
 
     pub fn get_selected_item_index(&self) -> Option<usize> {
         let mut app = self.app.write().expect("Could not get read lock on app");
-        let view: ViewRef<SelectView<GopherMapEntry>> =
-            app.find_name("content").expect("View content missing");
-        let cur = view.selected_id().unwrap_or(0);
-        warn!("get_selected_item_index() => {}", cur);
-        Some(cur)
+        if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
+            content.selected_id()
+        }else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
+            content.selected_id()
+        }else{
+            panic!("view content and gemini_content missing");
+        }
     }
 
     fn move_selection(&mut self, dir: Direction) {
