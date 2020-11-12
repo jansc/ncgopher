@@ -500,11 +500,13 @@ impl Controller {
                                                 .unwrap();
                                         } else {
                                             // Binary download
-                                            let f = File::create(local_filename.clone()).expect(
-                                                &format!(
-                                                    "Unable to open file '{}'",
-                                                    local_filename.clone()
-                                                ),
+                                            let f = File::create(local_filename.clone()).unwrap_or_else(
+                                                |_| {
+                                                    panic!(
+                                                        "Unable to open file '{}'",
+                                                        local_filename.clone()
+                                                    )
+                                                }
                                             );
                                             let mut bw = BufWriter::new(f);
                                             let mut buf = [0u8; 1024];

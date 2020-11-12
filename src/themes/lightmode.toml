@@ -13,26 +13,20 @@ borders = "simple" # Alternatives are "none" and "outset"
 	#       "541", "003", ...
 	# - Full-resolution colors start with '#' and can be 3 or 6 hex digits:
 	#       "#1A6", "#123456", ...
-
 	# If the value is an array, the first valid
 	# and supported color will be used.
+
 	background = ["#cdf6cd", "454", "magenta"]
 
-	# If the terminal doesn't support custom color (like the linux TTY),
-	# non-base colors will be skipped.
 	shadow     = ["#222288", "blue"]
-	view       = "gray"
+	view       = ["444", "white"]
 
-	# An array with a single value has the same effect as a simple value.
 	primary   = "black"
 	secondary = "blue"
 	tertiary  = "#252521"
 
-	# Hex values can use lower or uppercase.
-	# (base color MUST be lowercase)
-	title_primary   = ["magenta"] # `BLUE` will be skipped.
+	title_primary   = ["magenta"]
 	title_secondary = "#ffff55"
 
-	# Lower precision values can use only 3 digits.
 	highlight          = "red"
 	highlight_inactive = "blue"
