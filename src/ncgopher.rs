@@ -45,7 +45,7 @@ pub enum UiMessage {
     MoveToLink(Direction),
     ClearBookmarksMenu,
     OpenQueryDialog(Url),
-    OpenGeminiQueryDialog(Url, String),
+    OpenGeminiQueryDialog(Url, String, bool),
     OpenQueryUrl(Url),
     // TODO: Remove this
     OpenUrl(Url, bool, usize),
@@ -56,7 +56,7 @@ pub enum UiMessage {
     ShowEditHistoryDialog(Vec<HistoryEntry>),
     ShowContent(Url, String, ItemType, usize),
     ShowCertificateChangedDialog(Url, String),
-    ShowGeminiContent(Url, GeminiType, String),
+    ShowGeminiContent(Url, GeminiType, String, usize),
     ShowEditBookmarksDialog(Vec<Bookmark>),
     ShowLinkInfo,
     ShowMessage(String),
@@ -527,6 +527,7 @@ impl NcGopher {
                             .send(UiMessage::OpenGeminiQueryDialog(
                                 url,
                                 "Enter query".to_string(),
+                                false
                             ))
                             .unwrap()
                     });
@@ -541,6 +542,7 @@ impl NcGopher {
                             .send(UiMessage::OpenGeminiQueryDialog(
                                 url,
                                 "Enter query".to_string(),
+                                false
                             ))
                             .unwrap()
                     });
@@ -638,11 +640,7 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchGeminiUrl(
-                url,
-                add_to_history,
-                index,
-            ))
+            .send(ControllerMessage::FetchGeminiUrl(url, add_to_history, index))
             .unwrap();
     }
 
@@ -727,14 +725,18 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn open_gemini_query_dialog(&mut self, url: Url, query: String) {
+    fn open_gemini_query_dialog(&mut self, url: Url, query: String, secret: bool) {
         {
             let mut app = self.app.write().unwrap();
             app.add_layer(
                 Dialog::new()
                     .title(query)
                     .content(
-                        EditView::new()
+                        if secret {
+                            EditView::new().secret()
+                        } else {
+                            EditView::new()
+                        }
                             // Call `show_popup` when the user presses `Enter`
                             //FIXME: create closure with url: .on_submit(search)
                             .with_name("query")
@@ -817,7 +819,7 @@ impl NcGopher {
     }
 
     /// Renders a gemini site in a cursive::TextView
-    fn show_gemini(&mut self, base_url: &Url, content: &str) {
+    fn show_gemini(&mut self, base_url: &Url, content: &str, index: usize) {
         trace!("show_gemini()");
         let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         let textwrap_int = textwrap.parse::<usize>().unwrap();
@@ -901,6 +903,7 @@ impl NcGopher {
                     }
                 });
             });
+            v.set_selection(index);
         });
     }
 
@@ -1914,18 +1917,15 @@ impl NcGopher {
             if tree.len() > HISTORY_LEN + 3 {
                 tree.remove(tree.len() - 1);
             }
-            // TODO: Refactor.
-            // There must be a more ideomatic way than h->h2->h3
-            let h2 = h.clone();
-            tree.insert_leaf(3, h.title.as_str(), move |app| {
-                let h3 = h2.clone();
+            let title = h.title.clone();
+            tree.insert_leaf(3, title, move |app| {
                 app.with_user_data(|userdata: &mut UserData| {
                     userdata
                         .ui_tx
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(h3.url.to_string(), true, 0))
+                        .send(UiMessage::OpenUrlFromString(h.url.to_string(), true, 0))
                         .unwrap()
                 });
             });
@@ -2009,11 +2009,11 @@ impl NcGopher {
                 UiMessage::ShowCertificateChangedDialog(url, fingerprint) => {
                     self.show_certificate_changed_dialog(url, fingerprint);
                 }
-                UiMessage::ShowGeminiContent(url, gemini_type, content) => {
+                UiMessage::ShowGeminiContent(url, gemini_type, content, index) => {
                     if gemini_type == GeminiType::Text {
                         self.show_text_file(content);
                     } else {
-                        self.show_gemini(&url, &content);
+                        self.show_gemini(&url, &content, index);
                     }
                     self.set_message(url.as_str());
                 }
@@ -2026,8 +2026,8 @@ impl NcGopher {
                 UiMessage::OpenQueryDialog(url) => {
                     self.open_query_dialog(url);
                 }
-                UiMessage::OpenGeminiQueryDialog(url, query) => {
-                    self.open_gemini_query_dialog(url, query);
+                UiMessage::OpenGeminiQueryDialog(url, query, secret) => {
+                    self.open_gemini_query_dialog(url, query, secret);
                 }
                 UiMessage::OpenQueryUrl(url) => {
                     self.query(url);

@@ -110,8 +110,9 @@ fn main() {
             )
             .expect("Invalid URL for configured homepage")
         });
-    if let Some(log_file) = matches.value_of("FILE") {
+    if let Some(log_file) = matches.value_of("debug") {
         let file = std::fs::OpenOptions::new()
+            .create(true)
             .append(true)
             .open(log_file)
             .expect("could not create log file");

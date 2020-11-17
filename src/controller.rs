@@ -66,12 +66,12 @@ pub enum ControllerMessage {
     RequestCertificateChangedDialog(Url, String),
     RequestEditHistoryDialog,
     RequestEditBookmarksDialog,
-    RequestGeminiQueryDialog(Url, String),
+    RequestGeminiQueryDialog(Url, String, bool),
     RequestSaveAsDialog,
     RequestSettingsDialog,
     SavePageAs(String),
     SetContent(Url, String, ItemType, usize),
-    SetGeminiContent(Url, GeminiType, String),
+    SetGeminiContent(Url, GeminiType, String, usize),
     ShowMessage(String),
     UpdateCertificateAndOpen(Url, String),
     RedrawBookmarks,
@@ -79,12 +79,6 @@ pub enum ControllerMessage {
     FetchGeminiUrl(Url, bool, usize),
     FetchUrl(Url, ItemType, bool, usize),
     FetchBinaryUrl(Url, String),
-}
-
-impl Drop for Controller {
-    fn drop(&mut self) {
-        // Cleanup
-    }
 }
 
 impl Controller {
@@ -136,7 +130,7 @@ impl Controller {
         }
         // Add bookmarks to bookmark menu on startup
         ncgopher.open_url(url, true, 0);
-        info!("Controller::new()");
+        info!("Controller::new() done");
         Ok(controller)
     }
 
@@ -162,20 +156,19 @@ impl Controller {
             .unwrap_or_default();
 
         if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
-            let last_seg = segments.pop();
-            if let Some(filename) = last_seg {
-                // Get download_path from settings
-                let path = Path::new(download_path.as_str()).join(filename);
-                return path.display().to_string();
-            }
+            let filename = segments.pop().unwrap();
+            // Get download_path from settings
+            let path = Path::new(download_path.as_str()).join(filename);
+            return path.display().to_string();
+        } else {
+            // TODO: Create extension based on mimetype
+            // Use download_path from settings
+            let path = Path::new(download_path.as_str()).join("download.bin");
+            path.display().to_string()
         }
-        // TODO: Create extension based on mimetype
-        // Use download_path from settings
-        let path = Path::new(download_path.as_str()).join("download.bin");
-        path.display().to_string()
     }
 
-    fn fetch_gemini_url(&self, url: Url, add_to_history: bool, _index: usize) {
+    fn fetch_gemini_url(&self, url: Url, add_to_history: bool, index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -373,16 +366,6 @@ impl Controller {
                 }
             }
 
-            // TODO: Check status code
-            // if status[0] == '2'
-            // check mime-type:
-            //  - text/gemini => show as gemini content
-            //  - text/xxx    => show as text content
-            //  - otherwise   => download as binary
-            // status[0] == '3' => redirect
-            // status[0] == '4' => show specific error message
-            // status[0] == '5' => show specific error message
-            // status[0] == '6' => invalid certificate, show specific error message
             if buf.is_empty() {
                 tx_clone
                     .send(ControllerMessage::ShowMessage(
@@ -442,7 +425,13 @@ impl Controller {
                                     // INPUT
                                     match buf.chars().nth(1) {
                                         Some('1') => {
-                                            // TODO: Handle password inputs
+                                            tx_clone
+                                                .send(
+                                                    ControllerMessage::RequestGeminiQueryDialog(
+                                                        url, meta, true,
+                                                    ),
+                                                )
+                                                .unwrap();
                                         }
                                         other => {
                                             if check(other) {
@@ -450,7 +439,7 @@ impl Controller {
                                                 tx_clone
                                                     .send(
                                                         ControllerMessage::RequestGeminiQueryDialog(
-                                                            url, meta,
+                                                            url, meta, false,
                                                         ),
                                                     )
                                                     .unwrap();
@@ -486,6 +475,7 @@ impl Controller {
                                                     gemini_url.clone(),
                                                     GeminiType::Gemini,
                                                     s.to_string(),
+                                                    index,
                                                 ))
                                                 .unwrap();
                                             if add_to_history {
@@ -500,11 +490,13 @@ impl Controller {
                                                 .unwrap();
                                         } else {
                                             // Binary download
-                                            let f = File::create(local_filename.clone()).expect(
-                                                &format!(
-                                                    "Unable to open file '{}'",
-                                                    local_filename.clone()
-                                                ),
+                                            let f = File::create(local_filename.clone()).unwrap_or_else(
+                                                |_| {
+                                                    panic!(
+                                                        "Unable to open file '{}'",
+                                                        local_filename.clone()
+                                                    )
+                                                }
                                             );
                                             let mut bw = BufWriter::new(f);
                                             let mut buf = [0u8; 1024];
@@ -587,9 +579,6 @@ impl Controller {
         });
     }
 
-    //    fn binary_download(filename: String) {
-    //    }
-
     fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
@@ -605,16 +594,15 @@ impl Controller {
         let gopher_url = url.clone();
 
         let port = gopher_url.port().unwrap_or(70);
-        let mut server: String = "host.error".to_string();
-        if let Some(s) = gopher_url.host() {
-            server = s.to_string()
-        }
+        let server = gopher_url
+            .host()
+            .map_or("host.error".to_string(), |host| host.to_string());
         let path = gopher_url.path();
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
             //let x = path[0..1].to_string();
-            // TODO: Sjekk om x[0] == / og x[1] == itemtype
+            // TODO: check x[0] == / and x[1] == itemtype
             path = path[2..].to_string();
         } else {
             path = "".to_string();
@@ -735,18 +723,16 @@ impl Controller {
         let gopher_url = url;
 
         let port = gopher_url.port().unwrap_or(70);
-        let mut server: String = "host.error".to_string();
-        if let Some(s) = gopher_url.host() {
-            server = s.to_string()
-        }
-        let mut path = gopher_url.path().to_string();
-        if path.len() > 2 {
+        let server = gopher_url
+            .host()
+            .map_or("host.error".to_string(), |host| host.to_string());
+        let path = if gopher_url.path().len() > 2 {
             //let x = path[0..1].to_string();
-            // TODO: Sjekk om x[0] == / og x[1] == itemtype
-            path = path[2..].to_string();
+            // TODO: check x[0] == / and x[1] == itemtype
+            gopher_url.path()[2..].to_string()
         } else {
-            path = "".to_string();
-        }
+            String::new()
+        };
 
         let server_details = format!("{}:{}", server, port);
         let _server: Vec<_>;
@@ -1244,14 +1230,14 @@ impl Controller {
                             .send(UiMessage::ShowEditBookmarksDialog(v))
                             .unwrap();
                     }
-                    ControllerMessage::RequestGeminiQueryDialog(url, query) => {
+                    ControllerMessage::RequestGeminiQueryDialog(url, query, secret) => {
                         self.ui
                             .read()
                             .unwrap()
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(url, query))
+                            .send(UiMessage::OpenGeminiQueryDialog(url, query, secret))
                             .unwrap();
                     }
                     ControllerMessage::RequestSaveAsDialog => {
@@ -1281,12 +1267,7 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::SavePageAs(filename) => {
-                        let url: Url;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            url = guard.clone();
-                            warn!("CURRENT URL = {}", url);
-                        }
+                        let url = self.current_url.lock().unwrap().clone();
 
                         match url.scheme() {
                             "gopher" => {
@@ -1309,14 +1290,12 @@ impl Controller {
                             .send(UiMessage::PageSaved(url, filename))
                             .unwrap();
                     }
-                    ControllerMessage::SetGeminiContent(url, gemini_type, content) => {
+                    ControllerMessage::SetGeminiContent(url, gemini_type, content, index) => {
                         {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
                             guard.push_str(content.as_str());
-                            warn!("SETGEMINICONTENT {}", url);
-                            let mut guard = self.current_url.lock().unwrap();
-                            *guard = url.clone();
+                            *self.current_url.lock().unwrap() = url.clone();
                         }
                         self.ui
                             .read()
@@ -1324,7 +1303,7 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::ShowGeminiContent(url, gemini_type, content))
+                            .send(UiMessage::ShowGeminiContent(url, gemini_type, content, index))
                             .unwrap();
                     }
                     ControllerMessage::SetContent(url, content, item_type, index) => {
