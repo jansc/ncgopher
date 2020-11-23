@@ -1303,7 +1303,12 @@ impl Controller {
                             .ui_tx
                             .read()
                             .unwrap()
-                            .send(UiMessage::ShowGeminiContent(url, gemini_type, content, index))
+                            .send(UiMessage::ShowGeminiContent(
+                                url,
+                                gemini_type,
+                                content,
+                                index,
+                            ))
                             .unwrap();
                     }
                     ControllerMessage::SetContent(url, content, item_type, index) => {

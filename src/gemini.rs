@@ -1,6 +1,6 @@
-use regex::Regex;
-use std::error::Error;
-use url::{ParseError, Url};
+extern crate gemtext;
+use textwrap::wrap_iter;
+use url::Url;
 // https://gemini.circumlunar.space/docs/spec-spec.txt
 
 #[derive(Clone, Debug, PartialEq)]
@@ -9,95 +9,71 @@ pub enum GeminiType {
     Gemini,
 }
 
-#[derive(Clone, Debug)]
-pub struct GeminiLine {
-    // Line type
-    pub line_type: LineType,
-    pub text: String,
-    // TODO: Should be option
-    pub url: Option<Url>,
-}
+pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, Option<Url>)> {
+    let mut nodes = gemtext::parse(text);
+    nodes
+        .drain(..)
+        .map(|node: gemtext::Node| -> Vec<(String, Option<Url>)> {
+            use gemtext::Node;
 
-impl GeminiLine {
-    pub fn parse(line: String, base_url: &Url) -> Result<Self, Box<dyn Error>> {
-        let _heading3 = Regex::new(r"^###\s").unwrap();
-        let _heading2 = Regex::new(r"^##\s").unwrap();
-        let _heading1 = Regex::new(r"^#\s").unwrap();
-        let list = Regex::new(r"^\*\s").unwrap();
-        let link = Regex::new(r"^=>\s*(.*)$").unwrap();
+            // Helper function to wrap lines if necessary while indicating that they are continuations like this
+            // ```text
+            //   ###  Heading that
+            //     |  goes over
+            //     \  multiple lines
+            // ```
+            let continuation_lines = |first_prefix, text: &str, url: Option<Url>| {
+                let lines = wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width).collect::<Vec<_>>();
+                lines
+                    .iter()
+                    .enumerate()
+                    .map(|(i, line)| {
+                        let prefix = match i {
+                            0 => first_prefix,
+                            x if x == lines.len() - 1 => "\\",
+                            _ => "|",
+                        };
 
-        // Remove ANSI sequences. Konpeito, I'm looking at you
-        let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
-        let line = ansi_sequences.replace_all(line.as_str(), "").to_string();
-
-        if line.starts_with("```") {
-            return Ok(GeminiLine {
-                line_type: LineType::PreformattedToggle,
-                text: line,
-                url: None,
-            });
-        }
-        if link.is_match(&line) {
-            let mut iter = line[2..].trim().split_whitespace();
-            let mut url = "";
-            if let Some(u) = iter.next() {
-                url = u;
-            }
-            let mut label = iter.collect::<Vec<&str>>().join(" ");
-            if label.trim().is_empty() {
-                label = url.to_string();
-            }
-            let mut parsed_url;
-            match Url::parse(&url) {
-                Ok(u) => parsed_url = u,
-                Err(ParseError::RelativeUrlWithoutBase) => {
-                    parsed_url = base_url.clone();
-                    parsed_url = parsed_url.join(url)?;
-                }
-                Err(e) => {
-                    return Err(Box::new(e));
-                }
-            }
-            let prefix = match parsed_url.scheme() {
-                "https" | "http" => "[WWW]".to_string(),
-                "gemini" => "[GEM]".to_string(),
-                "gopher" => "[GPH]".to_string(),
-                "mailto" => "[ \u{2709} ]".to_string(),
-                // show first three letters of scheme, lower case to differentiate
-                other => format!("[{}]", other.chars().take(3).collect::<String>()),
+                        (format!("{:>5}  {}", prefix, line), url.clone())
+                    })
+                    .collect()
             };
-            return Ok(GeminiLine {
-                line_type: LineType::Link,
-                text: format!("{}  {}", prefix, label),
-                url: Some(parsed_url),
-            });
-        }
-        if list.is_match(&line) {
-            return Ok(GeminiLine {
-                line_type: LineType::UnorderedList,
-                text: line,
-                url: None,
-            });
-        }
 
-        Ok(GeminiLine {
-            line_type: LineType::Text,
-            text: line,
-            url: None,
+            match node {
+                Node::Text(text) => wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width)
+                    .map(|line| (format!("       {}", line), None))
+                    .collect(),
+                Node::Link { to, name } => {
+                    let url = base_url.join(&to).expect("could not parse link url");
+                    let prefix = match url.scheme() {
+                        "https" | "http" => "[WWW]".to_string(),
+                        "gemini" => "[GEM]".to_string(),
+                        "gopher" => "[GPH]".to_string(),
+                        "mailto" => "[ \u{2709} ]".to_string(),
+                        // show first three letters of scheme, lower case to differentiate
+                        other => format!("[{}]", other.chars().take(3).collect::<String>()),
+                    };
+
+                    let name = name.unwrap_or_else(|| url.to_string());
+                    continuation_lines(&prefix, &name, Some(url))
+                }
+                Node::Heading { level, body } => {
+                    let text = if body.is_empty() { " " } else { &body };
+                    continuation_lines(&"#".repeat(level as usize), &text, None)
+                }
+                Node::Quote(text) => wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width)
+                    .map(|line| (format!("    >  {}", line), None))
+                    .collect(),
+                Node::ListItem(text) => continuation_lines("*", &text, None),
+                Node::Preformatted(lines) => {
+                    // preformatted lines should not be wrapped
+                    lines
+                        .lines()
+                        .map(|line| (format!("    @  {}", line), None))
+                        .collect()
+                }
+            }
         })
-    }
-
-    pub fn label(self) -> String {
-        self.text
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
-pub enum LineType {
-    Text,
-    Link,
-    _Preformatted,
-    PreformattedToggle,
-    _Heading,
-    UnorderedList,
+        .flatten()
+        .collect::<Vec<_>>()
 }

@@ -1,6 +1,6 @@
 use crate::bookmarks::Bookmark;
 use crate::controller::ControllerMessage;
-use crate::gemini::{GeminiLine, GeminiType, LineType};
+use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::HistoryEntry;
 use cursive::event::Key;
@@ -12,7 +12,6 @@ use cursive::views::{
     SelectView, TextView, ViewRef,
 };
 use cursive::Cursive;
-use regex::Regex;
 use std::path::Path;
 use std::str;
 use std::sync::mpsc;
@@ -296,7 +295,7 @@ impl NcGopher {
         });
 
         // Create gemini content view
-        let view: SelectView<GeminiLine> = SelectView::new();
+        let view: SelectView<Option<Url>> = SelectView::new();
         let scrollable = view
             .with_name("gemini_content")
             .full_width()
@@ -305,7 +304,7 @@ impl NcGopher {
         let gemini_event_view = OnEventView::new(scrollable).on_event(' ', |app| {
             app.call_on_name(
                 "gemini_content_scroll",
-                |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                |s: &mut ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>| {
                     let rect = s.content_viewport();
                     let bl = rect.bottom_left();
                     s.set_offset(bl);
@@ -527,7 +526,7 @@ impl NcGopher {
                             .send(UiMessage::OpenGeminiQueryDialog(
                                 url,
                                 "Enter query".to_string(),
-                                false
+                                false,
                             ))
                             .unwrap()
                     });
@@ -542,7 +541,7 @@ impl NcGopher {
                             .send(UiMessage::OpenGeminiQueryDialog(
                                 url,
                                 "Enter query".to_string(),
-                                false
+                                false,
                             ))
                             .unwrap()
                     });
@@ -585,12 +584,9 @@ impl NcGopher {
         );
     }
 
-    pub fn open_url_string(&mut self, url: String, add_to_history: bool, index: usize) {
-        let mut url = url;
-
+    pub fn open_url_string(&mut self, mut url: String, add_to_history: bool, index: usize) {
         // Default-protocol is gopher
-        let scheme_regex = Regex::new(r"^[a-zA-Z]+://").unwrap();
-        if scheme_regex.captures(&url).is_none() {
+        if !url.contains("://") {
             url.insert_str(0, "gopher://");
         }
 
@@ -640,7 +636,11 @@ impl NcGopher {
         self.controller_tx
             .read()
             .unwrap()
-            .send(ControllerMessage::FetchGeminiUrl(url, add_to_history, index))
+            .send(ControllerMessage::FetchGeminiUrl(
+                url,
+                add_to_history,
+                index,
+            ))
             .unwrap();
     }
 
@@ -737,10 +737,10 @@ impl NcGopher {
                         } else {
                             EditView::new()
                         }
-                            // Call `show_popup` when the user presses `Enter`
-                            //FIXME: create closure with url: .on_submit(search)
-                            .with_name("query")
-                            .fixed_width(30),
+                        // Call `show_popup` when the user presses `Enter`
+                        //FIXME: create closure with url: .on_submit(search)
+                        .with_name("query")
+                        .fixed_width(30),
                     )
                     .button("Cancel", move |app| {
                         app.pop_layer();
@@ -811,7 +811,7 @@ impl NcGopher {
         });
         app.call_on_name(
             "gemini_content_scroll",
-            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>| {
                 s.content_viewport().width()
             },
         )
@@ -821,74 +821,23 @@ impl NcGopher {
     /// Renders a gemini site in a cursive::TextView
     fn show_gemini(&mut self, base_url: &Url, content: &str, index: usize) {
         trace!("show_gemini()");
-        let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
-        let textwrap_int = textwrap.parse::<usize>().unwrap();
-        let mut viewport_width = self.get_gemini_viewport_width() - 10;
-        viewport_width = std::cmp::min(textwrap_int, viewport_width);
+        let textwrap = SETTINGS
+            .read()
+            .unwrap()
+            .get_str("textwrap")
+            .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
+        let viewport_width = std::cmp::min(textwrap, self.get_gemini_viewport_width() - 10);
         let mut app = self.app.write().unwrap();
         app.call_on_name("main", |v: &mut ui::layout::Layout| {
             v.set_view("gemini_content");
         });
         info!("Viewport-width = {}", viewport_width);
-        app.call_on_name("gemini_content", |v: &mut SelectView<GeminiLine>| {
+        app.call_on_name("gemini_content", |v: &mut SelectView<Option<Url>>| {
             v.clear();
-            let lines = content.lines();
-            for l in lines {
-                let line = l.to_string();
-                if let Ok(gemini_line) = GeminiLine::parse(line.clone(), &base_url) {
-                    match gemini_line.line_type {
-                        LineType::Text => {
-                            let label = gemini_line.clone().label();
-                            if label.len() > viewport_width {
-                                let iter = wrap_iter(&label, viewport_width);
-                                for str in iter {
-                                    let mut formatted = StyledString::new();
-                                    let label = format!("       {}", str);
-                                    formatted.append(label);
-                                    v.add_item(formatted, gemini_line.clone());
-                                }
-                            } else {
-                                v.add_item(format!("       {}", label), gemini_line.clone());
-                            }
-                        }
-                        LineType::UnorderedList => {
-                            let label = gemini_line.clone().label();
-                            if label.len() > viewport_width {
-                                let iter = wrap_iter(&label, viewport_width);
-                                let mut first = true;
-                                for str in iter {
-                                    let mut formatted = StyledString::new();
-                                    let label = if first {
-                                        format!("       {}", str)
-                                    } else {
-                                        format!("         {}", str)
-                                    };
-                                    first = false;
-                                    formatted.append(label);
-                                    v.add_item(formatted, gemini_line.clone());
-                                }
-                            } else {
-                                v.add_item(format!("       {}", label), gemini_line.clone());
-                            }
-                        }
-                        LineType::Link => {
-                            let label = gemini_line.clone().label();
-                            v.add_item(label, gemini_line.clone());
-                        }
-                        LineType::PreformattedToggle => {
-                            // Skip for now
-                        }
-                        _ => {
-                            let label = gemini_line.clone().label();
-                            v.add_item(label, gemini_line.clone());
-                        }
-                    }
-                }
-            }
+            v.add_all(crate::gemini::parse(content, base_url, viewport_width));
             v.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    if entry.line_type == LineType::Link {
-                        let url = entry.url.as_ref().unwrap();
+                    if let Some(url) = entry {
                         info!("Trying to open {}", url.as_str());
                         userdata
                             .ui_tx
@@ -1452,12 +1401,12 @@ impl NcGopher {
 
     fn show_current_link_info_gemini(&mut self) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let view: ViewRef<SelectView<GeminiLine>> = app
+        let view: ViewRef<SelectView<Option<Url>>> = app
             .find_name("gemini_content")
             .expect("View gemini missing");
         let cur = view.selected_id().unwrap_or(0);
         if let Some((_, item)) = view.get_item(cur) {
-            if let Some(url) = &item.url {
+            if let Some(url) = item {
                 app.with_user_data(|userdata: &mut UserData| {
                     userdata
                         .ui_tx
@@ -1519,7 +1468,7 @@ impl NcGopher {
         let mut app = self.app.write().expect("Could not get read lock on app");
         if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
             content.selected_id()
-        } else if let Some(content) = app.find_name::<SelectView<GeminiLine>>("gemini_content") {
+        } else if let Some(content) = app.find_name::<SelectView<Option<Url>>>("gemini_content") {
             content.selected_id()
         } else {
             panic!("view content and gemini_content missing");
@@ -1551,7 +1500,7 @@ impl NcGopher {
                 }
             }
             "gemini_content" => {
-                let mut view: ViewRef<SelectView<GeminiLine>> = app
+                let mut view: ViewRef<SelectView<Option<Url>>> = app
                     .find_name("gemini_content")
                     .expect("View gemini_content missing");
                 let callback = match dir {
@@ -1562,7 +1511,7 @@ impl NcGopher {
                 if let Some(id) = view.selected_id() {
                     app.call_on_name(
                         "gemini_content_scroll",
-                        |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+                        |s: &mut ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>| {
                             s.set_offset(cursive::Vec2::new(0, id));
                         },
                     );
@@ -1596,7 +1545,7 @@ impl NcGopher {
 
     fn move_to_link_gemini(&mut self, dir: Direction) {
         let mut app = self.app.write().expect("Could not get write lock on app");
-        let mut view: ViewRef<SelectView<GeminiLine>> = app
+        let mut view: ViewRef<SelectView<Option<Url>>> = app
             .find_name("gemini_content")
             .expect("View gemini_content missing");
         let cur = view.selected_id().unwrap_or(0);
@@ -1613,7 +1562,7 @@ impl NcGopher {
                     if i == cur {
                         break; // Once we reach the current item, we quit
                     }
-                    if item.line_type == LineType::Link {
+                    if item.is_some() {
                         break;
                     }
                     i += 1;
@@ -1634,7 +1583,7 @@ impl NcGopher {
                     if i == cur {
                         break; // Once we reach the current item, we quit
                     }
-                    if item.line_type == LineType::Link {
+                    if item.is_some() {
                         break;
                     }
                     i -= 1;
@@ -1648,7 +1597,7 @@ impl NcGopher {
         let selected_id = view.selected_id().unwrap();
         app.call_on_name(
             "gemini_content_scroll",
-            |s: &mut ScrollView<ResizedView<NamedView<SelectView<GeminiLine>>>>| {
+            |s: &mut ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>| {
                 s.set_offset(cursive::Vec2::new(0, selected_id));
             },
         );
