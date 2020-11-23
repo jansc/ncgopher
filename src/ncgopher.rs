@@ -12,7 +12,6 @@ use cursive::views::{
     SelectView, TextView, ViewRef,
 };
 use cursive::Cursive;
-use regex::Regex;
 use std::path::Path;
 use std::str;
 use std::sync::mpsc;
@@ -585,12 +584,9 @@ impl NcGopher {
         );
     }
 
-    pub fn open_url_string(&mut self, url: String, add_to_history: bool, index: usize) {
-        let mut url = url;
-
+    pub fn open_url_string(&mut self, mut url: String, add_to_history: bool, index: usize) {
         // Default-protocol is gopher
-        let scheme_regex = Regex::new(r"^[a-zA-Z]+://").unwrap();
-        if scheme_regex.captures(&url).is_none() {
+        if !url.contains("://") {
             url.insert_str(0, "gopher://");
         }
 
