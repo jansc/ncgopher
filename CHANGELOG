@@ -4,6 +4,7 @@
   New features:
   - Setting for automatic text wrapping of gemini content
   - Unknown success status codes are now handled gracefully, displaying any content.
+  - Full text/gemini support
 
   Bugfixes:
   - Use download path from setting for downloading files
