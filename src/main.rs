@@ -8,7 +8,6 @@ extern crate rusqlite;
 extern crate serde;
 extern crate serde_derive;
 extern crate sha2;
-extern crate textwrap;
 extern crate toml;
 extern crate x509_parser;
 

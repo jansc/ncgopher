@@ -1,5 +1,5 @@
 extern crate gemtext;
-use textwrap::wrap_iter;
+use cursive::utils::lines::simple::{make_lines, LinesIterator};
 use url::Url;
 // https://gemini.circumlunar.space/docs/spec-spec.txt
 
@@ -23,26 +23,32 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
             //     \  multiple lines
             // ```
             let continuation_lines = |first_prefix, text: &str, url: Option<Url>| {
-                let lines = wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width).collect::<Vec<_>>();
+                let lines = make_lines(if text.is_empty() { " " } else { &text }, viewport_width);
                 lines
                     .iter()
                     .enumerate()
-                    .map(|(i, line)| {
+                    .map(|(i, row)| {
                         let prefix = match i {
                             0 => first_prefix,
                             x if x == lines.len() - 1 => "\\",
                             _ => "|",
                         };
 
-                        (format!("{:>5}  {}", prefix, line), url.clone())
+                        (
+                            format!("{:>5}  {}", prefix, &text[row.start..row.end]),
+                            url.clone(),
+                        )
                     })
                     .collect()
             };
 
             match node {
-                Node::Text(text) => wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width)
-                    .map(|line| (format!("       {}", line), None))
-                    .collect(),
+                Node::Text(text) => {
+                    let text = if text.is_empty() { " " } else { &text };
+                    LinesIterator::new(text, viewport_width)
+                        .map(|row| (format!("       {}", &text[row.start..row.end]), None))
+                        .collect()
+                }
                 Node::Link { to, name } => {
                     let url = base_url.join(&to).expect("could not parse link url");
                     let prefix = match url.scheme() {
@@ -61,9 +67,12 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                     let text = if body.is_empty() { " " } else { &body };
                     continuation_lines(&"#".repeat(level as usize), &text, None)
                 }
-                Node::Quote(text) => wrap_iter(if text.is_empty(){" "}else{&text}, viewport_width)
-                    .map(|line| (format!("    >  {}", line), None))
-                    .collect(),
+                Node::Quote(text) => {
+                    let text = if text.is_empty() { " " } else { &text };
+                    LinesIterator::new(text, viewport_width)
+                        .map(|row| (format!("    >  {}", &text[row.start..row.end]), None))
+                        .collect()
+                }
                 Node::ListItem(text) => continuation_lines("*", &text, None),
                 Node::Preformatted(lines) => {
                     // preformatted lines should not be wrapped

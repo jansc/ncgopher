@@ -6,7 +6,7 @@ use crate::history::HistoryEntry;
 use cursive::event::Key;
 use cursive::menu::MenuTree;
 use cursive::traits::*;
-use cursive::utils::markup::StyledString;
+use cursive::utils::{lines::simple::LinesIterator, markup::StyledString};
 use cursive::views::{
     Checkbox, Dialog, EditView, LinearLayout, NamedView, OnEventView, ResizedView, ScrollView,
     SelectView, TextView, ViewRef,
@@ -16,7 +16,6 @@ use std::path::Path;
 use std::str;
 use std::sync::mpsc;
 use std::sync::{Arc, RwLock};
-use textwrap::wrap_iter;
 use url::Url;
 //use crate::settings::Settings;
 use crate::ui;
@@ -898,11 +897,13 @@ impl NcGopher {
 
                 let label = entry.clone().label();
                 if entry.item_type == ItemType::Inline && label.len() > viewport_width {
-                    let iter = wrap_iter(&label, viewport_width);
-                    // TODO: use cursive::utils::lines::simple::make_lines
-                    for str in iter {
+                    for row in LinesIterator::new(&label, viewport_width) {
                         let mut formatted = StyledString::new();
-                        let label = format!("{}  {}", ItemType::as_str(entry.item_type), str);
+                        let label = format!(
+                            "{}  {}",
+                            ItemType::as_str(entry.item_type),
+                            &label[row.start..row.end]
+                        );
                         formatted.append(label);
                         view.add_item(formatted, l.clone());
                     }
@@ -997,10 +998,9 @@ impl NcGopher {
             for l in lines {
                 let line = l.to_string();
                 if line.len() > viewport_width {
-                    let iter = wrap_iter(&line, viewport_width);
                     info!("Wrapping text");
-                    for str in iter {
-                        v.add_item_str(format!("  {}", str));
+                    for row in LinesIterator::new(&line, viewport_width) {
+                        v.add_item_str(format!("  {}", &line[row.start..row.end]));
                     }
                 } else {
                     v.add_item_str(format!("  {}", line));
