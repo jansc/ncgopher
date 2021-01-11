@@ -21,7 +21,7 @@ use crate::history::{History, HistoryEntry};
 use crate::ncgopher::{NcGopher, UiMessage};
 use crate::SETTINGS;
 use native_tls::{Protocol, TlsConnector};
-use x509_parser::parse_x509_der;
+use x509_parser::prelude::*;
 
 lazy_static! {
     // Gobal to keep track of the latest request. When the user
@@ -306,7 +306,7 @@ impl Controller {
                 }
 
                 // Check certificate expiration date
-                match parse_x509_der(&cert.to_der().unwrap()) {
+                match parse_x509_certificate(&cert.to_der().unwrap()) {
                     Ok((_rem, cert)) => {
                         info!("Successfully parsed certificate");
                         match cert.tbs_certificate.validity.time_to_expiration() {
