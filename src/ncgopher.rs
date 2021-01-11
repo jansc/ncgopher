@@ -622,7 +622,15 @@ impl NcGopher {
             .write()
             .expect("could not get write lock on app")
             .call_on_name("main", |v: &mut ui::layout::Layout| {
-                v.set_title(v.get_current_view(), url.to_string())
+                // format URL to human readable form
+                // since for gemini and gopher, the domains will be percent encoded like the path,
+                // it is easiest to do it all at once
+                let human_readable = percent_encoding::percent_decode_str(url.as_str())
+                    .decode_utf8()
+                    .unwrap()
+                    .to_string();
+
+                v.set_title(v.get_current_view(), human_readable)
             });
     }
 
