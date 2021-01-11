@@ -168,7 +168,7 @@ impl Controller {
         }
     }
 
-    fn fetch_gemini_url(&self, url: Url, add_to_history: bool, index: usize) {
+    fn fetch_gemini_url(&self, mut url: Url, add_to_history: bool, index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
@@ -178,6 +178,9 @@ impl Controller {
             *guard += 1;
             request_id = *guard;
         }
+
+        // fix domain encoding according to WHATWG spec to IDNA encoding
+        make_domain_idna(&mut url);
 
         // Local copy of Url will be passed to thread
         let gemini_url = url.clone();
@@ -1435,5 +1438,27 @@ impl Controller {
                 };
             }
         }
+    }
+}
+
+extern crate idna;
+extern crate percent_encoding;
+
+fn make_domain_idna(u: &mut Url) {
+    use idna::domain_to_ascii;
+    use percent_encoding::percent_decode_str;
+
+    if let Some(domain) = u.domain() {
+        // since the gemini scheme is not "special" according to the WHATWG spec
+        // it will be percent-encoded by the url crate which has to be undone
+        let domain = percent_decode_str(domain)
+            .decode_utf8()
+            .expect("could not decode percent-encoded url");
+        // reencode the domain as IDNA
+        let domain = domain_to_ascii(&domain).expect("could not IDNA encode URL");
+        // make the url use the newly encoded domain name
+        u.set_host(Some(&domain)).expect("error replacing host");
+    } else {
+        log::info!("tried to reencode URL to IDNA that did not contain a domain name");
     }
 }
