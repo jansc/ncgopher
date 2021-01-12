@@ -1441,9 +1441,6 @@ impl Controller {
     }
 }
 
-extern crate idna;
-extern crate percent_encoding;
-
 fn make_domain_idna(u: &mut Url) {
     use idna::domain_to_ascii;
     use percent_encoding::percent_decode_str;
