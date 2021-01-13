@@ -622,7 +622,7 @@ impl NcGopher {
             .write()
             .expect("could not get write lock on app")
             .call_on_name("main", |v: &mut ui::layout::Layout| {
-                v.set_title(v.get_current_view(), url.to_string())
+                v.set_title(v.get_current_view(), human_readable_url(&url))
             });
     }
 
@@ -2020,5 +2020,41 @@ impl NcGopher {
         app.step();
 
         true
+    }
+}
+
+/// Transforms a URL back into its human readable Unicode representation.
+pub fn human_readable_url(url: &Url) -> String {
+    match url.scheme() {
+        // these schemes are considered "special" by the WHATWG spec
+        // cf. https://url.spec.whatwg.org/#special-scheme
+        "ftp" | "http" | "https" | "ws" | "wss" => {
+            // first unescape the domain name from IDNA encoding
+            let url_str = if let Some(domain) = url.domain() {
+                let (domain, result) = idna::domain_to_unicode(domain);
+                result.expect("could not decode idna domain");
+                let url_str = url.to_string();
+                // replace the IDNA encoded domain with the unescaped version
+                // since the domain cannot contain percent signs we do not have
+                // to worry about double unescaping later
+                url_str.replace(url.host_str().unwrap(), &domain)
+            } else {
+                // must be using IP address
+                url.to_string()
+            };
+            // now unescape the rest of the URL
+            percent_encoding::percent_decode_str(&url_str)
+                .decode_utf8()
+                .unwrap()
+                .to_string()
+        }
+        _ => {
+            // the domain and the path will be percent encoded
+            // it is easiest to do it all at once
+            percent_encoding::percent_decode_str(url.as_str())
+                .decode_utf8()
+                .unwrap()
+                .to_string()
+        }
     }
 }

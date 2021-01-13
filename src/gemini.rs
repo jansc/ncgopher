@@ -50,6 +50,8 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                         .collect()
                 }
                 Node::Link { to, name } => {
+                    use crate::ncgopher::human_readable_url;
+
                     let url = base_url.join(&to).expect("could not parse link url");
                     let prefix = match url.scheme() {
                         "https" | "http" => "[WWW]".to_string(),
@@ -60,7 +62,10 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                         other => format!("[{}]", other.chars().take(3).collect::<String>()),
                     };
 
-                    let name = name.unwrap_or_else(|| url.to_string());
+                    // transform the URL into a human redable form
+                    // escaping (by parsing as a URL) and unescaping is necessary because
+                    // the URL might have been escaped by the author
+                    let name = name.unwrap_or_else(|| human_readable_url(&url));
                     continuation_lines(&prefix, &name, Some(url))
                 }
                 Node::Heading { level, body } => {

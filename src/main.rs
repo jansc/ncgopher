@@ -4,6 +4,8 @@ extern crate log;
 extern crate base64;
 extern crate config;
 extern crate dirs;
+extern crate idna;
+extern crate percent_encoding;
 extern crate rusqlite;
 extern crate serde;
 extern crate serde_derive;
