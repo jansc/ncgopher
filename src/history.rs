@@ -42,15 +42,14 @@ impl History {
     }
 
     fn get_history_filename() -> String {
-        let confdir = match dirs::config_dir() {
+        match dirs::config_dir() {
             Some(mut dir) => {
                 dir.push(env!("CARGO_PKG_NAME"));
                 dir.push("history.db");
                 dir.into_os_string().into_string().unwrap()
             }
             None => String::new(),
-        };
-        confdir
+        }
     }
 
     pub fn add(&mut self, entry: HistoryEntry) -> Result<()> {
