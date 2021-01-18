@@ -13,7 +13,7 @@ use std::thread;
 use url::Url;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
-use crate::certificates::{Certificate, Certificates};
+use crate::certificates::Certificates;
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
@@ -47,7 +47,7 @@ pub struct Controller {
 /// Defines messages sent between Controller and UI
 pub enum ControllerMessage {
     AddBookmark(Url, String, String),
-    AddCertificate(String, String),
+    AddCertificate(Url, String),
     AddToHistory(Url),
     BinaryWritten(String, usize),
     ClearHistory,
@@ -130,19 +130,6 @@ impl Controller {
         Ok(controller)
     }
 
-    // Returns the host and port extracted from url
-    fn get_host_from_url(url: &Url) -> String {
-        let host = url.host().unwrap();
-        let scheme = url.scheme();
-
-        let port = url.port_or_known_default().unwrap_or_else(|| match scheme {
-            "gemini" => 1965,
-            "gopher" => 70,
-            _ => todo!("unknow port number for URL scheme {}", scheme),
-        });
-        format!("{}:{}", host, port)
-    }
-
     // Used for gemini downloads
     fn get_filename_from_url(&self, url: &Url) -> String {
         let download_path = SETTINGS
@@ -175,19 +162,18 @@ impl Controller {
         };
         let request_id_ref = self.last_request_id.clone();
 
-        // fix domain encoding according to WHATWG spec to IDNA encoding
-        make_domain_idna(&mut url);
-
-        // Local copy of Url will be passed to thread
-        let gemini_url = url.clone();
+        normalize_domain(&mut url);
 
         let host = url.host_str().unwrap().to_string();
-        let server_details = Controller::get_host_from_url(&url);
+        // can only be a gemini URL, no need to check the scheme
+        let server_details = url
+            .socket_addrs(|| Some(1965))
+            .expect("could not understand URL")[0];
 
         let local_filename = self.get_filename_from_url(&url);
 
         // Get known certificate fingerprint for host
-        let fingerprint = self.certificates.lock().unwrap().fingerprint_by_host(&host);
+        let fingerprint = self.certificates.lock().unwrap().get(&url);
 
         thread::spawn(move || {
             let mut buf = String::new();
@@ -296,7 +282,10 @@ impl Controller {
                     None => {
                         // 1st time visit: add fingerprint
                         tx_clone
-                            .send(ControllerMessage::AddCertificate(host, cert_fingerprint))
+                            .send(ControllerMessage::AddCertificate(
+                                url.clone(),
+                                cert_fingerprint,
+                            ))
                             .unwrap()
                     }
                 }
@@ -471,7 +460,7 @@ impl Controller {
                                             let s = String::from_utf8_lossy(&buf);
                                             tx_clone
                                                 .send(ControllerMessage::SetGeminiContent(
-                                                    gemini_url.clone(),
+                                                    url.clone(),
                                                     GeminiType::Gemini,
                                                     s.to_string(),
                                                     index,
@@ -480,7 +469,7 @@ impl Controller {
                                             if add_to_history {
                                                 tx_clone
                                                     .send(ControllerMessage::AddToHistory(
-                                                        gemini_url.clone(),
+                                                        url.clone(),
                                                     ))
                                                     .unwrap();
                                             }
@@ -829,25 +818,13 @@ impl Controller {
 
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
         let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
-        let b: Bookmark = Bookmark { title, url, tags };
+        let b = Bookmark { title, url, tags };
         // Check if bookmark exists
         if self.bookmarks.lock().unwrap().exists(b.clone().url) {
             self.bookmarks.lock().unwrap().remove(b.clone().url);
         }
         self.bookmarks.lock().unwrap().add(b.clone());
         b
-    }
-
-    fn add_certificate(&mut self, host: String, fingerprint: String) -> Certificate {
-        let c: Certificate = Certificate {
-            host: host.clone(),
-            fingerprint,
-        };
-        if self.certificates.lock().unwrap().exists(host.clone()) {
-            self.certificates.lock().unwrap().remove(host);
-        }
-        self.certificates.lock().unwrap().add(c.clone());
-        c
     }
 
     fn remove_bookmark(&mut self, b: Bookmark) {
@@ -1115,8 +1092,11 @@ impl Controller {
                             .send(UiMessage::AddToBookmarkMenu(b))
                             .unwrap();
                     }
-                    ControllerMessage::AddCertificate(host, fingerprint) => {
-                        self.add_certificate(host, fingerprint);
+                    ControllerMessage::AddCertificate(url, fingerprint) => {
+                        self.certificates
+                            .lock()
+                            .expect("could not lock certificate store")
+                            .insert(&url, fingerprint);
                     }
                     ControllerMessage::AddToHistory(url) => {
                         let h = self.add_to_history(url);
@@ -1367,10 +1347,10 @@ impl Controller {
                         self.fetch_binary_url(url, local_path);
                     }
                     ControllerMessage::UpdateCertificateAndOpen(url, fingerprint) => {
-                        // TODO: Update certificate
-                        let host = Controller::get_host_from_url(&url);
-                        info!("Adding fingerprint for host {}: {}", host, fingerprint);
-                        self.add_certificate(host, fingerprint);
+                        self.certificates
+                            .lock()
+                            .expect("could not lock certificate store")
+                            .insert(&url, fingerprint);
                         self.ui
                             .read()
                             .unwrap()
@@ -1435,9 +1415,14 @@ impl Controller {
     }
 }
 
-fn make_domain_idna(u: &mut Url) {
+pub fn normalize_domain(u: &mut Url) {
     use idna::domain_to_ascii;
     use percent_encoding::percent_decode_str;
+
+    // remove default port number
+    if u.port() == Some(1965) {
+        u.set_port(None).expect("gemini URL without host");
+    }
 
     if let Some(domain) = u.domain() {
         // since the gemini scheme is not "special" according to the WHATWG spec
