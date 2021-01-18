@@ -830,7 +830,7 @@ impl NcGopher {
 
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
-        let mut title: String = "".to_string();
+        let mut title = "".to_string();
         let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         let textwrap_int = textwrap.parse::<usize>().unwrap();
         let mut viewport_width = self.get_viewport_width() - 7;
@@ -1087,7 +1087,7 @@ impl NcGopher {
     fn show_edit_history_dialog(&mut self, entries: Vec<HistoryEntry>) {
         let mut view: SelectView<HistoryEntry> = SelectView::new();
         for e in entries {
-            let mut url: String = format!("{:<20}", e.url.clone().as_str());
+            let mut url = format!("{:<20}", e.url.clone().as_str());
             url.truncate(50);
             view.add_item(
                 format!(
@@ -1535,7 +1535,7 @@ impl NcGopher {
             .find_name("gemini_content")
             .expect("View gemini_content missing");
         let cur = view.selected_id().unwrap_or(0);
-        let mut i: usize = cur;
+        let mut i = cur;
         match dir {
             Direction::Next => {
                 i += 1; // Start at the element after the current row
@@ -1602,7 +1602,7 @@ impl NcGopher {
         let mut view: ViewRef<SelectView<GopherMapEntry>> =
             app.find_name("content").expect("View content missing");
         let cur = view.selected_id().unwrap_or(0);
-        let mut i: usize = cur;
+        let mut i = cur;
         match dir {
             Direction::Next => {
                 i += 1; // Start at the element after the current row
@@ -1667,7 +1667,7 @@ impl NcGopher {
     fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec<Bookmark>) {
         let mut view: SelectView<Bookmark> = SelectView::new();
         for b in bookmarks {
-            let mut title: String = format!("{:<20}", b.title.clone().as_str());
+            let mut title = format!("{:<20}", b.title.clone().as_str());
             title.truncate(20);
             let mut url = format!("{:<50}", b.url.clone().as_str());
             url.truncate(50);

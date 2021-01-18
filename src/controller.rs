@@ -488,7 +488,7 @@ impl Controller {
                                             );
                                             let mut bw = BufWriter::new(f);
                                             let mut buf = [0u8; 1024];
-                                            let mut total_written: usize = 0;
+                                            let mut total_written = 0;
                                             loop {
                                                 let bytes_read = bufr
                                                     .read(&mut buf)
@@ -589,7 +589,6 @@ impl Controller {
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
-            //let x = path[0..1].to_string();
             // TODO: check x[0] == / and x[1] == itemtype
             path = path[2..].to_string();
         } else {
@@ -715,7 +714,6 @@ impl Controller {
             .host()
             .map_or("host.error".to_string(), |host| host.to_string());
         let path = if gopher_url.path().len() > 2 {
-            //let x = path[0..1].to_string();
             // TODO: check x[0] == / and x[1] == itemtype
             gopher_url.path()[2..].to_string()
         } else {
@@ -746,7 +744,7 @@ impl Controller {
                 .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename));
             let mut bw = BufWriter::new(f);
             let mut buf = [0u8; 1024];
-            let mut total_written: usize = 0;
+            let mut total_written = 0;
             if port != 70 {
                 if let Ok(connector) = TlsConnector::new() {
                     let stream = TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
@@ -817,7 +815,7 @@ impl Controller {
     // open_gopher_address
 
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
-        let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
+        let tags = tags.as_str().split_whitespace().map(String::from).collect();
         let b = Bookmark { title, url, tags };
         // Check if bookmark exists
         if self.bookmarks.lock().unwrap().exists(b.clone().url) {
@@ -844,7 +842,7 @@ impl Controller {
             guard.update_selected_item(i);
         }
         info!("add_to_history(): {}", url);
-        let h: HistoryEntry = HistoryEntry {
+        let h = HistoryEntry {
             title: url.clone().into_string(),
             url,
             timestamp: Local::now(),
@@ -914,11 +912,7 @@ impl Controller {
 
     /// Saves the current text file to disk
     fn save_textfile(&mut self, filename: String) {
-        let content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            content = guard.clone();
-        }
+        let content = self.content.lock().unwrap().clone();
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
         let path = Path::new(filename.as_str());
@@ -960,17 +954,12 @@ impl Controller {
     }
 
     fn save_gemini(&mut self, filename: String) {
-        let gemini_content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            gemini_content = guard.clone();
-        }
+        let gemini_content = self.content.lock().unwrap().clone();
         let tx_clone = self.tx.read().unwrap().clone();
-        let lines = gemini_content.lines();
-        let mut txtlines = Vec::<String>::new();
-        for l in lines {
-            txtlines.push(l.to_string());
-        }
+        let lines = gemini_content
+            .lines()
+            .map(str::to_string)
+            .collect::<Vec<String>>();
         info!("Save textfile: {}", filename);
 
         // Create a path to the desired file
@@ -997,7 +986,7 @@ impl Controller {
         };
 
         // Read the file contents into a string, returns `io::Result<usize>`
-        for l in txtlines {
+        for l in lines {
             if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
                 tx_clone
                     .send(ControllerMessage::ShowMessage(format!(
@@ -1013,20 +1002,10 @@ impl Controller {
 
     /// Save the current gophermap to disk
     fn save_gophermap(&mut self, filename: String) {
-        let content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            content = guard.clone();
-        }
+        let content = self.content.lock().unwrap().clone();
         let tx_clone = self.tx.read().unwrap().clone();
-        let lines = content.lines();
-        let mut txtlines = Vec::<String>::new();
-        let mut first = true;
-        for l in lines {
-            if first {
-                first = false;
-                continue;
-            }
+        let mut txtlines = Vec::new();
+        for l in content.lines().skip(1) {
             if l != "." {
                 match GopherMapEntry::parse(l.to_string()) {
                     Ok(gl) => txtlines.push(gl.label().to_string()),
@@ -1121,16 +1100,13 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::ReloadCurrentPage => {
-                        let current_url: Url;
-                        let mut index = 0;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                            let ui = self.ui.read().unwrap();
-                            if let Some(i) = ui.get_selected_item_index() {
-                                index = i;
-                            }
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
+                        let index = self
+                            .ui
+                            .read()
+                            .unwrap()
+                            .get_selected_item_index()
+                            .unwrap_or(0);
                         self.ui
                             .read()
                             .unwrap()
@@ -1145,17 +1121,12 @@ impl Controller {
                         self.remove_bookmark(bookmark);
                     }
                     ControllerMessage::RequestAddBookmarkDialog => {
-                        let current_url: Url;
-                        let bookmark: Bookmark;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                            bookmark = Bookmark {
-                                title: String::new(),
-                                url: current_url.clone(),
-                                tags: Vec::new(),
-                            };
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
+                        let bookmark = Bookmark {
+                            title: String::new(),
+                            url: current_url.clone(),
+                            tags: Vec::new(),
+                        };
                         self.ui
                             .read()
                             .unwrap()
@@ -1193,11 +1164,7 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestEditBookmarksDialog => {
-                        let v: Vec<Bookmark>;
-                        {
-                            let guard = self.bookmarks.lock().unwrap();
-                            v = guard.clone().entries;
-                        }
+                        let v = self.bookmarks.lock().unwrap().clone().entries;
                         self.ui
                             .read()
                             .unwrap()
@@ -1218,11 +1185,7 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestSaveAsDialog => {
-                        let current_url: Url;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
                         self.ui
                             .read()
                             .unwrap()
@@ -1233,7 +1196,6 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestSettingsDialog => {
-                        //let settings = self.settings.read().unwrap();
                         self.ui
                             .read()
                             .unwrap()
@@ -1293,6 +1255,8 @@ impl Controller {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
                             guard.push_str(content.as_str());
+                        }
+                        {
                             let mut guard = self.current_url.lock().unwrap();
                             *guard = url.clone();
                         }

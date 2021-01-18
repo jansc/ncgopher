@@ -42,7 +42,7 @@ impl History {
     }
 
     fn get_history_filename() -> String {
-        let confdir: String = match dirs::config_dir() {
+        let confdir = match dirs::config_dir() {
             Some(mut dir) => {
                 dir.push(env!("CARGO_PKG_NAME"));
                 dir.push("history.db");
@@ -123,7 +123,7 @@ impl History {
             )?;
         let mut rows = stmt.query(params![num_items as u32])?;
         while let Some(row) = rows.next()? {
-            let title: String = row.get(1)?;
+            let title = row.get(1)?;
             let entry = HistoryEntry {
                 title,
                 url: row.get(1)?,
