@@ -1,6 +1,5 @@
 use chrono::{Duration, Local, Utc};
 use cursive::Cursive;
-use lazy_static::lazy_static;
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fs::File;
@@ -23,13 +22,6 @@ use crate::SETTINGS;
 use native_tls::{Protocol, TlsConnector};
 use x509_parser::prelude::*;
 
-lazy_static! {
-    // Gobal to keep track of the latest request. When the user
-    // triggers several requests, only the last request will be
-    // displayed, the other will be canceled
-    static ref LAST_REQUEST_ID: Mutex<i64> = Mutex::new(0);
-}
-
 #[derive(Clone)]
 pub struct Controller {
     /// Message channel for communication with the UI
@@ -47,6 +39,9 @@ pub struct Controller {
     content: Arc<Mutex<String>>,
     /// Current URL
     current_url: Arc<Mutex<Url>>,
+    /// When the user triggers several requests, only the last request
+    /// will be displayed, the other will be canceled.
+    last_request_id: Arc<Mutex<i64>>,
 }
 
 /// Defines messages sent between Controller and UI
@@ -96,6 +91,7 @@ impl Controller {
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
+            last_request_id: Arc::new(Mutex::new(0)),
         };
         ncgopher.setup_ui();
         // Add old entries to history on start-up
@@ -172,12 +168,12 @@ impl Controller {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
-        let request_id: i64;
-        {
-            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+        let request_id = {
+            let mut guard = self.last_request_id.lock().unwrap();
             *guard += 1;
-            request_id = *guard;
-        }
+            *guard
+        };
+        let request_id_ref = self.last_request_id.clone();
 
         // fix domain encoding according to WHATWG spec to IDNA encoding
         make_domain_idna(&mut url);
@@ -363,7 +359,7 @@ impl Controller {
 
             {
                 // Abort request, if user triggered a newer request
-                let guard = LAST_REQUEST_ID.lock().unwrap();
+                let guard = request_id_ref.lock().unwrap();
                 if request_id < *guard {
                     return;
                 }
@@ -586,12 +582,12 @@ impl Controller {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
-        let request_id: i64;
-        {
-            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+        let request_id = {
+            let mut guard = self.last_request_id.lock().unwrap();
             *guard += 1;
-            request_id = *guard;
-        }
+            *guard
+        };
+        let request_id_ref = self.last_request_id.clone();
 
         // Local copy of Url will be passed to thread
         let gopher_url = url.clone();
@@ -695,7 +691,7 @@ impl Controller {
                 };
             }
             {
-                let guard = LAST_REQUEST_ID.lock().unwrap();
+                let guard = request_id_ref.lock().unwrap();
                 if request_id < *guard {
                     return;
                 }
