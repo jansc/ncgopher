@@ -47,9 +47,9 @@ impl Certificates {
                     for value in e {
                         if let Ok(v) = value.into_table() {
                             // old hosts have to be canonicalised
-                            if let Ok(mut host) = Url::parse(&format!("gemini://{}", v["host"])) {
-                                crate::controller::normalize_domain(&mut host);
-                                entries.insert(host.into_string(), v["fingerprint"].to_string());
+                            if let Ok(mut url) = Url::parse(&format!("gemini://{}", v["host"])) {
+                                crate::controller::normalize_domain(&mut url);
+                                entries.insert(Certificates::extract_domain_port(&url), v["fingerprint"].to_string());
                             }
                         }
                     }
