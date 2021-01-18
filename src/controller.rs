@@ -825,8 +825,6 @@ impl Controller {
     }
 
     // TODO: Move from ncgopher.rs:
-    // fetch_binary_file
-    // open_gopher_url
     // open_gopher_address
 
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
