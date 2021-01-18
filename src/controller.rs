@@ -409,160 +409,160 @@ impl Controller {
             };
 
             match buf.chars().next() {
-                                Some('1') => {
-                                    // INPUT
-                                    match buf.chars().nth(1) {
-                                        Some('1') => {
-                                            tx_clone
-                                                .send(
-                                                    ControllerMessage::RequestGeminiQueryDialog(
-                                                        url, meta, true,
-                                                    ),
-                                                )
-                                                .unwrap();
-                                        }
-                                        other => {
-                                            if check(other) {
-                                                info!("Got query: {}", meta);
-                                                tx_clone
-                                                    .send(
-                                                        ControllerMessage::RequestGeminiQueryDialog(
-                                                            url, meta, false,
-                                                        ),
-                                                    )
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::RedrawHistory)
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('2') => {
-                                    // SUCCESS
-                                    // there are not yet any other status codes
-                                    // than 20 in this category
-                                    if check(buf.chars().nth(1)) {
-                                        // If mimetype is text/* download as gemini
-                                        // Otherwise initiate a binary download
-                                        // FIXME: for now assumes all text is gemini text
-                                        if meta.starts_with("text/") {
-                                            let mut buf = vec![];
-                                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "I/O error: {}",
-                                                        err
-                                                    )))
-                                                    .unwrap();
-                                                0
-                                            });
-                                            let s = String::from_utf8_lossy(&buf);
-                                            tx_clone
-                                                .send(ControllerMessage::SetGeminiContent(
-                                                    url.clone(),
-                                                    GeminiType::Gemini,
-                                                    s.to_string(),
-                                                    index,
-                                                ))
-                                                .unwrap();
-                                            if add_to_history {
-                                                tx_clone
-                                                    .send(ControllerMessage::AddToHistory(
-                                                        url.clone(),
-                                                    ))
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::RedrawHistory)
-                                                .unwrap();
-                                        } else {
-                                            // Binary download
-                                            let f = File::create(local_filename.clone()).unwrap_or_else(
-                                                |_| {
-                                                    panic!(
-                                                        "Unable to open file '{}'",
-                                                        local_filename.clone()
-                                                    )
-                                                }
-                                            );
-                                            let mut bw = BufWriter::new(f);
-                                            let mut buf = [0u8; 1024];
-                                            let mut total_written = 0;
-                                            loop {
-                                                let bytes_read = bufr
-                                                    .read(&mut buf)
-                                                    .expect("Could not read from TCP");
-                                                if bytes_read == 0 {
-                                                    break;
-                                                }
-                                                let bytes_written = bw
-                                                    .write(&buf[..bytes_read])
-                                                    .expect("Could not write to file");
-                                                total_written += bytes_written;
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "{} bytes read",
-                                                        total_written
-                                                    )))
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::BinaryWritten(
-                                                    local_filename.clone(),
-                                                    total_written,
-                                                ))
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('3') => {
-                                    // REDIRECT
-                                    let other = buf.chars().nth(1);
-                                    if other == Some('1') {
-                                        // redirect is permanent
-                                        // TODO: Should automatically update bookmarks
-                                    } else if !check(other) {
-                                        return;
-                                    }
-                                    match Url::parse(&meta) {
-                                        Ok(url) => {
-                                            // FIXME: Try to parse url, check scheme
-                                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
-                                        }
-                                        Err(_) => {
-                                            tx_clone
-                                                .send(ControllerMessage::ShowMessage(format!(
-                                                    "invalid redirect url: {}",
-                                                    meta
-                                                )))
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('4') // FAILURE
-                                | Some('5') // PERMANENT FAILURE
-                                | Some('6') // CLIENT CERTIFICATE
-                                => {
-                                    if check(buf.chars().nth(1)) {
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(format!(
-                                                "Gemini error: {}",
-                                                buf
-                                            )))
-                                            .unwrap();
-                                    }
-                                }
-                                other => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(if other.is_some() {
-                                            format!("invalid header from server: invalid status code: {}", buf)
-                                        } else {
-                                            format!("invalid header from server: missing status code: {}", buf)
-                                        }))
-                                        .unwrap();
-                                }
+                Some('1') => {
+                    // INPUT
+                    match buf.chars().nth(1) {
+                        Some('1') => {
+                            tx_clone
+                                .send(
+                                    ControllerMessage::RequestGeminiQueryDialog(
+                                        url, meta, true,
+                                    ),
+                                )
+                                .unwrap();
+                        }
+                        other => {
+                            if check(other) {
+                                info!("Got query: {}", meta);
+                                tx_clone
+                                    .send(
+                                        ControllerMessage::RequestGeminiQueryDialog(
+                                            url, meta, false,
+                                        ),
+                                    )
+                                    .unwrap();
                             }
+                            tx_clone
+                                .send(ControllerMessage::RedrawHistory)
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('2') => {
+                    // SUCCESS
+                    // there are not yet any other status codes
+                    // than 20 in this category
+                    if check(buf.chars().nth(1)) {
+                        // If mimetype is text/* download as gemini
+                        // Otherwise initiate a binary download
+                        // FIXME: for now assumes all text is gemini text
+                        if meta.starts_with("text/") {
+                            let mut buf = vec![];
+                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(format!(
+                                        "I/O error: {}",
+                                        err
+                                    )))
+                                    .unwrap();
+                                0
+                            });
+                            let s = String::from_utf8_lossy(&buf);
+                            tx_clone
+                                .send(ControllerMessage::SetGeminiContent(
+                                    url.clone(),
+                                    GeminiType::Gemini,
+                                    s.to_string(),
+                                    index,
+                                ))
+                                .unwrap();
+                            if add_to_history {
+                                tx_clone
+                                    .send(ControllerMessage::AddToHistory(
+                                        url.clone(),
+                                    ))
+                                    .unwrap();
+                            }
+                            tx_clone
+                                .send(ControllerMessage::RedrawHistory)
+                                .unwrap();
+                        } else {
+                            // Binary download
+                            let f = File::create(local_filename.clone()).unwrap_or_else(
+                                |_| {
+                                    panic!(
+                                        "Unable to open file '{}'",
+                                        local_filename.clone()
+                                    )
+                                }
+                            );
+                            let mut bw = BufWriter::new(f);
+                            let mut buf = [0u8; 1024];
+                            let mut total_written = 0;
+                            loop {
+                                let bytes_read = bufr
+                                    .read(&mut buf)
+                                    .expect("Could not read from TCP");
+                                if bytes_read == 0 {
+                                    break;
+                                }
+                                let bytes_written = bw
+                                    .write(&buf[..bytes_read])
+                                    .expect("Could not write to file");
+                                total_written += bytes_written;
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(format!(
+                                        "{} bytes read",
+                                        total_written
+                                    )))
+                                    .unwrap();
+                            }
+                            tx_clone
+                                .send(ControllerMessage::BinaryWritten(
+                                    local_filename.clone(),
+                                    total_written,
+                                ))
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('3') => {
+                    // REDIRECT
+                    let other = buf.chars().nth(1);
+                    if other == Some('1') {
+                        // redirect is permanent
+                        // TODO: Should automatically update bookmarks
+                    } else if !check(other) {
+                        return;
+                    }
+                    match Url::parse(&meta) {
+                        Ok(url) => {
+                            // FIXME: Try to parse url, check scheme
+                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
+                        }
+                        Err(_) => {
+                            tx_clone
+                                .send(ControllerMessage::ShowMessage(format!(
+                                    "invalid redirect url: {}",
+                                    meta
+                                )))
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('4') // FAILURE
+                | Some('5') // PERMANENT FAILURE
+                | Some('6') // CLIENT CERTIFICATE
+                => {
+                    if check(buf.chars().nth(1)) {
+                        tx_clone
+                            .send(ControllerMessage::ShowMessage(format!(
+                                "Gemini error: {}",
+                                buf
+                            )))
+                            .unwrap();
+                    }
+                }
+                other => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(if other.is_some() {
+                            format!("invalid header from server: invalid status code: {}", buf)
+                        } else {
+                            format!("invalid header from server: missing status code: {}", buf)
+                        }))
+                        .unwrap();
+                }
+            }
             info!("finished reading from gemini stream");
         });
     }
