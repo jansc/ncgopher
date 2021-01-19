@@ -2,7 +2,7 @@ use config::{Config, File, FileFormat};
 use serde::{Serialize, Serializer};
 use std::fs::File as FsFile;
 use std::io::Write;
-use std::path::Path;
+use std::path::PathBuf;
 use url::Url;
 
 fn url_serialize<S>(url: &Url, s: S) -> Result<S::Ok, S::Error>
@@ -29,10 +29,13 @@ pub struct Bookmarks {
 impl Bookmarks {
     pub fn new() -> Bookmarks {
         let mut s = Config::new();
-        let confdir = Bookmarks::get_bookmark_filename();
-        println!("Looking for bookmarks file {}", confdir);
-        if Path::new(confdir.as_str()).exists() {
-            match s.merge(File::new(confdir.as_str(), FileFormat::Toml)) {
+        let confdir = Bookmarks::get_bookmark_path();
+        println!("Looking for bookmarks file {:?}", confdir);
+        if confdir.as_path().exists() {
+            match s.merge(File::new(
+                confdir.to_str().expect("non-UTF8 bookmarks filename"),
+                FileFormat::Toml,
+            )) {
                 Ok(_s) => (),
                 Err(e) => {
                     println!("Could not read bookmarks file: {}", e);
@@ -45,13 +48,23 @@ impl Bookmarks {
         if let Ok(e) = s.get_array("bookmark") {
             for value in e {
                 if let Ok(v) = value.into_table() {
-                    if let Ok(u) = Url::parse(v["url"].clone().into_str().unwrap().as_str()) {
+                    let url = if let Ok(url) = v["url"].clone().into_str() {
+                        url
+                    } else {
+                        continue;
+                    };
+                    let title = if let Ok(title) = v["title"].clone().into_str() {
+                        title
+                    } else {
+                        continue;
+                    };
+                    if let Ok(u) = Url::parse(&url) {
                         let h = Bookmark {
                             url: u.clone(),
-                            title: v["title"].clone().into_str().unwrap(),
-                            tags: Vec::<String>::new(),
+                            title,
+                            tags: Vec::new(),
                         };
-                        entries.push(h.clone());
+                        entries.push(h);
                     }
                 }
             }
@@ -59,17 +72,12 @@ impl Bookmarks {
         Bookmarks { entries }
     }
 
-    fn get_bookmark_filename() -> String {
-        let confdir = match dirs::config_dir() {
-            Some(mut dir) => {
-                dir.push(env!("CARGO_PKG_NAME"));
-                dir.push("bookmarks");
-                dir.into_os_string().into_string().unwrap()
-            }
-            None => String::new(),
-        };
-        info!("Looking for bookmark file {}", confdir);
-        confdir
+    fn get_bookmark_path() -> PathBuf {
+        let mut dir = dirs::config_dir().expect("no configuration directory");
+        dir.push(env!("CARGO_PKG_NAME"));
+        dir.push("bookmarks");
+        info!("Looking for bookmark file {:?}", dir);
+        dir
     }
 
     // Checks if a bookmark with a given url exists
@@ -104,10 +112,8 @@ impl Bookmarks {
     }
 
     pub fn write_bookmarks_to_file(&mut self) -> std::io::Result<()> {
-        let filename = Bookmarks::get_bookmark_filename();
-        info!("Saving bookmarks to file: {}", filename);
-        // Create a path to the desired file
-        let path = Path::new(&filename);
+        let path = Bookmarks::get_bookmark_path();
+        info!("Saving bookmarks to file: {:?}", path);
 
         let mut file = match FsFile::create(&path) {
             Err(why) => return Err(why),

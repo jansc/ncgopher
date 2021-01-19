@@ -889,7 +889,6 @@ impl NcGopher {
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    // FIXME Remove duplicate code
                     if entry.item_type.is_download()
                         || entry.item_type.is_text()
                         || entry.item_type.is_dir()

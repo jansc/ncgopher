@@ -578,14 +578,11 @@ impl Controller {
         };
         let request_id_ref = self.last_request_id.clone();
 
-        // Local copy of Url will be passed to thread
-        let gopher_url = url.clone();
-
-        let port = gopher_url.port().unwrap_or(70);
-        let server = gopher_url
+        let port = url.port().unwrap_or(70);
+        let server = url
             .host()
             .map_or("host.error".to_string(), |host| host.to_string());
-        let path = gopher_url.path();
+        let path = url.path();
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
@@ -694,7 +691,7 @@ impl Controller {
             tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
             tx_clone
                 .send(ControllerMessage::SetContent(
-                    gopher_url.clone(),
+                    url.clone(),
                     s.to_string(),
                     item_type,
                     index,
@@ -706,16 +703,13 @@ impl Controller {
     fn fetch_binary_url(&self, url: Url, local_filename: String) {
         let tx_clone = self.tx.read().unwrap().clone();
 
-        // Local copy of Url will be passed to thread
-        let gopher_url = url;
-
-        let port = gopher_url.port().unwrap_or(70);
-        let server = gopher_url
+        let port = url.port().unwrap_or(70);
+        let server = url
             .host()
             .map_or("host.error".to_string(), |host| host.to_string());
-        let path = if gopher_url.path().len() > 2 {
+        let path = if url.path().len() > 2 {
             // TODO: check x[0] == / and x[1] == itemtype
-            gopher_url.path()[2..].to_string()
+            url.path()[2..].to_string()
         } else {
             String::new()
         };
