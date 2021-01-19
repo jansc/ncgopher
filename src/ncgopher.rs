@@ -45,9 +45,7 @@ pub enum UiMessage {
     OpenQueryDialog(Url),
     OpenGeminiQueryDialog(Url, String, bool),
     OpenQueryUrl(Url),
-    // TODO: Remove this
     OpenUrl(Url, bool, usize),
-    OpenUrlFromString(String, bool, usize),
     PageSaved(Url, String),
     Quit,
     ShowAddBookmarkDialog(Bookmark),
@@ -561,8 +559,8 @@ impl NcGopher {
                                     .ui_tx
                                     .write()
                                     .unwrap()
-                                    .send(UiMessage::OpenUrlFromString(
-                                        "gopher://jan.bio/1/ncgopher/".to_string(),
+                                    .send(UiMessage::OpenUrl(
+                                        Url::parse("gopher://jan.bio/1/ncgopher/").unwrap(),
                                         false,
                                         0,
                                     ))
@@ -581,23 +579,6 @@ impl NcGopher {
                     )))
                 }),
         );
-    }
-
-    pub fn open_url_string(&mut self, mut url: String, add_to_history: bool, index: usize) {
-        // Default-protocol is gopher
-        if !url.contains("://") {
-            url.insert_str(0, "gopher://");
-        }
-
-        let res = Url::parse(url.as_str());
-        match res {
-            Ok(url) => {
-                self.open_url(url, add_to_history, index);
-            }
-            Err(e) => {
-                self.set_message(format!("Invalid URL: {}", e).as_str());
-            }
-        }
     }
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
@@ -758,11 +739,7 @@ impl NcGopher {
                                     .ui_tx
                                     .write()
                                     .unwrap()
-                                    .send(UiMessage::OpenUrlFromString(
-                                        String::from(u.as_str()),
-                                        true,
-                                        0,
-                                    ))
+                                    .send(UiMessage::OpenUrl(u, true, 0))
                                     .unwrap();
                             });
                         } else {
@@ -842,11 +819,7 @@ impl NcGopher {
                             .ui_tx
                             .write()
                             .unwrap()
-                            .send(UiMessage::OpenUrlFromString(
-                                String::from(url.as_str()),
-                                true,
-                                0,
-                            ))
+                            .send(UiMessage::OpenUrl(url.clone(), true, 0))
                             .unwrap();
                     }
                 });
@@ -857,7 +830,7 @@ impl NcGopher {
 
     /// Renders a gophermap in a cursive::TextView
     fn show_gophermap(&mut self, content: String, index: usize) {
-        let mut title: String = "".to_string();
+        let mut title = "".to_string();
         let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
         let textwrap_int = textwrap.parse::<usize>().unwrap();
         let mut viewport_width = self.get_viewport_width() - 7;
@@ -916,7 +889,6 @@ impl NcGopher {
             }
             view.set_on_submit(|app, entry| {
                 app.with_user_data(|userdata: &mut UserData| {
-                    // FIXME Remove duplicate code
                     if entry.item_type.is_download()
                         || entry.item_type.is_text()
                         || entry.item_type.is_dir()
@@ -1114,7 +1086,7 @@ impl NcGopher {
     fn show_edit_history_dialog(&mut self, entries: Vec<HistoryEntry>) {
         let mut view: SelectView<HistoryEntry> = SelectView::new();
         for e in entries {
-            let mut url: String = format!("{:<20}", e.url.clone().as_str());
+            let mut url = format!("{:<20}", e.url.clone().as_str());
             url.truncate(50);
             view.add_item(
                 format!(
@@ -1178,11 +1150,7 @@ impl NcGopher {
                                         .read()
                                         .unwrap()
                                         .clone()
-                                        .send(UiMessage::OpenUrlFromString(
-                                            b.url.to_string(),
-                                            true,
-                                            0,
-                                        ))
+                                        .send(UiMessage::OpenUrl(b.url.clone(), true, 0))
                                         .unwrap()
                                 });
                             }
@@ -1372,14 +1340,31 @@ impl NcGopher {
 
     fn open_url_action(app: &mut Cursive, name: &str) {
         app.pop_layer();
-        app.with_user_data(|userdata: &mut UserData| {
-            userdata
-                .ui_tx
-                .read()
-                .unwrap()
-                .send(UiMessage::OpenUrlFromString(name.to_string(), true, 0))
-                .unwrap();
-        });
+
+        // Check that the Url has a scheme
+        let mut url = String::from(name);
+        if !url.contains("://") {
+            url.insert_str(0, "gopher://");
+        };
+
+        match Url::parse(&url) {
+            Ok(url) => app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .send(UiMessage::OpenUrl(url, true, 0))
+                    .unwrap();
+            }),
+            Err(e) => app.with_user_data(|userdata: &mut UserData| {
+                userdata
+                    .ui_tx
+                    .read()
+                    .unwrap()
+                    .send(UiMessage::ShowMessage(format!("Invalid URL: {}", e)))
+                    .unwrap();
+            }),
+        };
     }
 
     /// If the cursor in the current view is on a link, show
@@ -1549,7 +1534,7 @@ impl NcGopher {
             .find_name("gemini_content")
             .expect("View gemini_content missing");
         let cur = view.selected_id().unwrap_or(0);
-        let mut i: usize = cur;
+        let mut i = cur;
         match dir {
             Direction::Next => {
                 i += 1; // Start at the element after the current row
@@ -1616,7 +1601,7 @@ impl NcGopher {
         let mut view: ViewRef<SelectView<GopherMapEntry>> =
             app.find_name("content").expect("View content missing");
         let cur = view.selected_id().unwrap_or(0);
-        let mut i: usize = cur;
+        let mut i = cur;
         match dir {
             Direction::Next => {
                 i += 1; // Start at the element after the current row
@@ -1681,7 +1666,7 @@ impl NcGopher {
     fn show_edit_bookmarks_dialog(&mut self, bookmarks: Vec<Bookmark>) {
         let mut view: SelectView<Bookmark> = SelectView::new();
         for b in bookmarks {
-            let mut title: String = format!("{:<20}", b.title.clone().as_str());
+            let mut title = format!("{:<20}", b.title.clone().as_str());
             title.truncate(20);
             let mut url = format!("{:<50}", b.url.clone().as_str());
             url.truncate(50);
@@ -1739,11 +1724,7 @@ impl NcGopher {
                                         .read()
                                         .unwrap()
                                         .clone()
-                                        .send(UiMessage::OpenUrlFromString(
-                                            b.url.to_string(),
-                                            true,
-                                            0,
-                                        ))
+                                        .send(UiMessage::OpenUrl(b.url.clone(), true, 0))
                                         .unwrap()
                                 });
                             }
@@ -1850,7 +1831,7 @@ impl NcGopher {
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(b3.url.to_string(), true, 0))
+                        .send(UiMessage::OpenUrl(b3.url, true, 0))
                         .unwrap()
                 });
             });
@@ -1874,7 +1855,7 @@ impl NcGopher {
                         .read()
                         .unwrap()
                         .clone()
-                        .send(UiMessage::OpenUrlFromString(h.url.to_string(), true, 0))
+                        .send(UiMessage::OpenUrl(h.url.clone(), true, 0))
                         .unwrap()
                 });
             });
@@ -1984,9 +1965,6 @@ impl NcGopher {
                 UiMessage::OpenUrl(url, add_to_history, index) => {
                     trace!("OpenUrl({}, {}, {})", url, add_to_history, index);
                     self.open_url(url, add_to_history, index);
-                }
-                UiMessage::OpenUrlFromString(url, add_to_history, index) => {
-                    self.open_url_string(url, add_to_history, index);
                 }
                 // Exit the event loop
                 UiMessage::Quit => self.is_running = false,

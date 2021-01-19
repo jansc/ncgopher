@@ -1,23 +1,15 @@
 use config::{Config, File, FileFormat};
 use serde::Serialize;
-use std::fs::File as FsFile;
+use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
-
-/// Manages server certificates for use in TOFU for the gemini protocol.
-/// This could be modelled as a hashmap instead of a vector with structs,
-/// but we might later extend the list with ip-address and cypher type.
-
-#[derive(Clone, Debug, serde::Serialize)]
-pub struct Certificate {
-    pub host: String,
-    pub fingerprint: String,
-}
+use url::Url;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Certificates {
     /// All known server certificates
-    pub entries: Vec<Certificate>,
+    #[serde(rename = "certificate")]
+    pub entries: HashMap<String, String>,
 }
 
 impl Certificates {
@@ -32,18 +24,43 @@ impl Certificates {
                 }
             }
         }
-        let mut entries = Vec::new();
-        info!("certificates: {:?}", s.get_array("certificate"));
-        if let Ok(e) = s.get_array("certificate") {
-            for value in e {
-                if let Ok(v) = value.into_table() {
-                    let h = Certificate {
-                        host: v["host"].clone().into_str().unwrap(),
-                        fingerprint: v["fingerprint"].clone().into_str().unwrap(),
-                    };
-                    entries.push(h.clone());
+
+        let mut entries = HashMap::<String, String>::new();
+
+        info!("loading certificate fingerprints");
+        match s.get_table("certificate") {
+            Ok(file_entries) => {
+                // improved known hosts format
+                for (host, value) in file_entries {
+                    match value.into_str() {
+                        Ok(fingerprint) => {
+                            entries.insert(host, fingerprint);
+                        }
+                        Err(e) => error!("could not read fingerprint for host {}: {:?}", host, e),
+                    }
                 }
             }
+            Err(config::ConfigError::Type { .. }) => {
+                // known hosts format of v0.1.5 and earlier
+                warn!("trying old known hosts format");
+                if let Ok(e) = s.get_array("certificate") {
+                    for value in e {
+                        if let Ok(v) = value.into_table() {
+                            // old hosts have to be canonicalised
+                            if let Ok(mut url) = Url::parse(&format!("gemini://{}", v["host"])) {
+                                crate::controller::normalize_domain(&mut url);
+                                entries.insert(
+                                    Certificates::extract_domain_port(&url),
+                                    v["fingerprint"].to_string(),
+                                );
+                            }
+                        }
+                    }
+                } else {
+                    error!("known hosts file is malformed");
+                }
+            }
+            Err(e) => warn!("could not read known hosts file: {:?}", e),
         }
         Certificates { entries }
     }
@@ -61,60 +78,58 @@ impl Certificates {
         confdir
     }
 
-    // Checks if a certificate with a given url exists
-    pub fn exists(&self, host: String) -> bool {
-        self.entries.iter().any(|v| v.host == host)
-    }
+    /// Add or replace the fingerprint that would be used for the given
+    /// normalized URL.
+    pub fn insert(&mut self, url: &Url, fingerprint: String) {
+        let id = Certificates::extract_domain_port(url);
+        info!("Adding entry to known_hosts: {} = {}", id, fingerprint);
 
-    pub fn add(&mut self, entry: Certificate) {
-        info!("Adding entry to known_hosts: {:?}", entry);
-        self.entries.push(entry);
-        match self.write_known_hosts_to_file() {
+        self.entries.insert(id, fingerprint);
+        match self.write_to_file() {
             Err(why) => warn!("Could not write known_hosts to file: {}", why),
             Ok(()) => (),
         }
     }
 
-    pub fn remove(&mut self, host: String) {
-        info!("Removing entry from known_hosts: {:?}", host);
-        self.entries.retain(|e| e.host != host);
-        match self.write_known_hosts_to_file() {
-            Err(why) => warn!("Could not write known_hosts file: {}", why),
-            Ok(()) => (),
-        }
+    /// Retrieve the fingerprint that fits the domain of the given
+    /// normalized URL.
+    ///
+    /// Returns None if the URL does not have a domain or the
+    /// host has not been visited before.
+    pub fn get(&mut self, url: &Url) -> Option<String> {
+        let id = Certificates::extract_domain_port(url);
+        info!("Looking for fingerprint for {}", id);
+        self.entries.get(&id).cloned()
     }
 
-    pub fn fingerprint_by_host(&mut self, host: &str) -> Option<String> {
-        info!("Looking for fingerprint for host {}", host);
-        if let Some(pos) = self.entries.iter().position(|e| e.host == host) {
-            return Some(self.entries[pos].fingerprint.clone());
-        }
-        None
-    }
-
-    pub fn write_known_hosts_to_file(&mut self) -> std::io::Result<()> {
+    pub fn write_to_file(&mut self) -> std::io::Result<()> {
         let filename = Certificates::get_known_hosts_filename();
         info!("Saving known_hosts to file: {}", filename);
         // Create a path to the desired file
         let path = Path::new(&filename);
 
-        let mut file = match FsFile::create(&path) {
-            Err(why) => return Err(why),
-            Ok(file) => file,
-        };
+        let mut file = std::fs::File::create(&path)?;
 
-        if let Err(why) = file.write(b"# Automatically generated by ncgopher.\n") {
-            return Err(why);
-        };
-        for b in self.clone().entries {
-            if let Err(why) = file.write(b"\n[[certificate]]\n") {
-                return Err(why);
-            };
-            let item = toml::to_string(&b).unwrap();
-            if let Err(why) = file.write_all(item.as_bytes()) {
-                return Err(why);
-            };
-        }
+        file.write_all(b"# Automatically generated by ncgopher.\n")?;
+        file.write_all(
+            toml::to_string(&self)
+                .expect("known hosts could not be stored as TOML")
+                .as_bytes(),
+        )?;
         Ok(())
+    }
+
+    /// Reduce a URL to the relevant part for fingerprinting: There may be
+    /// different certificates for
+    /// * different IP adresses or (sub)domains
+    /// * different ports on the same (sub)domain
+    fn extract_domain_port(url: &Url) -> String {
+        let host = url.host_str().expect("gemini URL without host");
+        if let Some(port) = url.port() {
+            // assumes that URL has been normalized before
+            format!("{}:{}", host, port)
+        } else {
+            host.to_string()
+        }
     }
 }

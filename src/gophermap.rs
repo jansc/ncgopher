@@ -20,7 +20,7 @@ pub struct GopherMapEntry {
 impl GopherMapEntry {
     /// Parses a raw string into a GopherMapEntry
     pub fn parse(line: String) -> Result<Self, &'static str> {
-        let l: Vec<&str> = line.split_terminator('\t').collect();
+        let l = line.split_terminator('\t').collect::<Vec<_>>();
         // Sometimes there are empty lines in a gophermap.
         // Ignore these.
         if l.is_empty() {
@@ -46,11 +46,11 @@ impl GopherMapEntry {
         let selector = l[1].to_string();
         let host = l[2].to_string();
         // Parse port, ignore invalid values
-        let port = l[3].parse().unwrap_or_else(|_| 70);
+        let port = l[3].parse().unwrap_or(70);
         let mut path = selector.clone();
         path.insert(0, ch);
 
-        let mut url: Url = Url::parse("gopher://fixme:70").unwrap();
+        let mut url = Url::parse("gopher://fixme:70").unwrap();
         if item_type == ItemType::Telnet {
             // Telnet URLs have no selector
             url = Url::parse("telnet://fixme:70").unwrap();
@@ -251,7 +251,7 @@ impl ItemType {
     /// Returns the ItemType of an url. Defaults to gophermap (ItemType::Dir 1)
     pub fn from_url(url: &Url) -> ItemType {
         let path = url.path();
-        let mut item_type: ItemType = ItemType::Dir;
+        let mut item_type = ItemType::Dir;
         let mut chars = path.chars();
         if path.chars().count() > 2 && chars.next().unwrap() == '/' {
             item_type = ItemType::decode(chars.next().unwrap());

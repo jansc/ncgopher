@@ -1,6 +1,5 @@
 use chrono::{Duration, Local, Utc};
 use cursive::Cursive;
-use lazy_static::lazy_static;
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fs::File;
@@ -14,7 +13,7 @@ use std::thread;
 use url::Url;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
-use crate::certificates::{Certificate, Certificates};
+use crate::certificates::Certificates;
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
@@ -22,13 +21,6 @@ use crate::ncgopher::{NcGopher, UiMessage};
 use crate::SETTINGS;
 use native_tls::{Protocol, TlsConnector};
 use x509_parser::prelude::*;
-
-lazy_static! {
-    // Gobal to keep track of the latest request. When the user
-    // triggers several requests, only the last request will be
-    // displayed, the other will be canceled
-    static ref LAST_REQUEST_ID: Mutex<i64> = Mutex::new(0);
-}
 
 #[derive(Clone)]
 pub struct Controller {
@@ -47,12 +39,15 @@ pub struct Controller {
     content: Arc<Mutex<String>>,
     /// Current URL
     current_url: Arc<Mutex<Url>>,
+    /// When the user triggers several requests, only the last request
+    /// will be displayed, the other will be canceled.
+    last_request_id: Arc<Mutex<i64>>,
 }
 
 /// Defines messages sent between Controller and UI
 pub enum ControllerMessage {
     AddBookmark(Url, String, String),
-    AddCertificate(String, String),
+    AddCertificate(Url, String),
     AddToHistory(Url),
     BinaryWritten(String, usize),
     ClearHistory,
@@ -96,6 +91,7 @@ impl Controller {
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
+            last_request_id: Arc::new(Mutex::new(0)),
         };
         ncgopher.setup_ui();
         // Add old entries to history on start-up
@@ -134,19 +130,6 @@ impl Controller {
         Ok(controller)
     }
 
-    // Returns the host and port extracted from url
-    fn get_host_from_url(url: &Url) -> String {
-        let host = url.host().unwrap();
-        let scheme = url.scheme();
-
-        let port = url.port_or_known_default().unwrap_or_else(|| match scheme {
-            "gemini" => 1965,
-            "gopher" => 70,
-            _ => todo!("unknow port number for URL scheme {}", scheme),
-        });
-        format!("{}:{}", host, port)
-    }
-
     // Used for gemini downloads
     fn get_filename_from_url(&self, url: &Url) -> String {
         let download_path = SETTINGS
@@ -172,26 +155,25 @@ impl Controller {
         trace!("Controller::fetch_gemini_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
 
-        let request_id: i64;
-        {
-            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+        let request_id = {
+            let mut guard = self.last_request_id.lock().unwrap();
             *guard += 1;
-            request_id = *guard;
-        }
+            *guard
+        };
+        let request_id_ref = self.last_request_id.clone();
 
-        // fix domain encoding according to WHATWG spec to IDNA encoding
-        make_domain_idna(&mut url);
-
-        // Local copy of Url will be passed to thread
-        let gemini_url = url.clone();
+        normalize_domain(&mut url);
 
         let host = url.host_str().unwrap().to_string();
-        let server_details = Controller::get_host_from_url(&url);
+        // can only be a gemini URL, no need to check the scheme
+        let server_details = url
+            .socket_addrs(|| Some(1965))
+            .expect("could not understand URL")[0];
 
         let local_filename = self.get_filename_from_url(&url);
 
         // Get known certificate fingerprint for host
-        let fingerprint = self.certificates.lock().unwrap().fingerprint_by_host(&host);
+        let fingerprint = self.certificates.lock().unwrap().get(&url);
 
         thread::spawn(move || {
             let mut buf = String::new();
@@ -300,7 +282,10 @@ impl Controller {
                     None => {
                         // 1st time visit: add fingerprint
                         tx_clone
-                            .send(ControllerMessage::AddCertificate(host, cert_fingerprint))
+                            .send(ControllerMessage::AddCertificate(
+                                url.clone(),
+                                cert_fingerprint,
+                            ))
                             .unwrap()
                     }
                 }
@@ -363,7 +348,7 @@ impl Controller {
 
             {
                 // Abort request, if user triggered a newer request
-                let guard = LAST_REQUEST_ID.lock().unwrap();
+                let guard = request_id_ref.lock().unwrap();
                 if request_id < *guard {
                     return;
                 }
@@ -424,160 +409,160 @@ impl Controller {
             };
 
             match buf.chars().next() {
-                                Some('1') => {
-                                    // INPUT
-                                    match buf.chars().nth(1) {
-                                        Some('1') => {
-                                            tx_clone
-                                                .send(
-                                                    ControllerMessage::RequestGeminiQueryDialog(
-                                                        url, meta, true,
-                                                    ),
-                                                )
-                                                .unwrap();
-                                        }
-                                        other => {
-                                            if check(other) {
-                                                info!("Got query: {}", meta);
-                                                tx_clone
-                                                    .send(
-                                                        ControllerMessage::RequestGeminiQueryDialog(
-                                                            url, meta, false,
-                                                        ),
-                                                    )
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::RedrawHistory)
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('2') => {
-                                    // SUCCESS
-                                    // there are not yet any other status codes
-                                    // than 20 in this category
-                                    if check(buf.chars().nth(1)) {
-                                        // If mimetype is text/* download as gemini
-                                        // Otherwise initiate a binary download
-                                        // FIXME: for now assumes all text is gemini text
-                                        if meta.starts_with("text/") {
-                                            let mut buf = vec![];
-                                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "I/O error: {}",
-                                                        err
-                                                    )))
-                                                    .unwrap();
-                                                0
-                                            });
-                                            let s = String::from_utf8_lossy(&buf);
-                                            tx_clone
-                                                .send(ControllerMessage::SetGeminiContent(
-                                                    gemini_url.clone(),
-                                                    GeminiType::Gemini,
-                                                    s.to_string(),
-                                                    index,
-                                                ))
-                                                .unwrap();
-                                            if add_to_history {
-                                                tx_clone
-                                                    .send(ControllerMessage::AddToHistory(
-                                                        gemini_url.clone(),
-                                                    ))
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::RedrawHistory)
-                                                .unwrap();
-                                        } else {
-                                            // Binary download
-                                            let f = File::create(local_filename.clone()).unwrap_or_else(
-                                                |_| {
-                                                    panic!(
-                                                        "Unable to open file '{}'",
-                                                        local_filename.clone()
-                                                    )
-                                                }
-                                            );
-                                            let mut bw = BufWriter::new(f);
-                                            let mut buf = [0u8; 1024];
-                                            let mut total_written: usize = 0;
-                                            loop {
-                                                let bytes_read = bufr
-                                                    .read(&mut buf)
-                                                    .expect("Could not read from TCP");
-                                                if bytes_read == 0 {
-                                                    break;
-                                                }
-                                                let bytes_written = bw
-                                                    .write(&buf[..bytes_read])
-                                                    .expect("Could not write to file");
-                                                total_written += bytes_written;
-                                                tx_clone
-                                                    .send(ControllerMessage::ShowMessage(format!(
-                                                        "{} bytes read",
-                                                        total_written
-                                                    )))
-                                                    .unwrap();
-                                            }
-                                            tx_clone
-                                                .send(ControllerMessage::BinaryWritten(
-                                                    local_filename.clone(),
-                                                    total_written,
-                                                ))
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('3') => {
-                                    // REDIRECT
-                                    let other = buf.chars().nth(1);
-                                    if other == Some('1') {
-                                        // redirect is permanent
-                                        // TODO: Should automatically update bookmarks
-                                    } else if !check(other) {
-                                        return;
-                                    }
-                                    match Url::parse(&meta) {
-                                        Ok(url) => {
-                                            // FIXME: Try to parse url, check scheme
-                                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
-                                        }
-                                        Err(_) => {
-                                            tx_clone
-                                                .send(ControllerMessage::ShowMessage(format!(
-                                                    "invalid redirect url: {}",
-                                                    meta
-                                                )))
-                                                .unwrap();
-                                        }
-                                    }
-                                }
-                                Some('4') // FAILURE
-                                | Some('5') // PERMANENT FAILURE
-                                | Some('6') // CLIENT CERTIFICATE
-                                => {
-                                    if check(buf.chars().nth(1)) {
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(format!(
-                                                "Gemini error: {}",
-                                                buf
-                                            )))
-                                            .unwrap();
-                                    }
-                                }
-                                other => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(if other.is_some() {
-                                            format!("invalid header from server: invalid status code: {}", buf)
-                                        } else {
-                                            format!("invalid header from server: missing status code: {}", buf)
-                                        }))
-                                        .unwrap();
-                                }
+                Some('1') => {
+                    // INPUT
+                    match buf.chars().nth(1) {
+                        Some('1') => {
+                            tx_clone
+                                .send(
+                                    ControllerMessage::RequestGeminiQueryDialog(
+                                        url, meta, true,
+                                    ),
+                                )
+                                .unwrap();
+                        }
+                        other => {
+                            if check(other) {
+                                info!("Got query: {}", meta);
+                                tx_clone
+                                    .send(
+                                        ControllerMessage::RequestGeminiQueryDialog(
+                                            url, meta, false,
+                                        ),
+                                    )
+                                    .unwrap();
                             }
+                            tx_clone
+                                .send(ControllerMessage::RedrawHistory)
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('2') => {
+                    // SUCCESS
+                    // there are not yet any other status codes
+                    // than 20 in this category
+                    if check(buf.chars().nth(1)) {
+                        // If mimetype is text/* download as gemini
+                        // Otherwise initiate a binary download
+                        // FIXME: for now assumes all text is gemini text
+                        if meta.starts_with("text/") {
+                            let mut buf = vec![];
+                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(format!(
+                                        "I/O error: {}",
+                                        err
+                                    )))
+                                    .unwrap();
+                                0
+                            });
+                            let s = String::from_utf8_lossy(&buf);
+                            tx_clone
+                                .send(ControllerMessage::SetGeminiContent(
+                                    url.clone(),
+                                    GeminiType::Gemini,
+                                    s.to_string(),
+                                    index,
+                                ))
+                                .unwrap();
+                            if add_to_history {
+                                tx_clone
+                                    .send(ControllerMessage::AddToHistory(
+                                        url.clone(),
+                                    ))
+                                    .unwrap();
+                            }
+                            tx_clone
+                                .send(ControllerMessage::RedrawHistory)
+                                .unwrap();
+                        } else {
+                            // Binary download
+                            let f = File::create(local_filename.clone()).unwrap_or_else(
+                                |_| {
+                                    panic!(
+                                        "Unable to open file '{}'",
+                                        local_filename.clone()
+                                    )
+                                }
+                            );
+                            let mut bw = BufWriter::new(f);
+                            let mut buf = [0u8; 1024];
+                            let mut total_written = 0;
+                            loop {
+                                let bytes_read = bufr
+                                    .read(&mut buf)
+                                    .expect("Could not read from TCP");
+                                if bytes_read == 0 {
+                                    break;
+                                }
+                                let bytes_written = bw
+                                    .write(&buf[..bytes_read])
+                                    .expect("Could not write to file");
+                                total_written += bytes_written;
+                                tx_clone
+                                    .send(ControllerMessage::ShowMessage(format!(
+                                        "{} bytes read",
+                                        total_written
+                                    )))
+                                    .unwrap();
+                            }
+                            tx_clone
+                                .send(ControllerMessage::BinaryWritten(
+                                    local_filename.clone(),
+                                    total_written,
+                                ))
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('3') => {
+                    // REDIRECT
+                    let other = buf.chars().nth(1);
+                    if other == Some('1') {
+                        // redirect is permanent
+                        // TODO: Should automatically update bookmarks
+                    } else if !check(other) {
+                        return;
+                    }
+                    match Url::parse(&meta) {
+                        Ok(url) => {
+                            // FIXME: Try to parse url, check scheme
+                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
+                        }
+                        Err(_) => {
+                            tx_clone
+                                .send(ControllerMessage::ShowMessage(format!(
+                                    "invalid redirect url: {}",
+                                    meta
+                                )))
+                                .unwrap();
+                        }
+                    }
+                }
+                Some('4') // FAILURE
+                | Some('5') // PERMANENT FAILURE
+                | Some('6') // CLIENT CERTIFICATE
+                => {
+                    if check(buf.chars().nth(1)) {
+                        tx_clone
+                            .send(ControllerMessage::ShowMessage(format!(
+                                "Gemini error: {}",
+                                buf
+                            )))
+                            .unwrap();
+                    }
+                }
+                other => {
+                    tx_clone
+                        .send(ControllerMessage::ShowMessage(if other.is_some() {
+                            format!("invalid header from server: invalid status code: {}", buf)
+                        } else {
+                            format!("invalid header from server: missing status code: {}", buf)
+                        }))
+                        .unwrap();
+                }
+            }
             info!("finished reading from gemini stream");
         });
     }
@@ -586,25 +571,21 @@ impl Controller {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
         let tx_clone = self.tx.read().unwrap().clone();
-        let request_id: i64;
-        {
-            let mut guard = LAST_REQUEST_ID.lock().unwrap();
+        let request_id = {
+            let mut guard = self.last_request_id.lock().unwrap();
             *guard += 1;
-            request_id = *guard;
-        }
+            *guard
+        };
+        let request_id_ref = self.last_request_id.clone();
 
-        // Local copy of Url will be passed to thread
-        let gopher_url = url.clone();
-
-        let port = gopher_url.port().unwrap_or(70);
-        let server = gopher_url
+        let port = url.port().unwrap_or(70);
+        let server = url
             .host()
             .map_or("host.error".to_string(), |host| host.to_string());
-        let path = gopher_url.path();
+        let path = url.path();
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
-            //let x = path[0..1].to_string();
             // TODO: check x[0] == / and x[1] == itemtype
             path = path[2..].to_string();
         } else {
@@ -695,7 +676,7 @@ impl Controller {
                 };
             }
             {
-                let guard = LAST_REQUEST_ID.lock().unwrap();
+                let guard = request_id_ref.lock().unwrap();
                 if request_id < *guard {
                     return;
                 }
@@ -710,7 +691,7 @@ impl Controller {
             tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
             tx_clone
                 .send(ControllerMessage::SetContent(
-                    gopher_url.clone(),
+                    url.clone(),
                     s.to_string(),
                     item_type,
                     index,
@@ -722,17 +703,13 @@ impl Controller {
     fn fetch_binary_url(&self, url: Url, local_filename: String) {
         let tx_clone = self.tx.read().unwrap().clone();
 
-        // Local copy of Url will be passed to thread
-        let gopher_url = url;
-
-        let port = gopher_url.port().unwrap_or(70);
-        let server = gopher_url
+        let port = url.port().unwrap_or(70);
+        let server = url
             .host()
             .map_or("host.error".to_string(), |host| host.to_string());
-        let path = if gopher_url.path().len() > 2 {
-            //let x = path[0..1].to_string();
+        let path = if url.path().len() > 2 {
             // TODO: check x[0] == / and x[1] == itemtype
-            gopher_url.path()[2..].to_string()
+            url.path()[2..].to_string()
         } else {
             String::new()
         };
@@ -761,7 +738,7 @@ impl Controller {
                 .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename));
             let mut bw = BufWriter::new(f);
             let mut buf = [0u8; 1024];
-            let mut total_written: usize = 0;
+            let mut total_written = 0;
             if port != 70 {
                 if let Ok(connector) = TlsConnector::new() {
                     let stream = TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
@@ -829,31 +806,17 @@ impl Controller {
     }
 
     // TODO: Move from ncgopher.rs:
-    // fetch_binary_file
-    // open_gopher_url
     // open_gopher_address
 
     fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
-        let tags: Vec<String> = tags.as_str().split_whitespace().map(String::from).collect();
-        let b: Bookmark = Bookmark { title, url, tags };
+        let tags = tags.as_str().split_whitespace().map(String::from).collect();
+        let b = Bookmark { title, url, tags };
         // Check if bookmark exists
         if self.bookmarks.lock().unwrap().exists(b.clone().url) {
             self.bookmarks.lock().unwrap().remove(b.clone().url);
         }
         self.bookmarks.lock().unwrap().add(b.clone());
         b
-    }
-
-    fn add_certificate(&mut self, host: String, fingerprint: String) -> Certificate {
-        let c: Certificate = Certificate {
-            host: host.clone(),
-            fingerprint,
-        };
-        if self.certificates.lock().unwrap().exists(host.clone()) {
-            self.certificates.lock().unwrap().remove(host);
-        }
-        self.certificates.lock().unwrap().add(c.clone());
-        c
     }
 
     fn remove_bookmark(&mut self, b: Bookmark) {
@@ -873,7 +836,7 @@ impl Controller {
             guard.update_selected_item(i);
         }
         info!("add_to_history(): {}", url);
-        let h: HistoryEntry = HistoryEntry {
+        let h = HistoryEntry {
             title: url.clone().into_string(),
             url,
             timestamp: Local::now(),
@@ -943,11 +906,7 @@ impl Controller {
 
     /// Saves the current text file to disk
     fn save_textfile(&mut self, filename: String) {
-        let content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            content = guard.clone();
-        }
+        let content = self.content.lock().unwrap().clone();
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
         let path = Path::new(filename.as_str());
@@ -989,17 +948,12 @@ impl Controller {
     }
 
     fn save_gemini(&mut self, filename: String) {
-        let gemini_content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            gemini_content = guard.clone();
-        }
+        let gemini_content = self.content.lock().unwrap().clone();
         let tx_clone = self.tx.read().unwrap().clone();
-        let lines = gemini_content.lines();
-        let mut txtlines = Vec::<String>::new();
-        for l in lines {
-            txtlines.push(l.to_string());
-        }
+        let lines = gemini_content
+            .lines()
+            .map(str::to_string)
+            .collect::<Vec<String>>();
         info!("Save textfile: {}", filename);
 
         // Create a path to the desired file
@@ -1026,7 +980,7 @@ impl Controller {
         };
 
         // Read the file contents into a string, returns `io::Result<usize>`
-        for l in txtlines {
+        for l in lines {
             if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
                 tx_clone
                     .send(ControllerMessage::ShowMessage(format!(
@@ -1042,20 +996,10 @@ impl Controller {
 
     /// Save the current gophermap to disk
     fn save_gophermap(&mut self, filename: String) {
-        let content: String;
-        {
-            let guard = self.content.lock().unwrap();
-            content = guard.clone();
-        }
+        let content = self.content.lock().unwrap().clone();
         let tx_clone = self.tx.read().unwrap().clone();
-        let lines = content.lines();
-        let mut txtlines = Vec::<String>::new();
-        let mut first = true;
-        for l in lines {
-            if first {
-                first = false;
-                continue;
-            }
+        let mut txtlines = Vec::new();
+        for l in content.lines().skip(1) {
             if l != "." {
                 match GopherMapEntry::parse(l.to_string()) {
                     Ok(gl) => txtlines.push(gl.label().to_string()),
@@ -1121,8 +1065,11 @@ impl Controller {
                             .send(UiMessage::AddToBookmarkMenu(b))
                             .unwrap();
                     }
-                    ControllerMessage::AddCertificate(host, fingerprint) => {
-                        self.add_certificate(host, fingerprint);
+                    ControllerMessage::AddCertificate(url, fingerprint) => {
+                        self.certificates
+                            .lock()
+                            .expect("could not lock certificate store")
+                            .insert(&url, fingerprint);
                     }
                     ControllerMessage::AddToHistory(url) => {
                         let h = self.add_to_history(url);
@@ -1147,16 +1094,13 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::ReloadCurrentPage => {
-                        let current_url: Url;
-                        let mut index = 0;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                            let ui = self.ui.read().unwrap();
-                            if let Some(i) = ui.get_selected_item_index() {
-                                index = i;
-                            }
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
+                        let index = self
+                            .ui
+                            .read()
+                            .unwrap()
+                            .get_selected_item_index()
+                            .unwrap_or(0);
                         self.ui
                             .read()
                             .unwrap()
@@ -1171,17 +1115,12 @@ impl Controller {
                         self.remove_bookmark(bookmark);
                     }
                     ControllerMessage::RequestAddBookmarkDialog => {
-                        let current_url: Url;
-                        let bookmark: Bookmark;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                            bookmark = Bookmark {
-                                title: String::new(),
-                                url: current_url.clone(),
-                                tags: Vec::new(),
-                            };
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
+                        let bookmark = Bookmark {
+                            title: String::new(),
+                            url: current_url.clone(),
+                            tags: Vec::new(),
+                        };
                         self.ui
                             .read()
                             .unwrap()
@@ -1219,11 +1158,7 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestEditBookmarksDialog => {
-                        let v: Vec<Bookmark>;
-                        {
-                            let guard = self.bookmarks.lock().unwrap();
-                            v = guard.clone().entries;
-                        }
+                        let v = self.bookmarks.lock().unwrap().clone().entries;
                         self.ui
                             .read()
                             .unwrap()
@@ -1244,11 +1179,7 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestSaveAsDialog => {
-                        let current_url: Url;
-                        {
-                            let guard = self.current_url.lock().unwrap();
-                            current_url = guard.clone();
-                        }
+                        let current_url = self.current_url.lock().unwrap().clone();
                         self.ui
                             .read()
                             .unwrap()
@@ -1259,7 +1190,6 @@ impl Controller {
                             .unwrap();
                     }
                     ControllerMessage::RequestSettingsDialog => {
-                        //let settings = self.settings.read().unwrap();
                         self.ui
                             .read()
                             .unwrap()
@@ -1319,6 +1249,8 @@ impl Controller {
                             let mut guard = self.content.lock().unwrap();
                             guard.clear();
                             guard.push_str(content.as_str());
+                        }
+                        {
                             let mut guard = self.current_url.lock().unwrap();
                             *guard = url.clone();
                         }
@@ -1373,10 +1305,10 @@ impl Controller {
                         self.fetch_binary_url(url, local_path);
                     }
                     ControllerMessage::UpdateCertificateAndOpen(url, fingerprint) => {
-                        // TODO: Update certificate
-                        let host = Controller::get_host_from_url(&url);
-                        info!("Adding fingerprint for host {}: {}", host, fingerprint);
-                        self.add_certificate(host, fingerprint);
+                        self.certificates
+                            .lock()
+                            .expect("could not lock certificate store")
+                            .insert(&url, fingerprint);
                         self.ui
                             .read()
                             .unwrap()
@@ -1441,9 +1373,14 @@ impl Controller {
     }
 }
 
-fn make_domain_idna(u: &mut Url) {
+pub fn normalize_domain(u: &mut Url) {
     use idna::domain_to_ascii;
     use percent_encoding::percent_decode_str;
+
+    // remove default port number
+    if u.port() == Some(1965) {
+        u.set_port(None).expect("gemini URL without host");
+    }
 
     if let Some(domain) = u.domain() {
         // since the gemini scheme is not "special" according to the WHATWG spec

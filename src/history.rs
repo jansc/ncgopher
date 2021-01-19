@@ -1,5 +1,6 @@
 use chrono::{DateTime, Local};
 use rusqlite::{params, Connection, Result, NO_PARAMS};
+use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
 
@@ -41,16 +42,11 @@ impl History {
         })
     }
 
-    fn get_history_filename() -> String {
-        let confdir: String = match dirs::config_dir() {
-            Some(mut dir) => {
-                dir.push(env!("CARGO_PKG_NAME"));
-                dir.push("history.db");
-                dir.into_os_string().into_string().unwrap()
-            }
-            None => String::new(),
-        };
-        confdir
+    fn get_history_filename() -> PathBuf {
+        let mut dir = dirs::config_dir().expect("no configuration directory");
+        dir.push(env!("CARGO_PKG_NAME"));
+        dir.push("history.db");
+        dir
     }
 
     pub fn add(&mut self, entry: HistoryEntry) -> Result<()> {
@@ -93,11 +89,10 @@ impl History {
         // Removes the topmost entry from the history and returns it
         if self.stack.len() > 1 {
             self.stack.pop();
-            let item = self.stack.pop().unwrap();
-            self.stack.push(item.clone());
-            return Some(item);
+            Some(self.stack.last()?.clone())
+        } else {
+            None
         }
-        None
     }
 
     pub fn update_selected_item(&mut self, index: usize) {
@@ -123,7 +118,7 @@ impl History {
             )?;
         let mut rows = stmt.query(params![num_items as u32])?;
         while let Some(row) = rows.next()? {
-            let title: String = row.get(1)?;
+            let title = row.get(1)?;
             let entry = HistoryEntry {
                 title,
                 url: row.get(1)?,
