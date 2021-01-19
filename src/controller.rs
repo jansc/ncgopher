@@ -545,6 +545,14 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
+                        // reset content and set current URL for retrying
+                        tx_clone
+                            .send(ControllerMessage::SetGeminiContent(
+                                url,
+                                GeminiType::Text,
+                                String::new(),
+                                0,
+                            )).unwrap();
                         tx_clone
                             .send(ControllerMessage::ShowMessage(format!(
                                 "Gemini error: {}",
