@@ -111,6 +111,7 @@ impl Controller {
                 .unwrap()
                 .send(UiMessage::AddToHistoryMenu(entry))?;
         }
+        // Add bookmarks to bookmark menu on startup
         info!("Adding existing bookmarks to menu");
         let entries = controller.bookmarks.lock().unwrap().get_bookmarks();
         for entry in entries {
@@ -124,7 +125,7 @@ impl Controller {
                 .unwrap()
                 .send(UiMessage::AddToBookmarkMenu(entry))?;
         }
-        // Add bookmarks to bookmark menu on startup
+        // open initial page
         ncgopher.open_url(url, true, 0);
         info!("Controller::new() done");
         Ok(controller)

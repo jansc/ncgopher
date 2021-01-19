@@ -590,6 +590,7 @@ impl NcGopher {
                 index,
             ),
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "about" => self.open_about(url.clone()),
             "http" | "https" => {
                 self.controller_tx
                     .read()
@@ -605,6 +606,29 @@ impl NcGopher {
             .call_on_name("main", |v: &mut ui::layout::Layout| {
                 v.set_title(v.get_current_view(), human_readable_url(&url))
             });
+    }
+
+    /// Show an internal page from the "about" URL scheme
+    /// as defined in RFC 6694.
+    pub fn open_about(&mut self, mut url: Url) {
+        let content = match url.path() {
+            "blank" => String::new(),
+            "help" => include_str!("about/help.gmi").into(),
+            _ => {
+                url.set_path("error");
+                "This about page does not exist".into()
+            }
+        };
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::SetGeminiContent(
+                url,
+                GeminiType::Gemini,
+                content,
+                0,
+            ))
+            .unwrap();
     }
 
     pub fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
@@ -1343,7 +1367,7 @@ impl NcGopher {
 
         // Check that the Url has a scheme
         let mut url = String::from(name);
-        if !url.contains("://") {
+        if !url.contains(":") {
             url.insert_str(0, "gopher://");
         };
 
