@@ -58,7 +58,6 @@ pub enum UiMessage {
     ShowMessage(String),
     ShowURLDialog,
     ShowSaveAsDialog(Url),
-    ShowSearchDialog(Url),
     ShowSettingsDialog,
     Trigger,
 }
@@ -1110,61 +1109,6 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn show_search_dialog(&mut self, url: Url) {
-        let ui_tx_clone = self.ui_tx.read().unwrap().clone();
-        {
-            let mut app = self.app.write().unwrap();
-            let queryurl = url.clone();
-            app.add_layer(
-                Dialog::new()
-                    .title("Enter search term")
-                    .content(
-                        EditView::new()
-                            .on_submit(move |app, query| {
-                                app.pop_layer();
-                                let mut u = queryurl.clone();
-                                let mut path = u.path().to_string();
-                                path.push_str("%09");
-                                path.push_str(&query);
-                                u.set_path(path.as_str());
-                                info!("show_search_dialog(): url = {}", u);
-                                app.with_user_data(|userdata: &mut UserData| {
-                                    userdata
-                                        .ui_tx
-                                        .read()
-                                        .unwrap()
-                                        .send(UiMessage::OpenQueryUrl(u))
-                                        .unwrap()
-                                });
-                            })
-                            .with_name("search")
-                            .fixed_width(30),
-                    )
-                    .button("Cancel", move |app| {
-                        app.pop_layer();
-                    })
-                    .button("Ok", move |app| {
-                        let name =
-                            app.call_on_name("search", |view: &mut EditView| view.get_content());
-                        if let Some(n) = name {
-                            app.pop_layer();
-                            let mut u = url.clone();
-                            let mut path = u.path().to_string();
-                            path.push_str("%09");
-                            path.push_str(&n);
-                            u.set_path(path.as_str());
-                            info!("show_search_dialog(): url = {}", u);
-                            ui_tx_clone.send(UiMessage::OpenQueryUrl(u)).unwrap();
-                        } else {
-                            app.pop_layer(); // Close search dialog
-                            app.add_layer(Dialog::info("No search parameter!"))
-                        }
-                    }),
-            );
-        }
-        self.trigger();
-    }
-
     pub fn show_settings_dialog(&mut self) {
         let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
         let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
@@ -1926,9 +1870,6 @@ impl NcGopher {
                 }
                 UiMessage::ShowSaveAsDialog(url) => {
                     self.show_save_as_dialog(url);
-                }
-                UiMessage::ShowSearchDialog(url) => {
-                    self.show_search_dialog(url);
                 }
                 UiMessage::ShowSettingsDialog => {
                     self.show_settings_dialog();
