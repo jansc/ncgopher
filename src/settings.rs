@@ -72,9 +72,7 @@ impl Settings {
                 .set_default("download_path", dl_dir.to_str())?;
         }
 
-        settings
-            .config
-            .set_default("homepage", "gopher://jan.bio:70/1/ncgopher/")?;
+        settings.config.set_default("homepage", "about:help")?;
         settings.config.set_default("debug", false)?;
         settings.config.set_default("theme", "lightmode")?;
         settings.config.set_default("html_command", "")?;

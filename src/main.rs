@@ -105,7 +105,7 @@ fn main() {
                     .read()
                     .unwrap()
                     .get_str("homepage")
-                    .expect("Could not find homepage in config")
+                    .unwrap() // there is a default in Settings, so this will never fail
                     .as_str(),
             )
             .expect("Invalid URL for configured homepage")

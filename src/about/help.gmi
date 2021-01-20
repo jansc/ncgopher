@@ -26,6 +26,8 @@ Welcome to ncgopher, a ncurses client for gemini and gopher. You can use the fol
 # What is this?
 ncgopher is a browser for the gemini and the gopher protocols, sometimes also collectively known as the "small internet".
 
+=> about:sites See some pages to start of from.
+
 ## Gopher
 Gopher was deveolped in 1991 at the University of Minnesota, and named after the school's mascot. Gopher is a menu-driven interface that allows a user to browse for text information served off of various gopher servers.
 => gopher://gopherpedia.com:70/1/about some information about gopher (and gopherpedia) at gopherpedia, a Wikipedia mirror for the gohper protocol
@@ -36,6 +38,7 @@ Gemini is a new application-level internet protocol for the distribution of arbi
 And actually, the document you are seeing here is written in Gemini's text format. You can take a look at this page in the sources in src/about/help.gmi !
 
 ## What do you mean "sources"?
-ncgopher is free (libre) and open source software licensed under the "2-clause BSD" or "FreeBSD" license. The FreeBSD license is classified by the Free Software Foundation as a "free software license". The source code is versioned in a git repository available through GitHub. It is written in the Rust programming language.
+ncgopher is free (libre) and open source software licensed under the "2-clause BSD" or "FreeBSD" license.  It is written in the Rust programming language. The source code is versioned in a git repository available through GitHub:
 => https://github.com/jansc/ncgopher
-Copyright © 2020, Jan Schreiber. Parts of the status bar implementation are Copyright © 2019, Henrik Friedrichsen.
+If you have any issues or feel something important is missing, you can raise that as an issue there. Or feel free to contribute there as well!
+Copyright © 2020, Jan Schreiber <jan@mecinus.com>. Parts of the status bar implementation are Copyright © 2019, Henrik Friedrichsen.

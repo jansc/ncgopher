@@ -454,111 +454,22 @@ impl NcGopher {
                 .delimiter(),
         );
         menubar.add_subtree(
-            "Search",
-            MenuTree::new()
-                .leaf("Veronica/2...", |app| {
-                    let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("Gopherpedia...", |app| {
-                    let url = Url::parse("gopher://gopherpedia.com:70/7/lookup").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("Gopher Movie Database...", |app| {
-                    let url = Url::parse("gopher://jan.bio:70/7/cgi-bin/gmdb.py").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("OpenBSD man pages...", |app| {
-                    let url = Url::parse("gopher://perso.pw:70/7/man.dcgi").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("searx search...", |app| {
-                    let url = Url::parse("gopher://me0w.net:70/7/searx.dcgi").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("[gemini] GUS...", |app| {
-                    let url = Url::parse("gemini://gus.guru/search").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(
-                                url,
-                                "Enter query".to_string(),
-                                false,
-                            ))
-                            .unwrap()
-                    });
-                })
-                .leaf("[gemini] Houston...", |app| {
-                    let url = Url::parse("gemini://houston.coder.town/search").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(
-                                url,
-                                "Enter query".to_string(),
-                                false,
-                            ))
-                            .unwrap()
-                    });
-                }),
-        );
-        menubar.add_subtree(
             "Help",
             MenuTree::new()
                 .subtree(
                     "Help",
                     MenuTree::new()
-                        .leaf("General", |s| {
+                        .leaf("Keys", |s| {
                             s.add_layer(Dialog::info(include_str!("help.txt")))
                         })
-                        .leaf("Online", |app| {
+                        .leaf("Extended", |app| {
                             app.with_user_data(|userdata: &mut UserData| {
                                 userdata
                                     .ui_tx
                                     .write()
                                     .unwrap()
                                     .send(UiMessage::OpenUrl(
-                                        Url::parse("gopher://jan.bio/1/ncgopher/").unwrap(),
+                                        Url::parse("about:help").unwrap(),
                                         false,
                                         0,
                                     ))
@@ -623,8 +534,10 @@ impl NcGopher {
         let content = match url.path() {
             "blank" => String::new(),
             "help" => include_str!("about/help.gmi").into(),
+            "sites" => include_str!("about/sites.gmi").into(),
+            "error" => "An error occured.".into(),
             _ => {
-                url.set_path("error");
+                url.set_path("blank");
                 "This about page does not exist".into()
             }
         };
