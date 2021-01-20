@@ -1228,16 +1228,10 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn open_url_action(app: &mut Cursive, name: &str) {
+    fn open_url_action(app: &mut Cursive, url: &str) {
         app.pop_layer();
 
-        // Check that the Url has a scheme
-        let mut url = String::from(name);
-        if !url.contains(":") {
-            url.insert_str(0, "gopher://");
-        };
-
-        match Url::parse(&url) {
+        match Url::parse(url) {
             Ok(url) => app.with_user_data(|userdata: &mut UserData| {
                 userdata
                     .ui_tx
