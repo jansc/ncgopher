@@ -609,6 +609,17 @@ impl NcGopher {
     /// Show an internal page from the "about" URL scheme
     /// as defined in RFC 6694.
     pub fn open_about(&mut self, mut url: Url) {
+        // FIXME if the first page is an about page, ncgopher will crash if we
+        // do not set a message and select the gemini_content view here because
+        // the gemini_content view will not be correctly resized when we get to
+        // putting in the content, probably because reading from memory is faster
+        // than a network request?
+        self.set_message("Preparing internal page...");
+        let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
+
         let content = match url.path() {
             "blank" => String::new(),
             "help" => include_str!("about/help.gmi").into(),
