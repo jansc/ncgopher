@@ -5,10 +5,19 @@
   - Setting for automatic text wrapping of gemini content
   - Unknown success status codes are now handled gracefully, displaying any content.
   - Full text/gemini support
+  - `about` scheme and internal help pages
+  - current URL is displayed at the top
 
   Bugfixes:
   - Use download path from setting for downloading files
-  - Fix error 59 "invalid url" from gemini://drewdevault.com, SNI is enabled
+  - Fix Gemini error 59 "invalid url" from gemini://drewdevault.com, SNI is enabled
+  - correctly handle international domain names for Gemini
+  - actually update certificate fingerprints for Gemini
+  - correctly set the current URL when a Gemini request fails so the r key can be
+    used for retrying
+
+  Changes:
+  - Search menu items removed in favour of internal help pages
 
 ** 0.1.5
   New features:
