@@ -90,7 +90,7 @@ impl Controller {
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
-            current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
+            current_url: Arc::new(Mutex::new(Url::parse("about:blank").unwrap())),
             last_request_id: Arc::new(Mutex::new(0)),
         };
         ncgopher.setup_ui();
