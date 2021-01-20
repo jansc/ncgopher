@@ -473,10 +473,10 @@ impl Controller {
                                         url.clone(),
                                     ))
                                     .unwrap();
+                                tx_clone
+                                    .send(ControllerMessage::RedrawHistory)
+                                    .unwrap();
                             }
-                            tx_clone
-                                .send(ControllerMessage::RedrawHistory)
-                                .unwrap();
                         } else {
                             // Binary download
                             let f = File::create(local_filename.clone()).unwrap_or_else(

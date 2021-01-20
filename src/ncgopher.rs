@@ -92,7 +92,6 @@ pub struct NcGopher {
     pub controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
-    is_running: bool,
 }
 
 impl Drop for NcGopher {
@@ -110,13 +109,16 @@ impl NcGopher {
             ui_rx: Arc::new(ui_rx),
             controller_tx: Arc::new(RwLock::new(controller_tx)),
             message: Arc::new(RwLock::new(String::new())),
-            is_running: true,
         };
         // Make channels available from callbacks
         let userdata = UserData::new(ncgopher.ui_tx.clone(), ncgopher.controller_tx.clone());
         ncgopher.app.write().unwrap().set_user_data(userdata);
 
         ncgopher
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.app.read().unwrap().is_running()
     }
 
     /// Used by statusbar to get current message
@@ -141,11 +143,7 @@ impl NcGopher {
         app.set_autohide_menu(false);
 
         // TODO: Make keys configurable
-        app.add_global_callback('q', |app| {
-            app.with_user_data(|userdata: &mut UserData| {
-                userdata.ui_tx.read().unwrap().send(UiMessage::Quit)
-            });
-        });
+        app.add_global_callback('q', Cursive::quit);
         app.add_global_callback('g', |app| {
             app.with_user_data(|userdata: &mut UserData| {
                 userdata
@@ -1920,7 +1918,7 @@ impl NcGopher {
     /// processing any UI messages.
     pub fn step(&mut self) -> bool {
         {
-            if !self.is_running {
+            if !self.is_running() {
                 return false;
             }
         }
@@ -1991,7 +1989,7 @@ impl NcGopher {
                     self.open_url(url, add_to_history, index);
                 }
                 // Exit the event loop
-                UiMessage::Quit => self.is_running = false,
+                UiMessage::Quit => self.app.write().unwrap().quit(),
                 UiMessage::ShowEditBookmarksDialog(bookmarks) => {
                     self.show_edit_bookmarks_dialog(bookmarks)
                 }
