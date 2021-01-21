@@ -58,7 +58,6 @@ pub enum UiMessage {
     ShowMessage(String),
     ShowURLDialog,
     ShowSaveAsDialog(Url),
-    ShowSearchDialog(Url),
     ShowSettingsDialog,
     Trigger,
 }
@@ -92,7 +91,6 @@ pub struct NcGopher {
     pub controller_tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
-    is_running: bool,
 }
 
 impl Drop for NcGopher {
@@ -110,13 +108,16 @@ impl NcGopher {
             ui_rx: Arc::new(ui_rx),
             controller_tx: Arc::new(RwLock::new(controller_tx)),
             message: Arc::new(RwLock::new(String::new())),
-            is_running: true,
         };
         // Make channels available from callbacks
         let userdata = UserData::new(ncgopher.ui_tx.clone(), ncgopher.controller_tx.clone());
         ncgopher.app.write().unwrap().set_user_data(userdata);
 
         ncgopher
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.app.read().unwrap().is_running()
     }
 
     /// Used by statusbar to get current message
@@ -141,11 +142,7 @@ impl NcGopher {
         app.set_autohide_menu(false);
 
         // TODO: Make keys configurable
-        app.add_global_callback('q', |app| {
-            app.with_user_data(|userdata: &mut UserData| {
-                userdata.ui_tx.read().unwrap().send(UiMessage::Quit)
-            });
-        });
+        app.add_global_callback('q', Cursive::quit);
         app.add_global_callback('g', |app| {
             app.with_user_data(|userdata: &mut UserData| {
                 userdata
@@ -456,111 +453,22 @@ impl NcGopher {
                 .delimiter(),
         );
         menubar.add_subtree(
-            "Search",
-            MenuTree::new()
-                .leaf("Veronica/2...", |app| {
-                    let url = Url::parse("gopher://gopher.floodgap.com:70/7/v2/vs").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("Gopherpedia...", |app| {
-                    let url = Url::parse("gopher://gopherpedia.com:70/7/lookup").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("Gopher Movie Database...", |app| {
-                    let url = Url::parse("gopher://jan.bio:70/7/cgi-bin/gmdb.py").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("OpenBSD man pages...", |app| {
-                    let url = Url::parse("gopher://perso.pw:70/7/man.dcgi").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("searx search...", |app| {
-                    let url = Url::parse("gopher://me0w.net:70/7/searx.dcgi").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSearchDialog(url))
-                            .unwrap()
-                    });
-                })
-                .leaf("[gemini] GUS...", |app| {
-                    let url = Url::parse("gemini://gus.guru/search").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(
-                                url,
-                                "Enter query".to_string(),
-                                false,
-                            ))
-                            .unwrap()
-                    });
-                })
-                .leaf("[gemini] Houston...", |app| {
-                    let url = Url::parse("gemini://houston.coder.town/search").unwrap();
-                    app.with_user_data(|userdata: &mut UserData| {
-                        userdata
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(
-                                url,
-                                "Enter query".to_string(),
-                                false,
-                            ))
-                            .unwrap()
-                    });
-                }),
-        );
-        menubar.add_subtree(
             "Help",
             MenuTree::new()
                 .subtree(
                     "Help",
                     MenuTree::new()
-                        .leaf("General", |s| {
+                        .leaf("Keys", |s| {
                             s.add_layer(Dialog::info(include_str!("help.txt")))
                         })
-                        .leaf("Online", |app| {
+                        .leaf("Extended", |app| {
                             app.with_user_data(|userdata: &mut UserData| {
                                 userdata
                                     .ui_tx
                                     .write()
                                     .unwrap()
                                     .send(UiMessage::OpenUrl(
-                                        Url::parse("gopher://jan.bio/1/ncgopher/").unwrap(),
+                                        Url::parse("about:help").unwrap(),
                                         false,
                                         0,
                                     ))
@@ -590,6 +498,7 @@ impl NcGopher {
                 index,
             ),
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "about" => self.open_about(url.clone()),
             "http" | "https" => {
                 self.controller_tx
                     .read()
@@ -605,6 +514,42 @@ impl NcGopher {
             .call_on_name("main", |v: &mut ui::layout::Layout| {
                 v.set_title(v.get_current_view(), human_readable_url(&url))
             });
+    }
+
+    /// Show an internal page from the "about" URL scheme
+    /// as defined in RFC 6694.
+    pub fn open_about(&mut self, mut url: Url) {
+        // FIXME if the first page is an about page, ncgopher will crash if we
+        // do not set a message and select the gemini_content view here because
+        // the gemini_content view will not be correctly resized when we get to
+        // putting in the content, probably because reading from memory is faster
+        // than a network request?
+        self.set_message("Preparing internal page...");
+        let mut app = self.app.write().unwrap();
+        app.call_on_name("main", |v: &mut ui::layout::Layout| {
+            v.set_view("gemini_content");
+        });
+
+        let content = match url.path() {
+            "blank" => String::new(),
+            "help" => include_str!("about/help.gmi").into(),
+            "sites" => include_str!("about/sites.gmi").into(),
+            "error" => "An error occured.".into(),
+            _ => {
+                url.set_path("blank");
+                "This about page does not exist".into()
+            }
+        };
+        self.controller_tx
+            .read()
+            .unwrap()
+            .send(ControllerMessage::SetGeminiContent(
+                url,
+                GeminiType::Gemini,
+                content,
+                0,
+            ))
+            .unwrap();
     }
 
     pub fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
@@ -1164,61 +1109,6 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn show_search_dialog(&mut self, url: Url) {
-        let ui_tx_clone = self.ui_tx.read().unwrap().clone();
-        {
-            let mut app = self.app.write().unwrap();
-            let queryurl = url.clone();
-            app.add_layer(
-                Dialog::new()
-                    .title("Enter search term")
-                    .content(
-                        EditView::new()
-                            .on_submit(move |app, query| {
-                                app.pop_layer();
-                                let mut u = queryurl.clone();
-                                let mut path = u.path().to_string();
-                                path.push_str("%09");
-                                path.push_str(&query);
-                                u.set_path(path.as_str());
-                                info!("show_search_dialog(): url = {}", u);
-                                app.with_user_data(|userdata: &mut UserData| {
-                                    userdata
-                                        .ui_tx
-                                        .read()
-                                        .unwrap()
-                                        .send(UiMessage::OpenQueryUrl(u))
-                                        .unwrap()
-                                });
-                            })
-                            .with_name("search")
-                            .fixed_width(30),
-                    )
-                    .button("Cancel", move |app| {
-                        app.pop_layer();
-                    })
-                    .button("Ok", move |app| {
-                        let name =
-                            app.call_on_name("search", |view: &mut EditView| view.get_content());
-                        if let Some(n) = name {
-                            app.pop_layer();
-                            let mut u = url.clone();
-                            let mut path = u.path().to_string();
-                            path.push_str("%09");
-                            path.push_str(&n);
-                            u.set_path(path.as_str());
-                            info!("show_search_dialog(): url = {}", u);
-                            ui_tx_clone.send(UiMessage::OpenQueryUrl(u)).unwrap();
-                        } else {
-                            app.pop_layer(); // Close search dialog
-                            app.add_layer(Dialog::info("No search parameter!"))
-                        }
-                    }),
-            );
-        }
-        self.trigger();
-    }
-
     pub fn show_settings_dialog(&mut self) {
         let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
         let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
@@ -1338,16 +1228,10 @@ impl NcGopher {
         self.trigger();
     }
 
-    fn open_url_action(app: &mut Cursive, name: &str) {
+    fn open_url_action(app: &mut Cursive, url: &str) {
         app.pop_layer();
 
-        // Check that the Url has a scheme
-        let mut url = String::from(name);
-        if !url.contains("://") {
-            url.insert_str(0, "gopher://");
-        };
-
-        match Url::parse(&url) {
+        match Url::parse(url) {
             Ok(url) => app.with_user_data(|userdata: &mut UserData| {
                 userdata
                     .ui_tx
@@ -1896,7 +1780,7 @@ impl NcGopher {
     /// processing any UI messages.
     pub fn step(&mut self) -> bool {
         {
-            if !self.is_running {
+            if !self.is_running() {
                 return false;
             }
         }
@@ -1967,7 +1851,7 @@ impl NcGopher {
                     self.open_url(url, add_to_history, index);
                 }
                 // Exit the event loop
-                UiMessage::Quit => self.is_running = false,
+                UiMessage::Quit => self.app.write().unwrap().quit(),
                 UiMessage::ShowEditBookmarksDialog(bookmarks) => {
                     self.show_edit_bookmarks_dialog(bookmarks)
                 }
@@ -1980,9 +1864,6 @@ impl NcGopher {
                 }
                 UiMessage::ShowSaveAsDialog(url) => {
                     self.show_save_as_dialog(url);
-                }
-                UiMessage::ShowSearchDialog(url) => {
-                    self.show_search_dialog(url);
                 }
                 UiMessage::ShowSettingsDialog => {
                     self.show_settings_dialog();

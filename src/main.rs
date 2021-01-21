@@ -105,7 +105,7 @@ fn main() {
                     .read()
                     .unwrap()
                     .get_str("homepage")
-                    .expect("Could not find homepage in config")
+                    .unwrap() // there is a default in Settings, so this will never fail
                     .as_str(),
             )
             .expect("Invalid URL for configured homepage")
@@ -128,11 +128,9 @@ fn main() {
     let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme))
         .unwrap();
-    let controller = Controller::new(app, homepage);
-    match controller {
-        Ok(mut controller) => controller.run(),
-        Err(e) => println!("Error: {}", e),
-    };
+    Controller::new(app, homepage)
+        .expect("could not create controller")
+        .run();
     print!("\x1B[?1002l");
     stdout().flush().expect("could not flush stdout");
     pancurses::endwin();

@@ -28,9 +28,9 @@ impl GopherMapEntry {
                 item_type: ItemType::Inline,
                 name: "".to_string(),
                 selector: "/".to_string(),
-                host: "fixme".to_string(),
+                host: "about:blank".to_string(),
                 port: 70,
-                url: Url::parse("gopher://fixme:70").unwrap(),
+                url: Url::parse("about:blank").unwrap(),
             });
         }
         if l.len() <= 3 {
@@ -42,7 +42,7 @@ impl GopherMapEntry {
         }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
-        let name = l[0][1..].to_string();
+        let name = l[0][ch.len_utf8()..].to_string();
         let selector = l[1].to_string();
         let host = l[2].to_string();
         // Parse port, ignore invalid values
@@ -50,10 +50,10 @@ impl GopherMapEntry {
         let mut path = selector.clone();
         path.insert(0, ch);
 
-        let mut url = Url::parse("gopher://fixme:70").unwrap();
+        let mut url = Url::parse("gopher://example.com").unwrap();
         if item_type == ItemType::Telnet {
             // Telnet URLs have no selector
-            url = Url::parse("telnet://fixme:70").unwrap();
+            url.set_scheme("telnet").unwrap();
             if !host.is_empty() {
                 url.set_host(Some(host.as_str())).unwrap();
             }

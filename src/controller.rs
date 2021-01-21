@@ -90,7 +90,7 @@ impl Controller {
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
-            current_url: Arc::new(Mutex::new(Url::parse("gopher://host.none").unwrap())),
+            current_url: Arc::new(Mutex::new(Url::parse("about:blank").unwrap())),
             last_request_id: Arc::new(Mutex::new(0)),
         };
         ncgopher.setup_ui();
@@ -111,6 +111,7 @@ impl Controller {
                 .unwrap()
                 .send(UiMessage::AddToHistoryMenu(entry))?;
         }
+        // Add bookmarks to bookmark menu on startup
         info!("Adding existing bookmarks to menu");
         let entries = controller.bookmarks.lock().unwrap().get_bookmarks();
         for entry in entries {
@@ -124,7 +125,7 @@ impl Controller {
                 .unwrap()
                 .send(UiMessage::AddToBookmarkMenu(entry))?;
         }
-        // Add bookmarks to bookmark menu on startup
+        // open initial page
         ncgopher.open_url(url, true, 0);
         info!("Controller::new() done");
         Ok(controller)
@@ -472,10 +473,10 @@ impl Controller {
                                         url.clone(),
                                     ))
                                     .unwrap();
+                                tx_clone
+                                    .send(ControllerMessage::RedrawHistory)
+                                    .unwrap();
                             }
-                            tx_clone
-                                .send(ControllerMessage::RedrawHistory)
-                                .unwrap();
                         } else {
                             // Binary download
                             let f = File::create(local_filename.clone()).unwrap_or_else(
@@ -545,6 +546,14 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
+                        // reset content and set current URL for retrying
+                        tx_clone
+                            .send(ControllerMessage::SetGeminiContent(
+                                url,
+                                GeminiType::Text,
+                                String::new(),
+                                0,
+                            )).unwrap();
                         tx_clone
                             .send(ControllerMessage::ShowMessage(format!(
                                 "Gemini error: {}",
