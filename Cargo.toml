@@ -17,6 +17,7 @@ exclude = ["screenshots/**"]
 repository = "jansc/ncgopher"
 
 [dependencies]
+backtrace = "0.3"
 unicode-width = "0.1.8"
 url = "2.2"
 chrono = "0.4.19"

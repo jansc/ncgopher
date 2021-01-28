@@ -1,3 +1,4 @@
+extern crate backtrace;
 extern crate clap;
 #[macro_use]
 extern crate log;
@@ -128,7 +129,7 @@ fn main() {
     // set new hook overwriting default hook
     std::panic::set_hook(Box::new(move |info| {
         // print to log file
-        error!("{}", info);
+        error!("{}\n{:?}", info, backtrace::Backtrace::new());
         // run default hook to print to stdout
         default_hook(info);
     }));
