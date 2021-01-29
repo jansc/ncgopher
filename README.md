@@ -108,11 +108,16 @@ pressing `SHIFT`.
 The software is still in beta, and it is also my first application
 written in Rust. Expect lots of bugs and badly written Rust code.
 
-If the application crashes, I'd be interested in a backtrace and/or a log file.
-Start the application with `RUST_BACKTRACE=1 cargo run -d error.log`.
+If the application crashes, I'd be interested in a log file.
+To produce one, please rerun the program with the command line flag `-d` and a
+file name to store the log in, for example "error.log".
+It should look something like this: `ncgopher -d error.log`
 This will append log messages to `error.log` (the file will be created if it
-does not exist) and output a backtrace when the program crashes.
+does not exist).
 With this, try to reproduce the bug and take note of the backtrace output.
+
+If you know how to do that and you installed the source, you can run the
+program with `RUST_BACKTRACE` to get a backtrace too.
 
 ## License
 

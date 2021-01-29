@@ -1,3 +1,4 @@
+extern crate backtrace;
 extern crate clap;
 #[macro_use]
 extern crate log;
@@ -122,6 +123,16 @@ fn main() {
         info!("new program run");
         eprintln!("logging into file {}", log_file);
     }
+
+    // get default hook that prints to stdout
+    let default_hook = std::panic::take_hook();
+    // set new hook overwriting default hook
+    std::panic::set_hook(Box::new(move |info| {
+        // print to log file
+        error!("{}\n{:?}", info, backtrace::Backtrace::new());
+        // run default hook to print to stdout
+        default_hook(info);
+    }));
 
     let mut app = Cursive::default();
     //app.set_theme(SETTINGS.read().unwrap().get_theme());
