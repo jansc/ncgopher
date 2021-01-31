@@ -526,7 +526,8 @@ impl Controller {
                     } else if !check(other) {
                         return;
                     }
-                    match Url::parse(&meta) {
+                    // redirect might be relative
+                    match url.join(&meta) {
                         Ok(url) => {
                             // FIXME: Try to parse url, check scheme
                             tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
