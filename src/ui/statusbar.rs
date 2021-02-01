@@ -1,21 +1,24 @@
-use crate::ncgopher::NcGopher;
 use cursive::theme::ColorStyle;
 use cursive::traits::View;
 use cursive::vec::Vec2;
 use cursive::Printer;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub struct StatusBar {
     last_size: Vec2,
-    ui: Arc<NcGopher>,
+    message: Arc<RwLock<String>>,
 }
 
 impl StatusBar {
-    pub fn new(ui: Arc<NcGopher>) -> StatusBar {
+    pub fn new() -> StatusBar {
         StatusBar {
             last_size: Vec2::new(0, 0),
-            ui,
+            message: Arc::new(RwLock::new(String::new())),
         }
+    }
+
+    pub fn get_message(&self) -> Arc<RwLock<String>> {
+        self.message.clone()
     }
 }
 
@@ -25,7 +28,7 @@ impl View for StatusBar {
             warn!("status bar height is zero");
             return;
         }
-        let msg = self.ui.get_message();
+        let msg = self.message.read().unwrap();
         printer.with_color(ColorStyle::highlight_inactive(), |printer| {
             // clear line
             printer.print_hline((0, 0), printer.size.x, " ");

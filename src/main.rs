@@ -16,8 +16,6 @@ extern crate x509_parser;
 
 use clap::{App, Arg};
 use controller::Controller;
-use cursive::Cursive;
-use cursive::CursiveExt;
 use lazy_static::lazy_static;
 use settings::Settings;
 use std::fs::File;
@@ -31,9 +29,9 @@ mod controller;
 mod gemini;
 mod gophermap;
 mod history;
-mod ncgopher;
 mod settings;
 mod ui;
+mod url_tools;
 
 lazy_static! {
     static ref SETTINGS: RwLock<Settings> =
@@ -134,14 +132,13 @@ fn main() {
         default_hook(info);
     }));
 
-    let mut app = Cursive::default();
+    let mut app = cursive::default();
     //app.set_theme(SETTINGS.read().unwrap().get_theme());
     let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme))
         .unwrap();
-    Controller::new(app, homepage)
-        .expect("could not create controller")
-        .run();
+    Controller::new(&mut app, homepage).expect("could not create controller");
+    app.run();
     print!("\x1B[?1002l");
     stdout().flush().expect("could not flush stdout");
     pancurses::endwin();

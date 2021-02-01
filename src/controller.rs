@@ -1,160 +1,127 @@
 use chrono::{Duration, Local, Utc};
-use cursive::Cursive;
+use cursive::{
+    utils::{lines::simple::LinesIterator, markup::StyledString},
+    view::{Nameable, Resizable},
+    views::{Dialog, EditView, ResizedView, ScrollView, SelectView},
+    Cursive, CursiveRunnable,
+};
+use native_tls::{Protocol, TlsConnector};
 use sha2::{Digest, Sha256};
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::TcpStream;
 use std::path::Path;
 use std::process::Command;
-use std::sync::mpsc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use url::Url;
+use x509_parser::prelude::*;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::Certificates;
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
-use crate::ncgopher::{NcGopher, UiMessage};
+use crate::ui::layout::Layout;
+use crate::url_tools::{download_filename_from_url, human_readable_url, normalize_domain};
 use crate::SETTINGS;
-use native_tls::{Protocol, TlsConnector};
-use x509_parser::prelude::*;
+
+#[derive(Clone, Debug)]
+pub enum Direction {
+    Next,
+    Previous,
+}
+
+const HISTORY_LEN: usize = 10;
 
 #[derive(Clone)]
 pub struct Controller {
-    /// Message channel for communication with the UI
-    rx: Arc<mpsc::Receiver<ControllerMessage>>,
-    tx: Arc<RwLock<mpsc::Sender<ControllerMessage>>>,
-    /// The UI
-    ui: Arc<RwLock<NcGopher>>,
+    sender: crossbeam_channel::Sender<Box<dyn FnOnce(&mut Cursive) + 'static + Send>>,
     /// The browsing history
-    history: Arc<Mutex<History>>,
+    pub(crate) history: Arc<Mutex<History>>,
     /// Bookmarks
-    bookmarks: Arc<Mutex<Bookmarks>>,
+    pub(crate) bookmarks: Arc<Mutex<Bookmarks>>,
     /// Known hosts for gemini TOFU
     certificates: Arc<Mutex<Certificates>>,
     /// Current textual content
     content: Arc<Mutex<String>>,
     /// Current URL
-    current_url: Arc<Mutex<Url>>,
+    pub current_url: Arc<Mutex<Url>>,
     /// When the user triggers several requests, only the last request
     /// will be displayed, the other will be canceled.
     last_request_id: Arc<Mutex<i64>>,
-}
-
-/// Defines messages sent between Controller and UI
-pub enum ControllerMessage {
-    AddBookmark(Url, String, String),
-    AddCertificate(Url, String),
-    AddToHistory(Url),
-    BinaryWritten(String, usize),
-    ClearHistory,
-    NavigateBack,
-    OpenImage(Url),
-    OpenHtml(Url),
-    OpenTelnet(Url),
-    ReloadCurrentPage,
-    RemoveBookmark(Bookmark),
-    RequestAddBookmarkDialog,
-    RequestCertificateChangedDialog(Url, String),
-    RequestEditHistoryDialog,
-    RequestEditBookmarksDialog,
-    RequestGeminiQueryDialog(Url, String, bool),
-    RequestSaveAsDialog,
-    RequestSettingsDialog,
-    SavePageAs(String),
-    SetContent(Url, String, ItemType, usize),
-    SetGeminiContent(Url, GeminiType, String, usize),
-    ShowMessage(String),
-    UpdateCertificateAndOpen(Url, String),
-    RedrawBookmarks,
-    RedrawHistory,
-    FetchGeminiUrl(Url, bool, usize),
-    FetchUrl(Url, ItemType, bool, usize),
-    FetchBinaryUrl(Url, String),
+    /// Message shown in statusbar
+    message: Arc<RwLock<String>>,
 }
 
 impl Controller {
     /// Create a new controller (created in main.rs)
-    pub fn new(app: Cursive, url: Url) -> Result<Controller, Box<dyn Error>> {
-        let (tx, rx) = mpsc::channel::<ControllerMessage>();
-        let mut ncgopher = NcGopher::new(app, tx.clone());
+    pub fn new(app: &mut CursiveRunnable, url: Url) -> Result<(), Box<dyn Error>> {
+        crate::ui::setup::setup(app);
 
-        let controller = Controller {
-            rx: Arc::new(rx),
-            tx: Arc::new(RwLock::new(tx)),
-            ui: Arc::new(RwLock::new(ncgopher.clone())),
+        let mut controller = Controller {
+            sender: app.cb_sink().clone(),
             history: Arc::new(Mutex::new(History::new()?)),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("about:blank").unwrap())),
             last_request_id: Arc::new(Mutex::new(0)),
+            message: app
+                .find_name::<crate::ui::statusbar::StatusBar>("statusbar")
+                .unwrap()
+                .get_message(),
         };
-        ncgopher.setup_ui();
+
         // Add old entries to history on start-up
+        let menutree = app
+            .menubar()
+            .find_subtree("History")
+            .expect("history menu missing");
         let entries = controller
             .history
             .lock()
             .unwrap()
-            .get_latest_history(10)
+            .get_latest_history(HISTORY_LEN)
             .expect("Could not get latest history");
         for entry in entries {
-            controller
-                .ui
-                .read()
-                .unwrap()
-                .ui_tx
-                .read()
-                .unwrap()
-                .send(UiMessage::AddToHistoryMenu(entry))?;
+            let title = entry.title.clone();
+            menutree.insert_leaf(3, title, move |app| {
+                app.user_data::<Controller>()
+                    .expect("controller missing")
+                    .open_url(entry.url.clone(), true, 0);
+            });
         }
+
         // Add bookmarks to bookmark menu on startup
         info!("Adding existing bookmarks to menu");
+        let menutree = app
+            .menubar()
+            .find_subtree("Bookmarks")
+            .expect("bookmarks menu missing");
         let entries = controller.bookmarks.lock().unwrap().get_bookmarks();
         for entry in entries {
-            info!("Found bookmark entry");
-            controller
-                .ui
-                .read()
-                .unwrap()
-                .ui_tx
-                .read()
-                .unwrap()
-                .send(UiMessage::AddToBookmarkMenu(entry))?;
+            let url = entry.url.clone();
+            menutree.insert_leaf(3, &entry.title, move |app| {
+                app.user_data::<Controller>()
+                    .expect("controller missing")
+                    .open_url(url.clone(), true, 0);
+            });
         }
+
         // open initial page
-        ncgopher.open_url(url, true, 0);
+        controller.open_url(url, true, 0);
+
+        app.set_user_data(controller);
+
         info!("Controller::new() done");
-        Ok(controller)
-    }
 
-    // Used for gemini downloads
-    fn get_filename_from_url(&self, url: &Url) -> String {
-        let download_path = SETTINGS
-            .read()
-            .unwrap()
-            .get_str("download_path")
-            .unwrap_or_default();
-
-        if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
-            let filename = segments.pop().unwrap();
-            // Get download_path from settings
-            let path = Path::new(download_path.as_str()).join(filename);
-            return path.display().to_string();
-        } else {
-            // TODO: Create extension based on mimetype
-            // Use download_path from settings
-            let path = Path::new(download_path.as_str()).join("download.bin");
-            path.display().to_string()
-        }
+        Ok(())
     }
 
     fn fetch_gemini_url(&self, mut url: Url, add_to_history: bool, index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
-        let tx_clone = self.tx.read().unwrap().clone();
 
         let request_id = {
             let mut guard = self.last_request_id.lock().unwrap();
@@ -171,10 +138,12 @@ impl Controller {
             .socket_addrs(|| Some(1965))
             .expect("could not understand URL")[0];
 
-        let local_filename = self.get_filename_from_url(&url);
+        let local_filename = download_filename_from_url(&url);
 
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().get(&url);
+        let message = self.message.clone();
+        let sender = self.sender.clone();
 
         thread::spawn(move || {
             let mut buf = String::new();
@@ -192,12 +161,7 @@ impl Controller {
             let connector = match builder.build() {
                 Ok(connector) => connector,
                 Err(err) => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "Could not establish connection: {}",
-                            err
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() = format!("Could not establish connection: {}", err);
                     return;
                 }
             };
@@ -205,12 +169,7 @@ impl Controller {
             let stream = match TcpStream::connect(&server_details) {
                 Ok(stream) => stream,
                 Err(err) => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "Could not connect to server: {}",
-                            err
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() = format!("Could not connect to server: {}", err);
                     return;
                 }
             };
@@ -219,12 +178,8 @@ impl Controller {
                 Ok(stream) => stream,
                 Err(err) => {
                     warn!("Could not open tls stream: {} to {}", err, server_details);
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "Could not open tls stream to {}: {}",
-                            server_details, err
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() =
+                        format!("Could not open tls stream to {}: {}", server_details, err);
                     return;
                 }
             };
@@ -235,12 +190,8 @@ impl Controller {
             let cert_opt = match stream.peer_certificate() {
                 Ok(cert_opt) => cert_opt,
                 Err(err) => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "Could not get peer certificate: {:?}",
-                            err
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() =
+                        format!("Could not get peer certificate: {:?}", err);
                     return;
                 }
             };
@@ -258,36 +209,32 @@ impl Controller {
                 match fingerprint {
                     Some(f) => {
                         if f != cert_fingerprint {
-                            // Invalid CERTIFICATE, notify user
-                            tx_clone
-                                .send(ControllerMessage::ShowMessage(format!(
-                                    "Certificate fingerprint DOES NOT match for {}",
-                                    url
-                                )))
-                                .unwrap();
-                            tx_clone
-                                .send(ControllerMessage::RequestCertificateChangedDialog(
-                                    url,
-                                    cert_fingerprint,
-                                ))
+                            // Invalid certificate, notify user
+                            *message.write().unwrap() =
+                                format!("Certificate fingerprint DOES NOT match for {}", url);
+                            sender
+                                .send(Box::new(move |app| {
+                                    crate::ui::dialogs::certificate_changed(
+                                        app,
+                                        url,
+                                        cert_fingerprint,
+                                    );
+                                }))
                                 .unwrap();
                             return;
                         } else {
-                            tx_clone
-                                .send(ControllerMessage::ShowMessage(
-                                    "Certificate fingerprint matches".to_string(),
-                                ))
-                                .unwrap();
+                            *message.write().unwrap() =
+                                format!("Certificate fingerprint matches for {}", url);
                         }
                     }
                     None => {
                         // 1st time visit: add fingerprint
-                        tx_clone
-                            .send(ControllerMessage::AddCertificate(
-                                url.clone(),
-                                cert_fingerprint,
-                            ))
-                            .unwrap()
+                        let url = url.clone();
+                        sender
+                            .send(Box::new(move |app| {
+                                Controller::certificate_changed_action(app, &url, cert_fingerprint);
+                            }))
+                            .unwrap();
                     }
                 }
 
@@ -308,21 +255,13 @@ impl Controller {
                                 info!("Certificate valid {:?}", duration);
                             }
                             None => {
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(
-                                        "Server certificate expired.".to_string(),
-                                    ))
-                                    .unwrap();
+                                *message.write().unwrap() = "Server certificate expired.".into()
                             }
                         }
                     }
                     Err(err) => {
-                        tx_clone
-                            .send(ControllerMessage::ShowMessage(format!(
-                                "Could not parse peer certificate: {:?}",
-                                err
-                            )))
-                            .unwrap();
+                        *message.write().unwrap() =
+                            format!("Could not parse peer certificate: {:?}", err)
                     }
                 }
             }
@@ -337,9 +276,7 @@ impl Controller {
             match bufr.read_line(&mut buf) {
                 Ok(_) => (),
                 Err(e) => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!("I/O error: {}", e)))
-                        .unwrap();
+                    *message.write().unwrap() = format!("I/O error: {}", e);
                     return;
                 }
             }
@@ -356,11 +293,7 @@ impl Controller {
             }
 
             if buf.is_empty() {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(
-                        "Could not read from stream".to_string(),
-                    ))
-                    .unwrap();
+                *message.write().unwrap() = "Could not read from stream".into();
                 return;
             }
 
@@ -369,11 +302,8 @@ impl Controller {
             let meta = buf.chars().skip(3).collect::<String>();
             // <META> has a maximum size
             if meta.len() > 1024 {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(
-                        "invalid header from server: <META> too large".to_string(),
-                    ))
-                    .unwrap();
+                *message.write().unwrap() = "Invalid header from server: <META> too large".into();
+                return;
             }
 
             // A function to check the second digit of a status code in the default
@@ -386,21 +316,15 @@ impl Controller {
                     // ok
                 } else if matches!(other, Some(c) if c.is_ascii_digit()) {
                     // the second char is an ASCII digit, but this code is not handled
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "unknown status code {}",
-                            buf.chars().take(2).collect::<String>(),
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() = format!(
+                        "unknown status code {}",
+                        buf.chars().take(2).collect::<String>(),
+                    );
                 } else {
                     // either the second char is not an ASCII digit
                     // or does not exist at all
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "invalid header from server: invalid status code: {}",
-                            buf
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() =
+                        format!("invalid header from server: invalid status code: {}", buf);
                     // the header is already invalid, no need to check further
                     return false;
                 }
@@ -412,32 +336,19 @@ impl Controller {
             match buf.chars().next() {
                 Some('1') => {
                     // INPUT
-                    match buf.chars().nth(1) {
-                        Some('1') => {
-                            tx_clone
-                                .send(
-                                    ControllerMessage::RequestGeminiQueryDialog(
-                                        url, meta, true,
-                                    ),
-                                )
-                                .unwrap();
-                        }
-                        other => {
-                            if check(other) {
-                                info!("Got query: {}", meta);
-                                tx_clone
-                                    .send(
-                                        ControllerMessage::RequestGeminiQueryDialog(
-                                            url, meta, false,
-                                        ),
-                                    )
-                                    .unwrap();
-                            }
-                            tx_clone
-                                .send(ControllerMessage::RedrawHistory)
-                                .unwrap();
-                        }
-                    }
+                    let secret = match buf.chars().nth(1) {
+						Some('1') => true,
+						other => {
+							if !check(other){
+								return
+							} else {
+								false
+							}
+						},
+					};
+                    sender.send(Box::new(move |app|{
+						crate::ui::dialogs::gemini_query(app, url, meta, secret);
+					})).unwrap();
                 }
                 Some('2') => {
                     // SUCCESS
@@ -450,33 +361,22 @@ impl Controller {
                         if meta.starts_with("text/") {
                             let mut buf = vec![];
                             bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "I/O error: {}",
-                                        err
-                                    )))
-                                    .unwrap();
+								*message.write().unwrap() = format!(
+									"I/O error: {}",
+									err
+								);
                                 0
                             });
-                            let s = String::from_utf8_lossy(&buf);
-                            tx_clone
-                                .send(ControllerMessage::SetGeminiContent(
-                                    url.clone(),
-                                    GeminiType::Gemini,
-                                    s.to_string(),
-                                    index,
-                                ))
-                                .unwrap();
-                            if add_to_history {
-                                tx_clone
-                                    .send(ControllerMessage::AddToHistory(
-                                        url.clone(),
-                                    ))
-                                    .unwrap();
-                                tx_clone
-                                    .send(ControllerMessage::RedrawHistory)
-                                    .unwrap();
-                            }
+
+                            let s = String::from_utf8_lossy(&buf).into_owned();
+                            sender.send(Box::new(move |app|{
+								let controller = app.user_data::<Controller>().expect("controller missing");
+								controller.set_message(url.as_str());
+								if add_to_history {
+									controller.add_to_history(url.clone(), index);
+								}
+								controller.set_gemini_content(url, GeminiType::Gemini, s, index);
+							})).unwrap();
                         } else {
                             // Binary download
                             let f = File::create(local_filename.clone()).unwrap_or_else(
@@ -501,19 +401,12 @@ impl Controller {
                                     .write(&buf[..bytes_read])
                                     .expect("Could not write to file");
                                 total_written += bytes_written;
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "{} bytes read",
-                                        total_written
-                                    )))
-                                    .unwrap();
+                                *message.write().unwrap() = format!(
+									"{} bytes read",
+									total_written
+								);
                             }
-                            tx_clone
-                                .send(ControllerMessage::BinaryWritten(
-                                    local_filename.clone(),
-                                    total_written,
-                                ))
-                                .unwrap();
+                            *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
                         }
                     }
                 }
@@ -530,15 +423,17 @@ impl Controller {
                     match url.join(&meta) {
                         Ok(url) => {
                             // FIXME: Try to parse url, check scheme
-                            tx_clone.send(ControllerMessage::FetchGeminiUrl(url,true,0)).unwrap();
+                            // FIXME: limit number of redirects
+                            sender.send(Box::new(move |app|{
+								let controller = app.user_data::<Controller>().expect("controller missing");
+								controller.fetch_gemini_url(url, true, 0);
+							})).unwrap();
                         }
                         Err(_) => {
-                            tx_clone
-                                .send(ControllerMessage::ShowMessage(format!(
-                                    "invalid redirect url: {}",
-                                    meta
-                                )))
-                                .unwrap();
+							*message.write().unwrap() = format!(
+								"invalid redirect url: {}",
+								meta
+							);
                         }
                     }
                 }
@@ -547,30 +442,21 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
-                        // reset content and set current URL for retrying
-                        tx_clone
-                            .send(ControllerMessage::SetGeminiContent(
-                                url,
-                                GeminiType::Text,
-                                String::new(),
-                                0,
-                            )).unwrap();
-                        tx_clone
-                            .send(ControllerMessage::ShowMessage(format!(
-                                "Gemini error: {}",
-                                buf
-                            )))
-                            .unwrap();
+						let header = buf.to_string();
+                        sender.send(Box::new(move |app|{
+							let controller = app.user_data::<Controller>().expect("controller missing");
+							// reset content and set current URL for retrying
+							controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
+							controller.set_message(&format!("Gemini error: {}", header));
+						})).unwrap();
                     }
                 }
                 other => {
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(if other.is_some() {
-                            format!("invalid header from server: invalid status code: {}", buf)
-                        } else {
-                            format!("invalid header from server: missing status code: {}", buf)
-                        }))
-                        .unwrap();
+                    *message.write().unwrap() = if other.is_some() {
+						format!("invalid header from server: invalid status code: {}", buf)
+					} else {
+						format!("invalid header from server: missing status code: {}", buf)
+					};
                 }
             }
             info!("finished reading from gemini stream");
@@ -580,18 +466,15 @@ impl Controller {
     fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
-        let tx_clone = self.tx.read().unwrap().clone();
+
         let request_id = {
             let mut guard = self.last_request_id.lock().unwrap();
             *guard += 1;
             *guard
         };
-        let request_id_ref = self.last_request_id.clone();
 
         let port = url.port().unwrap_or(70);
-        let server = url
-            .host()
-            .map_or("host.error".to_string(), |host| host.to_string());
+        let server = url.host_str().expect("no host").to_string();
         let path = url.path();
         let mut path = str::replace(path, "%09", "\t");
         info!("fetch_url(): About to open URL {}", path);
@@ -603,24 +486,12 @@ impl Controller {
         }
 
         let server_details = format!("{}:{}", server, port);
-        let _server: Vec<_>;
-        match server_details.as_str().to_socket_addrs() {
-            Ok(s) => {
-                _server = s.collect();
-            }
-            Err(e) => {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Unable to resolve domain: {}",
-                        e
-                    )))
-                    .unwrap();
-                return;
-            }
-        }
+
+        let request_id_ref = self.last_request_id.clone();
+        let message = self.message.clone();
+        let sender = self.sender.clone();
 
         thread::spawn(move || {
-            // FIXME: Should use _server instead?
             let mut tls = false;
             let mut buf = vec![];
             // TLS-support. If non-standard-port, try to connect with TLS
@@ -638,12 +509,7 @@ impl Controller {
                                 match stream.read_to_end(&mut buf) {
                                     Ok(_) => break,
                                     Err(e) => {
-                                        tx_clone
-                                            .send(ControllerMessage::ShowMessage(format!(
-                                                "I/O error: {}",
-                                                e
-                                            )))
-                                            .unwrap();
+                                        *message.write().unwrap() = format!("I/O error: {}", e);
                                     }
                                 };
                             }
@@ -664,54 +530,40 @@ impl Controller {
                             match stream.read_to_end(&mut buf) {
                                 Ok(_) => break,
                                 Err(e) => {
-                                    tx_clone
-                                        .send(ControllerMessage::ShowMessage(format!(
-                                            "I/O error: {}",
-                                            e
-                                        )))
-                                        .unwrap();
+                                    *message.write().unwrap() = format!("I/O error: {}", e);
                                 }
                             }
                         }
                     }
                     Err(e) => {
-                        tx_clone
-                            .send(ControllerMessage::ShowMessage(format!(
-                                "Couldn't connect to server: {}",
-                                e
-                            )))
-                            .unwrap();
+                        *message.write().unwrap() = format!("Couldn't connect to server: {}", e);
                         return;
                     }
                 };
             }
-            {
-                let guard = request_id_ref.lock().unwrap();
-                if request_id < *guard {
-                    return;
-                }
-            }
 
-            let s = String::from_utf8_lossy(&buf);
-            if add_to_history {
-                tx_clone
-                    .send(ControllerMessage::AddToHistory(url.clone()))
-                    .unwrap();
+            let guard = request_id_ref.lock().unwrap();
+            if request_id < *guard {
+                return;
             }
-            tx_clone.send(ControllerMessage::RedrawHistory).unwrap();
-            tx_clone
-                .send(ControllerMessage::SetContent(
-                    url.clone(),
-                    s.to_string(),
-                    item_type,
-                    index,
-                ))
+            drop(guard);
+
+            let s = String::from_utf8_lossy(&buf).into_owned();
+            sender
+                .send(Box::new(move |app| {
+                    let controller = app.user_data::<Controller>().expect("controller missing");
+                    controller.set_message(url.as_str());
+                    if add_to_history {
+                        controller.add_to_history(url, index);
+                    }
+                    controller.set_gopher_content(item_type, s, index);
+                }))
                 .unwrap();
         });
     }
 
-    fn fetch_binary_url(&self, url: Url, local_filename: String) {
-        let tx_clone = self.tx.read().unwrap().clone();
+    fn fetch_binary_url(&mut self, url: Url, local_filename: String) {
+        self.set_message("Downloading binary file...");
 
         let port = url.port().unwrap_or(70);
         let server = url
@@ -725,21 +577,7 @@ impl Controller {
         };
 
         let server_details = format!("{}:{}", server, port);
-        let _server: Vec<_>;
-        match server_details.as_str().to_socket_addrs() {
-            Ok(s) => {
-                _server = s.collect();
-            }
-            Err(e) => {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Unable to resolve domain: {}",
-                        e
-                    )))
-                    .unwrap();
-                return;
-            }
-        }
+        let message = self.message.clone();
 
         thread::spawn(move || {
             // FIXME: Error handling!
@@ -769,12 +607,7 @@ impl Controller {
                                     .write(&buf[..bytes_read])
                                     .expect("Could not write to file");
                                 total_written += bytes_written;
-                                tx_clone
-                                    .send(ControllerMessage::ShowMessage(format!(
-                                        "{} bytes read",
-                                        total_written
-                                    )))
-                                    .unwrap();
+                                *message.write().unwrap() = format!("{} bytes read", total_written);
                             }
                         }
                         Err(e) => {
@@ -798,57 +631,307 @@ impl Controller {
                         .write(&buf[..bytes_read])
                         .expect("Could not write to file");
                     total_written += bytes_written;
-                    tx_clone
-                        .send(ControllerMessage::ShowMessage(format!(
-                            "{} bytes read",
-                            total_written
-                        )))
-                        .unwrap();
+                    *message.write().unwrap() = format!("{} bytes read", total_written);
                 }
             }
-            tx_clone
-                .send(ControllerMessage::BinaryWritten(
-                    local_filename.clone(),
-                    total_written,
-                ))
-                .unwrap();
+            *message.write().unwrap() = format!(
+                "File downloaded: {} ({} bytes)",
+                local_filename, total_written
+            );
         });
     }
 
-    // TODO: Move from ncgopher.rs:
-    // open_gopher_address
-
-    fn add_bookmark(&mut self, url: Url, title: String, tags: String) -> Bookmark {
-        let tags = tags.as_str().split_whitespace().map(String::from).collect();
-        let b = Bookmark { title, url, tags };
-        // Check if bookmark exists
-        if self.bookmarks.lock().unwrap().exists(b.clone().url) {
-            self.bookmarks.lock().unwrap().remove(b.clone().url);
+    pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
+        match url.scheme() {
+            "gopher" => self.open_gopher_address(
+                url.clone(),
+                ItemType::from_url(&url),
+                add_to_history,
+                index,
+            ),
+            "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "about" => self.open_about(url.clone()),
+            "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
+            _ => self.set_message(&format!("Invalid URL: {}", url.clone()).as_str()),
         }
-        self.bookmarks.lock().unwrap().add(b.clone());
-        b
+
+        let url = human_readable_url(&url);
+        self.sender
+            .send(Box::new(move |app| {
+                let mut layout = app
+                    .find_name::<Layout>("main")
+                    .expect("main layout missing");
+                let view = layout.get_current_view();
+                layout.set_title(view, url.clone());
+            }))
+            .unwrap();
     }
 
-    fn remove_bookmark(&mut self, b: Bookmark) {
-        self.bookmarks.lock().unwrap().remove(b.url);
-        let tx_clone = self.tx.read().unwrap().clone();
-        tx_clone.send(ControllerMessage::RedrawBookmarks).unwrap();
+    /// Show an internal page from the "about" URL scheme
+    /// as defined in RFC 6694.
+    fn open_about(&mut self, mut url: Url) {
+        let content = match url.path() {
+            "blank" => String::new(),
+            "help" => include_str!("about/help.gmi").into(),
+            "sites" => include_str!("about/sites.gmi").into(),
+            "error" => "An error occured.".into(),
+            _ => {
+                url.set_path("blank");
+                "This about page does not exist".into()
+            }
+        };
+        self.set_gemini_content(url, GeminiType::Gemini, content, 0);
     }
 
-    fn add_to_history(&mut self, url: Url) -> HistoryEntry {
-        let ui = self.ui.read().unwrap();
-        if let Some(i) = ui.get_selected_item_index() {
-            // Updates the position of the last item on the stack This
-            // works because add_to_history is called _before_
-            // set_content.
-            info!("add_to_history(): updating last item's position to {}", i);
-            let mut guard = self.history.lock().unwrap();
-            guard.update_selected_item(i);
+    pub fn open_gopher_address(
+        &mut self,
+        url: Url,
+        item_type: ItemType,
+        add_to_history: bool,
+        index: usize,
+    ) {
+        self.set_message("Loading ...");
+        if item_type.is_download() {
+            let filename = download_filename_from_url(&url);
+            self.fetch_binary_url(url, filename);
+        } else {
+            self.fetch_url(url, item_type, add_to_history, index);
         }
+    }
+
+    /// Renders a gophermap
+    fn set_gopher_content(&mut self, item_type: ItemType, content: String, index: usize) {
+        let mut guard = self.content.lock().unwrap();
+        guard.clear();
+        guard.push_str(content.as_str());
+        drop(guard);
+
+        if item_type.is_text() {
+            self.set_gemini_content(
+                Url::parse("about:blank").unwrap(),
+                GeminiType::Text,
+                content,
+                index,
+            );
+            return;
+        }
+
+        self.sender
+            .send(Box::new(move |app| {
+                // ensure gopher view is focused
+                app.find_name::<Layout>("main")
+                    .expect("main layout missing")
+                    .set_view("content");
+
+                let textwrap = SETTINGS
+                    .read()
+                    .unwrap()
+                    .get_str("textwrap")
+                    .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
+
+                let viewport_width = app
+				.find_name::<ScrollView<ResizedView<SelectView<GopherMapEntry>>>>("content_scroll")
+				.expect("gopher scroll view missing")
+				.content_viewport()
+				.width()
+				// adjust for left margin
+				- 7;
+
+                let viewport_width = std::cmp::min(textwrap, viewport_width);
+                info!("Viewport-width = {}", viewport_width);
+
+                let mut view = app
+                    .find_name::<SelectView<GopherMapEntry>>("content")
+                    .expect("gopher content view missing");
+                view.clear();
+                let lines = content.lines();
+                let mut gophermap = Vec::new();
+                let mut first = true;
+                for l in lines {
+                    if first {
+                        if l.starts_with('/') {
+                            app.find_name::<Layout>("main")
+                                .expect("main layout missing")
+                                .set_title("content".into(), l.into());
+                        }
+                        first = false;
+                    }
+                    if l != "." {
+                        match GopherMapEntry::parse(l.to_string()) {
+                            Ok(gl) => {
+                                gophermap.push(gl);
+                            }
+                            Err(err) => {
+                                warn!("Invalid gophermap line: {}", err);
+                            }
+                        };
+                    }
+                }
+                for l in gophermap {
+                    let entry = l.clone();
+
+                    let label = entry.clone().label();
+                    if entry.item_type == ItemType::Inline && label.len() > viewport_width {
+                        for row in LinesIterator::new(&label, viewport_width) {
+                            let mut formatted = StyledString::new();
+                            let label = format!(
+                                "{}  {}",
+                                ItemType::as_str(entry.item_type),
+                                &label[row.start..row.end]
+                            );
+                            formatted.append(label);
+                            view.add_item(formatted, l.clone());
+                        }
+                    } else {
+                        let mut formatted = StyledString::new();
+                        let label =
+                            format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
+                        formatted.append(label);
+                        view.add_item(formatted, l.clone());
+                    }
+                }
+                view.set_on_submit(|app, entry| {
+                    let controller = app.user_data::<Controller>().expect("controller missing");
+                    if entry.item_type.is_download()
+                        || entry.item_type.is_text()
+                        || entry.item_type.is_dir()
+                    {
+                        controller.open_url(entry.url.clone(), true, 0);
+                    } else if entry.item_type.is_query() {
+                        // open query dialog
+                        let url = entry.url.clone();
+                        app.add_layer(
+                            Dialog::new()
+                                .title("Enter query:")
+                                .content(
+                                    EditView::new()
+                                        // Call `show_popup` when the user presses `Enter`
+                                        //FIXME: create closure with url: .on_submit(search)
+                                        .with_name("query")
+                                        .fixed_width(30),
+                                )
+                                .button("Cancel", |app| {
+                                    app.pop_layer();
+                                })
+                                .button("Ok", move |app| {
+                                    let mut url = url.clone();
+                                    let name =
+                                        app.find_name::<EditView>("query").unwrap().get_content();
+                                    let mut path = url.path().to_string();
+                                    path.push_str("%09");
+                                    path.push_str(&*name);
+                                    url.set_path(path.as_str());
+
+                                    app.pop_layer(); // Close search dialog
+                                    let controller =
+                                        app.user_data::<Controller>().expect("controller missing");
+                                    controller.set_message("Loading ...");
+                                    controller.fetch_url(url, ItemType::Dir, true, 0);
+                                }),
+                        );
+                    } else if entry.item_type.is_html() {
+                        controller
+                            .open_command("html_command", entry.url.clone())
+                            .unwrap();
+                    } else if entry.item_type.is_image() {
+                        controller
+                            .open_command("image_command", entry.url.clone())
+                            .unwrap();
+                    } else if entry.item_type.is_telnet() {
+                        controller
+                            .open_command("telnet_command", entry.url.clone())
+                            .unwrap();
+                    }
+                });
+                view.set_selection(index);
+            }))
+            .unwrap();
+    }
+
+    fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
+        self.set_message("Loading ...");
+        *self.current_url.lock().unwrap() = url.clone();
+        self.fetch_gemini_url(url, add_to_history, index);
+    }
+
+    fn set_gemini_content(
+        &mut self,
+        url: Url,
+        gemini_type: GeminiType,
+        content: String,
+        index: usize,
+    ) {
+        let mut guard = self.content.lock().unwrap();
+        guard.clear();
+        guard.push_str(content.as_str());
+        drop(guard);
+
+        self.sender
+            .send(Box::new(move |app| {
+                // ensure gemini view is focused
+                app.find_name::<Layout>("main")
+                    .expect("main layout mising")
+                    .set_view("gemini_content");
+
+                let textwrap = SETTINGS
+                    .read()
+                    .unwrap()
+                    .get_str("textwrap")
+                    .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
+
+                let viewport_width = app
+				.find_name::<ScrollView<ResizedView<SelectView<Option<Url>>>>>("gemini_content_scroll")
+				.expect("gemini content view missing")
+				.content_viewport()
+				.width()
+				// adjust for left margin
+				- 10;
+
+                let viewport_width = std::cmp::min(textwrap, viewport_width);
+                info!("Viewport-width = {}", viewport_width);
+
+                let mut view = app
+                    .find_name::<SelectView<Option<Url>>>("gemini_content")
+                    .expect("gemini content view missing");
+                view.clear();
+
+                if gemini_type == GeminiType::Text {
+                    view.add_all(
+                        LinesIterator::new(&content, viewport_width)
+                            .map(|row| (&content[row.start..row.end], None))
+                            .collect::<Vec<_>>(),
+                    );
+                } else {
+                    view.add_all(crate::gemini::parse(&content, &url, viewport_width));
+                }
+                view.set_on_submit(|app, entry| {
+                    if let Some(url) = entry {
+                        app.user_data::<Controller>()
+                            .expect("controller missing")
+                            .open_url(url.clone(), true, 0)
+                    }
+                });
+                view.set_selection(index);
+            }))
+            .unwrap();
+    }
+
+    fn add_to_history(&mut self, url: Url, index: usize) {
+        // Updates the position of the last item on the stack This
+        // works because add_to_history is called _before_
+        // set_content.
+        info!(
+            "add_to_history(): updating last item's position to {}",
+            index
+        );
+        let mut guard = self.history.lock().unwrap();
+        guard.update_selected_item(index);
+        drop(guard);
+
         info!("add_to_history(): {}", url);
         let h = HistoryEntry {
             title: url.clone().into_string(),
-            url,
+            url: url.clone(),
             timestamp: Local::now(),
             visited_count: 1,
             position: 0,
@@ -858,58 +941,75 @@ impl Controller {
             .unwrap()
             .add(h.clone())
             .expect("Could not add to history");
-        h
+
+        // add to history menu
+        self.sender
+            .send(Box::new(move |app| {
+                let menu = app
+                    .menubar()
+                    .find_subtree("History")
+                    .expect("history menu missing");
+                // Add 3 for the two first menuitems + separator
+                if menu.len() > HISTORY_LEN + 3 {
+                    menu.remove(menu.len() - 1);
+                }
+                menu.insert_leaf(3, h.title, move |app| {
+                    app.user_data::<Controller>()
+                        .expect("controller missing")
+                        .open_url(url.clone(), true, 0);
+                });
+            }))
+            .unwrap();
     }
 
     /// Purges the entire history
     /// TODO: Add option to clear only parts of the history
-    fn clear_history(&mut self) {
+    pub fn clear_history(&mut self) {
         // Purge file
         self.history
             .lock()
             .unwrap()
             .clear()
             .expect("Could not clear history");
+        // empty history menu
+        self.sender
+            .send(Box::new(|app| {
+                let menu = app
+                    .menubar()
+                    .find_subtree("History")
+                    .expect("history menu missing");
+                // remove everything but the first three elements
+                while menu.len() > 3 {
+                    menu.remove(4);
+                }
+            }))
+            .unwrap();
     }
 
     /// Navigates to the previous page in history
-    fn navigate_back(&mut self) {
+    pub fn navigate_back(&mut self) {
         let mut guard = self.history.lock().unwrap();
         let history = guard.back();
         if let Some(h) = history {
-            std::mem::drop(guard);
+            drop(guard);
             info!("NAVIGATE_BACK to index {}", h.position);
-            self.ui
-                .read()
-                .unwrap()
-                .ui_tx
-                .read()
-                .unwrap()
-                .send(UiMessage::OpenUrl(h.url, false, h.position))
-                .unwrap();
-        } else {
-            std::mem::drop(guard);
-            //self.app.add_layer(Dialog::info("No url"))
+            self.open_url(h.url, false, h.position);
         }
     }
 
     fn open_command(&mut self, command: &str, url: Url) -> Result<(), Box<dyn Error>> {
         // Opens an image in an external application - if defined in settings
-        let tx_clone = self.tx.read().unwrap().clone();
         let u = url.clone().into_string();
         let command = SETTINGS.read().unwrap().get_str(command)?;
         if !command.is_empty() {
             if let Err(err) = Command::new(&command).arg(u).spawn() {
-                tx_clone.send(ControllerMessage::ShowMessage(format!(
-                    "Command failed: {}: {}",
-                    err, command
-                )))?;
+                self.set_message(&format!("Command failed: {}: {}", err, command));
             }
         } else {
-            tx_clone.send(ControllerMessage::ShowMessage(format!(
+            self.set_message(&format!(
                 "No command for opening {} defined.",
                 url.into_string()
-            )))?;
+            ));
         }
         Ok(())
     }
@@ -924,17 +1024,7 @@ impl Controller {
 
         let mut file = match File::create(&path) {
             Err(why) => {
-                self.ui
-                    .read()
-                    .unwrap()
-                    .controller_tx
-                    .read()
-                    .unwrap()
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Couldn't open {}: {}",
-                        display, why
-                    )))
-                    .unwrap();
+                self.set_message(&format!("Couldn't open {}: {}", display, why));
                 return;
             }
             Ok(file) => file,
@@ -942,24 +1032,13 @@ impl Controller {
 
         // Read the file contents into a string, returns `io::Result<usize>`
         if let Err(why) = file.write_all(content.as_bytes()) {
-            self.ui
-                .read()
-                .unwrap()
-                .controller_tx
-                .read()
-                .unwrap()
-                .send(ControllerMessage::ShowMessage(format!(
-                    "Couldn't open {}: {}",
-                    display, why
-                )))
-                .unwrap();
+            self.set_message(&format!("Couldn't open {}: {}", display, why));
         }
         // `file` goes out of scope, and the [filename] file gets closed
     }
 
     fn save_gemini(&mut self, filename: String) {
         let gemini_content = self.content.lock().unwrap().clone();
-        let tx_clone = self.tx.read().unwrap().clone();
         let lines = gemini_content
             .lines()
             .map(str::to_string)
@@ -977,13 +1056,8 @@ impl Controller {
         let display = path.display();
 
         let mut file = match File::create(&path) {
-            Err(err) => {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Could open: {}: {}",
-                        display, err
-                    )))
-                    .unwrap();
+            Err(why) => {
+                self.set_message(&format!("Couldn't open {}: {}", display, why));
                 return;
             }
             Ok(file) => file,
@@ -991,13 +1065,8 @@ impl Controller {
 
         // Read the file contents into a string, returns `io::Result<usize>`
         for l in lines {
-            if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Could not write: {}: {}",
-                        display, err
-                    )))
-                    .unwrap();
+            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                self.set_message(&format!("Couldn't write {}: {}", display, why));
                 return;
             }
         }
@@ -1007,7 +1076,6 @@ impl Controller {
     /// Save the current gophermap to disk
     fn save_gophermap(&mut self, filename: String) {
         let content = self.content.lock().unwrap().clone();
-        let tx_clone = self.tx.read().unwrap().clone();
         let mut txtlines = Vec::new();
         for l in content.lines().skip(1) {
             if l != "." {
@@ -1021,6 +1089,7 @@ impl Controller {
         }
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
+        // FIXME: use url_tools::download_filename_from_url
         let download_path = SETTINGS
             .read()
             .unwrap()
@@ -1031,13 +1100,8 @@ impl Controller {
         let display = path.display();
 
         let mut file = match File::create(&path) {
-            Err(err) => {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Could open: {}: {}",
-                        display, err
-                    )))
-                    .unwrap();
+            Err(why) => {
+                self.set_message(&format!("Couldn't open {}: {}", display, why));
                 return;
             }
             Ok(file) => file,
@@ -1045,364 +1109,123 @@ impl Controller {
 
         // Read the file contents into a string, returns `io::Result<usize>`
         for l in txtlines {
-            if let Err(err) = file.write_all(format!("{}\n", l).as_bytes()) {
-                tx_clone
-                    .send(ControllerMessage::ShowMessage(format!(
-                        "Could not write: {}: {}",
-                        display, err
-                    )))
-                    .unwrap();
+            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                self.set_message(&format!("Couldn't open {}: {}", display, why));
                 return;
             }
         }
         // `file` goes out of scope and the file gets closed
     }
 
-    /// Run the controller
-    pub fn run(&mut self) {
-        while self.ui.write().unwrap().step() {
-            while let Some(message) = self.rx.try_iter().next() {
-                // Handle messages arriving from the UI.
-                match message {
-                    ControllerMessage::AddBookmark(url, tittel, tags) => {
-                        let b = self.add_bookmark(url, tittel, tags);
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::AddToBookmarkMenu(b))
-                            .unwrap();
-                    }
-                    ControllerMessage::AddCertificate(url, fingerprint) => {
-                        self.certificates
-                            .lock()
-                            .expect("could not lock certificate store")
-                            .insert(&url, fingerprint);
-                    }
-                    ControllerMessage::AddToHistory(url) => {
-                        let h = self.add_to_history(url);
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::AddToHistoryMenu(h))
-                            .unwrap();
-                    }
-                    ControllerMessage::ClearHistory => {
-                        self.clear_history();
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ClearHistoryMenu)
-                            .unwrap();
-                    }
-                    ControllerMessage::ReloadCurrentPage => {
-                        let current_url = self.current_url.lock().unwrap().clone();
-                        let index = self
-                            .ui
-                            .read()
-                            .unwrap()
-                            .get_selected_item_index()
-                            .unwrap_or(0);
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenUrl(current_url, false, index))
-                            .unwrap();
-                    }
-                    ControllerMessage::RemoveBookmark(bookmark) => {
-                        info!("Removing bookmark {}", bookmark.title);
-                        self.remove_bookmark(bookmark);
-                    }
-                    ControllerMessage::RequestAddBookmarkDialog => {
-                        let current_url = self.current_url.lock().unwrap().clone();
-                        let bookmark = Bookmark {
-                            title: String::new(),
-                            url: current_url.clone(),
-                            tags: Vec::new(),
-                        };
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowAddBookmarkDialog(bookmark))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestCertificateChangedDialog(url, fingerprint) => {
-                        info!("RequestCertificateChangedDialog({}, {})", url, fingerprint);
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowCertificateChangedDialog(url, fingerprint))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestEditHistoryDialog => {
-                        let entries = self
-                            .history
-                            .lock()
-                            .unwrap()
-                            .get_latest_history(500)
-                            .expect("Could not get latest history");
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowEditHistoryDialog(entries))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestEditBookmarksDialog => {
-                        let v = self.bookmarks.lock().unwrap().clone().entries;
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowEditBookmarksDialog(v))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestGeminiQueryDialog(url, query, secret) => {
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::OpenGeminiQueryDialog(url, query, secret))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestSaveAsDialog => {
-                        let current_url = self.current_url.lock().unwrap().clone();
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSaveAsDialog(current_url))
-                            .unwrap();
-                    }
-                    ControllerMessage::RequestSettingsDialog => {
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowSettingsDialog)
-                            .unwrap();
-                    }
-                    ControllerMessage::SavePageAs(filename) => {
-                        let url = self.current_url.lock().unwrap().clone();
+    /// Sets message for statusbar
+    pub fn set_message(&mut self, msg: &str) {
+        let mut message = self.message.write().unwrap();
+        message.clear();
+        message.push_str(msg);
+    }
 
-                        match url.scheme() {
-                            "gopher" => {
-                                let item_type = ItemType::from_url(&url);
-                                match item_type {
-                                    ItemType::Dir => self.save_gophermap(filename.clone()),
-                                    ItemType::File => self.save_textfile(filename.clone()),
-                                    _ => (),
-                                }
-                            }
-                            "gemini" => self.save_gemini(filename.clone()),
-                            _ => (),
-                        }
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::PageSaved(url, filename))
-                            .unwrap();
-                    }
-                    ControllerMessage::SetGeminiContent(url, gemini_type, content, index) => {
-                        {
-                            let mut guard = self.content.lock().unwrap();
-                            guard.clear();
-                            guard.push_str(content.as_str());
-                            *self.current_url.lock().unwrap() = url.clone();
-                        }
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowGeminiContent(
-                                url,
-                                gemini_type,
-                                content,
-                                index,
-                            ))
-                            .unwrap();
-                    }
-                    ControllerMessage::SetContent(url, content, item_type, index) => {
-                        {
-                            let mut guard = self.content.lock().unwrap();
-                            guard.clear();
-                            guard.push_str(content.as_str());
-                        }
-                        {
-                            let mut guard = self.current_url.lock().unwrap();
-                            *guard = url.clone();
-                        }
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowContent(url, content, item_type, index))
-                            .unwrap();
-                    }
-                    ControllerMessage::ShowMessage(msg) => {
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ShowMessage(msg))
-                            .unwrap();
-                    }
-                    ControllerMessage::BinaryWritten(filename, bytes_written) => {
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::BinaryWritten(filename, bytes_written))
-                            .unwrap();
-                    }
-                    ControllerMessage::NavigateBack => {
-                        self.navigate_back();
-                    }
-                    ControllerMessage::OpenHtml(url) => {
-                        self.open_command("html_command", url).unwrap();
-                    }
-                    ControllerMessage::OpenImage(url) => {
-                        self.open_command("image_command", url).unwrap();
-                    }
-                    ControllerMessage::OpenTelnet(url) => {
-                        self.open_command("telnet_command", url).unwrap();
-                    }
-                    ControllerMessage::FetchGeminiUrl(url, add_to_history, index) => {
-                        self.fetch_gemini_url(url, add_to_history, index);
-                    }
-                    ControllerMessage::FetchUrl(url, item_type, add_to_history, index) => {
-                        self.fetch_url(url, item_type, add_to_history, index);
-                    }
-                    ControllerMessage::FetchBinaryUrl(url, local_path) => {
-                        self.fetch_binary_url(url, local_path);
-                    }
-                    ControllerMessage::UpdateCertificateAndOpen(url, fingerprint) => {
-                        self.certificates
-                            .lock()
-                            .expect("could not lock certificate store")
-                            .insert(&url, fingerprint);
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .clone()
-                            .send(UiMessage::OpenUrl(url.clone(), true, 0))
-                            .unwrap()
-                    }
-                    ControllerMessage::RedrawBookmarks => {
-                        trace!("Controller: Clearing bookmarks");
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ClearBookmarksMenu)
-                            .unwrap();
-                        for entry in self.bookmarks.lock().unwrap().entries.clone() {
-                            self.ui
-                                .read()
-                                .unwrap()
-                                .ui_tx
-                                .read()
-                                .unwrap()
-                                .send(UiMessage::AddToBookmarkMenu(entry))
-                                .unwrap();
-                        }
-                    }
-                    ControllerMessage::RedrawHistory => {
-                        trace!("Controller: Clearing history");
-                        self.ui
-                            .read()
-                            .unwrap()
-                            .ui_tx
-                            .read()
-                            .unwrap()
-                            .send(UiMessage::ClearHistoryMenu)
-                            .unwrap();
-                        let entries = self
-                            .history
-                            .lock()
-                            .unwrap()
-                            .get_latest_history(10)
-                            .expect("Could not get latest history");
-                        for entry in entries {
-                            self.ui
-                                .read()
-                                .unwrap()
-                                .ui_tx
-                                .read()
-                                .unwrap()
-                                .send(UiMessage::AddToHistoryMenu(entry))
-                                .unwrap();
-                        }
-                    }
-                };
-            }
+    pub fn get_selected_item_index(app: &mut Cursive) -> usize {
+        if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
+            content.selected_id()
+        } else if let Some(content) = app.find_name::<SelectView<Option<Url>>>("gemini_content") {
+            content.selected_id()
+        } else {
+            unreachable!("view content and gemini_content missing");
+        }
+        .unwrap_or(0)
+    }
+
+    pub fn add_bookmark_action(&mut self, url: Url, title: String, tags: String) {
+        let tags = tags.as_str().split_whitespace().map(String::from).collect();
+        let b = Bookmark { title, url, tags };
+        // Check if bookmark exists
+        if self.bookmarks.lock().unwrap().exists(b.clone().url) {
+            self.bookmarks.lock().unwrap().remove(b.clone().url);
+        }
+        self.bookmarks.lock().unwrap().add(b.clone());
+
+        // add to bookmark menu
+        self.sender
+            .send(Box::new(move |app| {
+                let url = b.url.clone();
+                app.menubar()
+                    .find_subtree("Bookmarks")
+                    .expect("bookmarks menu missing")
+                    .insert_leaf(3, b.title.as_str(), move |app| {
+                        app.user_data::<Controller>()
+                            .expect("controller missing")
+                            .open_url(url.clone(), true, 0);
+                    });
+            }))
+            .unwrap();
+    }
+
+    pub fn remove_bookmark_action(app: &mut Cursive, b: Bookmark) {
+        let mut guard = app
+            .user_data::<Controller>()
+            .expect("controller missing")
+            .bookmarks
+            .lock()
+            .unwrap();
+        guard.remove(b.url);
+        let bookmarks = guard.entries.clone();
+        drop(guard);
+
+        // redraw bookmark menu
+        let menutree = app
+            .menubar()
+            .find_subtree("Bookmarks")
+            .expect("bookmarks menu missing");
+        menutree.clear();
+        // re-add all bookmark entries
+        for entry in &bookmarks {
+            let url = entry.url.clone();
+            menutree.insert_leaf(3, &b.title, move |app| {
+                app.user_data::<Controller>()
+                    .expect("controller missing")
+                    .open_url(url.clone(), true, 0);
+            });
         }
     }
-}
 
-pub fn normalize_domain(u: &mut Url) {
-    use idna::domain_to_ascii;
-    use percent_encoding::percent_decode_str;
-
-    // remove default port number
-    if u.port() == Some(1965) {
-        u.set_port(None).expect("gemini URL without host");
+    pub fn open_url_action(app: &mut Cursive, url: &str) {
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        match Url::parse(url) {
+            Ok(url) => controller.open_url(url, true, 0),
+            Err(e) => controller.set_message(&format!("Invalid URL: {}", e)),
+        }
     }
 
-    if let Some(domain) = u.domain() {
-        // since the gemini scheme is not "special" according to the WHATWG spec
-        // it will be percent-encoded by the url crate which has to be undone
-        let domain = percent_decode_str(domain)
-            .decode_utf8()
-            .expect("could not decode percent-encoded url");
-        // reencode the domain as IDNA
-        let domain = domain_to_ascii(&domain).expect("could not IDNA encode URL");
-        // make the url use the newly encoded domain name
-        u.set_host(Some(&domain)).expect("error replacing host");
-    } else {
-        log::info!("tried to reencode URL to IDNA that did not contain a domain name");
+    pub fn save_as_action(app: &mut Cursive, name: &str) {
+        app.pop_layer();
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        let current_url = controller.current_url.lock().unwrap().clone();
+        let filename = download_filename_from_url(&current_url);
+        if !name.is_empty() {
+            controller.set_message(&format!("saving page as '{}'.", filename).as_str());
+            match current_url.scheme() {
+                "gopher" => {
+                    let item_type = ItemType::from_url(&current_url);
+                    match item_type {
+                        ItemType::Dir => controller.save_gophermap(filename),
+                        ItemType::File => controller.save_textfile(filename),
+                        _ => (),
+                    }
+                }
+                "gemini" => controller.save_gemini(filename),
+                _ => (),
+            }
+        } else {
+            app.add_layer(Dialog::info("No filename given!"))
+        }
+    }
+
+    pub fn certificate_changed_action(app: &mut Cursive, url: &Url, cert_fingerprint: String) {
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        controller
+            .certificates
+            .lock()
+            .expect("could not lock certificate store")
+            .insert(url, cert_fingerprint);
     }
 }
