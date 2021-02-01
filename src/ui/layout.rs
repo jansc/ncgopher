@@ -160,7 +160,11 @@ impl View for Layout {
     }
 
     fn call_on_any<'a>(&mut self, s: &Selector, c: AnyCb<'a>) {
-        self.get_current_screen_mut().view.call_on_any(s, c)
+        if let Selector::Name("statusbar") = s {
+            self.statusbar.call_on_any(s, c);
+        } else {
+            self.get_current_screen_mut().view.call_on_any(s, c)
+        }
     }
 
     fn take_focus(&mut self, source: Direction) -> bool {

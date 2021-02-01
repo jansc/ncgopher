@@ -125,7 +125,8 @@ fn setup_menu(app: &mut Cursive) {
                 app.user_data::<Controller>()
                     .expect("controller missing")
                     .clear_history();
-            }),
+            })
+            .delimiter(),
     );
     menubar.add_subtree(
         "Bookmarks",

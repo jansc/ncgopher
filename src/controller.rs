@@ -2,7 +2,7 @@ use chrono::{Duration, Local, Utc};
 use cursive::{
     utils::{lines::simple::LinesIterator, markup::StyledString},
     view::{Nameable, Resizable},
-    views::{Dialog, EditView, ResizedView, ScrollView, SelectView},
+    views::{Dialog, EditView, SelectView},
     Cursive, CursiveRunnable,
 };
 use native_tls::{Protocol, TlsConnector};
@@ -669,17 +669,19 @@ impl Controller {
 
     /// Show an internal page from the "about" URL scheme
     /// as defined in RFC 6694.
-    fn open_about(&mut self, mut url: Url) {
+    fn open_about(&mut self, url: Url) {
         let content = match url.path() {
             "blank" => String::new(),
             "help" => include_str!("about/help.gmi").into(),
             "sites" => include_str!("about/sites.gmi").into(),
             "error" => "An error occured.".into(),
-            _ => {
-                url.set_path("blank");
-                "This about page does not exist".into()
+            other => {
+                self.set_message(&format!("The about page {} does not exist", other));
+                return;
             }
         };
+        self.set_message(&format!("about:{}", url.path()));
+        self.add_to_history(url.clone(), 0);
         self.set_gemini_content(url, GeminiType::Gemini, content, 0);
     }
 
@@ -716,29 +718,28 @@ impl Controller {
             return;
         }
 
+        // ensure gopher view is focused before setting content
         self.sender
-            .send(Box::new(move |app| {
-                // ensure gopher view is focused
+            .send(Box::new(|app| {
                 app.find_name::<Layout>("main")
                     .expect("main layout missing")
-                    .set_view("content");
+                    .set_view("content")
+            }))
+            .unwrap();
 
+        self.sender
+            .send(Box::new(move |app| {
                 let textwrap = SETTINGS
                     .read()
                     .unwrap()
                     .get_str("textwrap")
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
-                let viewport_width = app
-				.find_name::<ScrollView<ResizedView<SelectView<GopherMapEntry>>>>("content_scroll")
-				.expect("gopher scroll view missing")
-				.content_viewport()
-				.width()
+                let viewport_width = app.screen_size().x
 				// adjust for left margin
 				- 7;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
-                info!("Viewport-width = {}", viewport_width);
 
                 let mut view = app
                     .find_name::<SelectView<GopherMapEntry>>("content")
@@ -866,29 +867,29 @@ impl Controller {
         guard.push_str(content.as_str());
         drop(guard);
 
+        // ensure gemini view is focused before setting content
         self.sender
-            .send(Box::new(move |app| {
-                // ensure gemini view is focused
+            .send(Box::new(|app| {
                 app.find_name::<Layout>("main")
                     .expect("main layout mising")
                     .set_view("gemini_content");
+                info!("set gemini view");
+            }))
+            .unwrap();
 
+        self.sender
+            .send(Box::new(move |app| {
                 let textwrap = SETTINGS
                     .read()
                     .unwrap()
                     .get_str("textwrap")
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
-                let viewport_width = app
-				.find_name::<ScrollView<ResizedView<SelectView<Option<Url>>>>>("gemini_content_scroll")
-				.expect("gemini content view missing")
-				.content_viewport()
-				.width()
+                let viewport_width = app.screen_size().x
 				// adjust for left margin
-				- 10;
+				- 8;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
-                info!("Viewport-width = {}", viewport_width);
 
                 let mut view = app
                     .find_name::<SelectView<Option<Url>>>("gemini_content")

@@ -251,7 +251,10 @@ pub(super) fn open_url(app: &mut Cursive) {
             .title("Enter gopher or gemini URL:")
             .content(
                 EditView::new()
-                    .on_submit(Controller::open_url_action)
+                    .on_submit(|app, goto_url| {
+                        app.pop_layer();
+                        Controller::open_url_action(app, goto_url);
+                    })
                     .with_name("goto_url")
                     .fixed_width(50),
             )
@@ -263,6 +266,7 @@ pub(super) fn open_url(app: &mut Cursive) {
                     .find_name::<EditView>("goto_url")
                     .expect("url field missing")
                     .get_content();
+                app.pop_layer();
                 Controller::open_url_action(app, &goto_url)
             }),
     );
