@@ -335,18 +335,18 @@ impl Controller {
                 Some('1') => {
                     // INPUT
                     let secret = match buf.chars().nth(1) {
-						Some('1') => true,
-						other => {
-							if !check(other){
-								return
-							} else {
-								false
-							}
-						},
-					};
+                        Some('1') => true,
+                        other => {
+                            if !check(other){
+                                return
+                            } else {
+                                false
+                            }
+                        },
+                    };
                     sender.send(Box::new(move |app|{
-						crate::ui::dialogs::gemini_query(app, url, meta, secret);
-					})).unwrap();
+                        crate::ui::dialogs::gemini_query(app, url, meta, secret);
+                    })).unwrap();
                 }
                 Some('2') => {
                     // SUCCESS
@@ -359,58 +359,55 @@ impl Controller {
                         if meta.starts_with("text/") {
                             let mut buf = vec![];
                             bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-								*message.write().unwrap() = format!(
-									"I/O error: {}",
-									err
-								);
+                                *message.write().unwrap() = format!(
+                                    "I/O error: {}",
+                                    err
+                                );
                                 0
                             });
 
                             let s = String::from_utf8_lossy(&buf).into_owned();
                             sender.send(Box::new(move |app|{
-								let controller = app.user_data::<Controller>().expect("controller missing");
-								controller.set_message(url.as_str());
-								if add_to_history {
-									controller.add_to_history(url.clone(), index);
-								}
-								controller.set_gemini_content(url, GeminiType::Gemini, s, index);
-							})).unwrap();
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                controller.set_message(url.as_str());
+                                controller.set_gemini_content(url, GeminiType::Gemini, s, index);
+                            })).unwrap();
                         } else {
                             // Binary download
                             let local_filename = download_filename_from_url(&url);
                             let open = OpenOptions::new()
-								.write(true)
-								// make sure to not clobber downloaded files
-								.create_new(true)
-								.open(&local_filename);
+                                .write(true)
+                                // make sure to not clobber downloaded files
+                                .create_new(true)
+                                .open(&local_filename);
 
-							match open {
-								Ok(file) => {
-									let mut bw = BufWriter::new(file);
-									let mut buf = [0u8; 1024];
-									let mut total_written = 0;
-									loop {
-										let bytes_read = bufr
-											.read(&mut buf)
-											.expect("Could not read from TCP");
-										if bytes_read == 0 {
-											break;
-										}
-										let bytes_written = bw
-											.write(&buf[..bytes_read])
-											.expect("Could not write to file");
-										total_written += bytes_written;
-										*message.write().unwrap() = format!(
-											"{} bytes read",
-											total_written
-										);
-									}
-									*message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
-								}
-								Err(err) => {
-									*message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
-								}
-							}
+                            match open {
+                                Ok(file) => {
+                                    let mut bw = BufWriter::new(file);
+                                    let mut buf = [0u8; 1024];
+                                    let mut total_written = 0;
+                                    loop {
+                                        let bytes_read = bufr
+                                            .read(&mut buf)
+                                            .expect("Could not read from TCP");
+                                        if bytes_read == 0 {
+                                            break;
+                                        }
+                                        let bytes_written = bw
+                                            .write(&buf[..bytes_read])
+                                            .expect("Could not write to file");
+                                        total_written += bytes_written;
+                                        *message.write().unwrap() = format!(
+                                            "{} bytes read",
+                                            total_written
+                                        );
+                                    }
+                                    *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
+                                }
+                                Err(err) => {
+                                    *message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
+                                }
+                            }
                         }
                     }
                 }
@@ -429,15 +426,15 @@ impl Controller {
                             // FIXME: Try to parse url, check scheme
                             // FIXME: limit number of redirects
                             sender.send(Box::new(move |app|{
-								let controller = app.user_data::<Controller>().expect("controller missing");
-								controller.fetch_gemini_url(url, true, 0);
-							})).unwrap();
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                controller.open_url(url, true, 0);
+                            })).unwrap();
                         }
                         Err(_) => {
-							*message.write().unwrap() = format!(
-								"invalid redirect url: {}",
-								meta
-							);
+                            *message.write().unwrap() = format!(
+                                "invalid redirect url: {}",
+                                meta
+                            );
                         }
                     }
                 }
@@ -446,21 +443,21 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
-						let header = buf.to_string();
+                        let header = buf.to_string();
                         sender.send(Box::new(move |app|{
-							let controller = app.user_data::<Controller>().expect("controller missing");
-							// reset content and set current URL for retrying
-							controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
-							controller.set_message(&format!("Gemini error: {}", header));
-						})).unwrap();
+                            let controller = app.user_data::<Controller>().expect("controller missing");
+                            // reset content and set current URL for retrying
+                            controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
+                            controller.set_message(&format!("Gemini error: {}", header));
+                        })).unwrap();
                     }
                 }
                 other => {
                     *message.write().unwrap() = if other.is_some() {
-						format!("invalid header from server: invalid status code: {}", buf)
-					} else {
-						format!("invalid header from server: missing status code: {}", buf)
-					};
+                        format!("invalid header from server: invalid status code: {}", buf)
+                    } else {
+                        format!("invalid header from server: missing status code: {}", buf)
+                    };
                 }
             }
             info!("finished reading from gemini stream");
@@ -758,8 +755,8 @@ impl Controller {
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
                 let viewport_width = app.screen_size().x
-				// adjust for left margin
-				- 7;
+                // adjust for left margin
+                - 7;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
 
@@ -908,8 +905,8 @@ impl Controller {
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
                 let viewport_width = app.screen_size().x
-				// adjust for left margin
-				- 8;
+                // adjust for left margin
+                - 8;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
 
