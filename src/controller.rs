@@ -1206,30 +1206,35 @@ impl Controller {
         let controller = app.user_data::<Controller>().expect("controller missing");
         match Url::parse(url) {
             Ok(url) => controller.open_url(url, true, 0),
-            Err(e) => controller.set_message(&format!("Invalid URL: {}", e)),
+            Err(e) => controller.set_message(&format!("invalid URL: {}", e)),
         }
     }
 
-    pub fn save_as_action(app: &mut Cursive, name: &str) {
-        app.pop_layer();
-        let controller = app.user_data::<Controller>().expect("controller missing");
-        let current_url = controller.current_url.lock().unwrap().clone();
-        let filename = download_filename_from_url(&current_url);
-        if !name.is_empty() {
-            controller.set_message(&format!("saving page as '{}'.", filename).as_str());
+    pub fn save_as_action(app: &mut Cursive, path: &str) {
+        if !path.is_empty() {
+            app.pop_layer();
+
+            let path = path.to_string();
+            let controller = app.user_data::<Controller>().expect("controller missing");
+            controller.set_message(&format!("saving page as '{}'.", path));
+
+            let current_url = controller.current_url.lock().unwrap().clone();
+
             match current_url.scheme() {
                 "gopher" => {
                     let item_type = ItemType::from_url(&current_url);
                     match item_type {
-                        ItemType::Dir => controller.save_gophermap(filename),
-                        ItemType::File => controller.save_textfile(filename),
-                        _ => (),
+                        ItemType::Dir => controller.save_gophermap(path),
+                        ItemType::File => controller.save_textfile(path),
+                        _ => controller.set_message(&format!("cannot save this kind of page")),
                     }
                 }
-                "gemini" => controller.save_gemini(filename),
-                _ => (),
+                "about" | "gemini" => controller.save_gemini(path),
+                other => controller
+                    .set_message(&format!("failed to save page: unknown scheme {}", other)),
             }
         } else {
+            // do not pop the save dialog so user can make corrections
             app.add_layer(Dialog::info("No filename given!"))
         }
     }

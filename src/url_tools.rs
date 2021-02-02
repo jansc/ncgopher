@@ -61,6 +61,8 @@ pub fn human_readable_url(url: &Url) -> String {
     }
 }
 
+/// Returns a path into the configured download directory with either
+/// the file name in the Url
 pub fn download_filename_from_url(url: &Url) -> String {
     let download_path = crate::SETTINGS
         .read()
@@ -68,15 +70,17 @@ pub fn download_filename_from_url(url: &Url) -> String {
         .get_str("download_path")
         .unwrap_or_default();
 
-    if let Some(mut segments) = url.path_segments().map(|c| c.collect::<Vec<_>>()) {
-        let filename = segments.pop().unwrap();
-        // Get download_path from settings
-        let path = Path::new(download_path.as_str()).join(filename);
-        path.display().to_string()
+    let filename = match url.path_segments() {
+        Some(path_segments) => path_segments.last().unwrap_or_default(),
+        None => "download",
+    };
+    let filename = if filename.is_empty() {
+        // FIXME: file extension based on mime type
+        "download"
     } else {
-        // TODO: Create extension based on mimetype
-        // Use download_path from settings
-        let path = Path::new(download_path.as_str()).join("download.bin");
-        path.display().to_string()
-    }
+        filename
+    };
+
+    let path = Path::new(&download_path).join(filename);
+    path.display().to_string()
 }

@@ -300,13 +300,8 @@ pub(super) fn save_as(app: &mut Cursive) {
         .unwrap()
         .clone();
 
-    let mut filename = download_filename_from_url(&current_url);
-    if filename.is_empty() {
-        filename.push_str("download");
-    }
-    if !filename.ends_with(".txt") {
-        filename.push_str(".txt");
-    }
+    let filename = download_filename_from_url(&current_url);
+
     app.add_layer(
         Dialog::new()
             .title("Enter filename:")
@@ -321,8 +316,8 @@ pub(super) fn save_as(app: &mut Cursive) {
                 app.pop_layer();
             })
             .button("Ok", |app| {
-                let name = app.find_name::<EditView>("name").unwrap().get_content();
-                Controller::save_as_action(app, &name)
+                let path = app.find_name::<EditView>("name").unwrap().get_content();
+                Controller::save_as_action(app, &path);
             }),
     );
 }
