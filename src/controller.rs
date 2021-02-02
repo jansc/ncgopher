@@ -120,7 +120,7 @@ impl Controller {
         Ok(())
     }
 
-    fn fetch_gemini_url(&self, mut url: Url, add_to_history: bool, index: usize) {
+    fn fetch_gemini_url(&self, mut url: Url, index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
 
         let request_id = {
@@ -468,7 +468,7 @@ impl Controller {
         });
     }
 
-    fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
+    fn fetch_url(&self, url: Url, item_type: ItemType, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
 
@@ -558,9 +558,6 @@ impl Controller {
                 .send(Box::new(move |app| {
                     let controller = app.user_data::<Controller>().expect("controller missing");
                     controller.set_message(url.as_str());
-                    if add_to_history {
-                        controller.add_to_history(url, index);
-                    }
                     controller.set_gopher_content(item_type, s, index);
                 }))
                 .unwrap();
@@ -662,14 +659,12 @@ impl Controller {
     }
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
+        if add_to_history {
+            self.add_to_history(url.clone(), index);
+        }
         match url.scheme() {
-            "gopher" => self.open_gopher_address(
-                url.clone(),
-                ItemType::from_url(&url),
-                add_to_history,
-                index,
-            ),
-            "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "gopher" => self.open_gopher_address(url.clone(), ItemType::from_url(&url), index),
+            "gemini" => self.open_gemini_address(url.clone(), index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
             scheme => {
@@ -704,23 +699,16 @@ impl Controller {
             }
         };
         self.set_message(&format!("about:{}", url.path()));
-        self.add_to_history(url.clone(), 0);
         self.set_gemini_content(url, GeminiType::Gemini, content, 0);
     }
 
-    pub fn open_gopher_address(
-        &mut self,
-        url: Url,
-        item_type: ItemType,
-        add_to_history: bool,
-        index: usize,
-    ) {
+    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType, index: usize) {
         self.set_message("Loading ...");
         if item_type.is_download() {
             let filename = download_filename_from_url(&url);
             self.fetch_binary_url(url, filename);
         } else {
-            self.fetch_url(url, item_type, add_to_history, index);
+            self.fetch_url(url, item_type, index);
         }
     }
 
@@ -850,7 +838,7 @@ impl Controller {
                                     let controller =
                                         app.user_data::<Controller>().expect("controller missing");
                                     controller.set_message("Loading ...");
-                                    controller.fetch_url(url, ItemType::Dir, true, 0);
+                                    controller.fetch_url(url, ItemType::Dir, 0);
                                 }),
                         );
                     } else if entry.item_type.is_html() {
@@ -872,10 +860,10 @@ impl Controller {
             .unwrap();
     }
 
-    fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
+    fn open_gemini_address(&mut self, url: Url, index: usize) {
         self.set_message("Loading ...");
         *self.current_url.lock().unwrap() = url.clone();
-        self.fetch_gemini_url(url, add_to_history, index);
+        self.fetch_gemini_url(url, index);
     }
 
     fn set_gemini_content(
