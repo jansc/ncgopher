@@ -981,7 +981,7 @@ impl Controller {
                     .expect("history menu missing");
                 // remove everything but the first three elements
                 while menu.len() > 3 {
-                    menu.remove(4);
+                    menu.remove(3);
                 }
             }))
             .unwrap();
