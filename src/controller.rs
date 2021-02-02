@@ -134,9 +134,13 @@ impl Controller {
 
         let host = url.host_str().unwrap().to_string();
         // can only be a gemini URL, no need to check the scheme
-        let server_details = url
-            .socket_addrs(|| Some(1965))
-            .expect("could not understand URL")[0];
+        let server_details = match url.socket_addrs(|| Some(1965)) {
+            Ok(sock_addrs) => sock_addrs[0],
+            Err(err) => {
+                self.set_message(&format!("invalid URL: {}", err));
+                return;
+            }
+        };
 
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().get(&url);
