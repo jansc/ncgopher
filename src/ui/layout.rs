@@ -30,11 +30,11 @@ impl Layout {
         Layout {
             views: HashMap::new(),
             stack: Vec::new(),
-            statusbar: status.as_boxed_view(),
+            statusbar: status.into_boxed_view(),
             focus: None,
             screenchange: true,
             last_size: Vec2::new(0, 0),
-            //            theme,
+            // theme,
         }
     }
 
@@ -42,7 +42,7 @@ impl Layout {
         let s = id.into();
         let screen = Screen {
             title: title.into(),
-            view: view.as_boxed_view(),
+            view: view.into_boxed_view(),
         };
         self.views.insert(s.clone(), screen);
         self.focus = Some(s);
@@ -160,7 +160,11 @@ impl View for Layout {
     }
 
     fn call_on_any<'a>(&mut self, s: &Selector, c: AnyCb<'a>) {
-        self.get_current_screen_mut().view.call_on_any(s, c)
+        if let Selector::Name("statusbar") = s {
+            self.statusbar.call_on_any(s, c);
+        } else {
+            self.get_current_screen_mut().view.call_on_any(s, c)
+        }
     }
 
     fn take_focus(&mut self, source: Direction) -> bool {

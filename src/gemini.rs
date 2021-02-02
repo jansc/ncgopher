@@ -50,7 +50,7 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                         .collect()
                 }
                 Node::Link { to, name } => {
-                    use crate::ncgopher::human_readable_url;
+                    use crate::url_tools::human_readable_url;
 
                     let url = base_url.join(&to).expect("could not parse link url");
                     let prefix = match url.scheme() {
@@ -58,6 +58,7 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                         "gemini" => "[GEM]".to_string(),
                         "gopher" => "[GPH]".to_string(),
                         "mailto" => "[ \u{2709} ]".to_string(),
+                        "about" => "ABOUT".to_string(),
                         // show first three letters of scheme, lower case to differentiate
                         other => format!("[{}]", other.chars().take(3).collect::<String>()),
                     };
