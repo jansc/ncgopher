@@ -8,7 +8,7 @@ use cursive::{
 use native_tls::{Protocol, TlsConnector};
 use sha2::{Digest, Sha256};
 use std::error::Error;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
@@ -137,8 +137,6 @@ impl Controller {
         let server_details = url
             .socket_addrs(|| Some(1965))
             .expect("could not understand URL")[0];
-
-        let local_filename = download_filename_from_url(&url);
 
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().get(&url);
@@ -379,34 +377,40 @@ impl Controller {
 							})).unwrap();
                         } else {
                             // Binary download
-                            let f = File::create(local_filename.clone()).unwrap_or_else(
-                                |_| {
-                                    panic!(
-                                        "Unable to open file '{}'",
-                                        local_filename.clone()
-                                    )
-                                }
-                            );
-                            let mut bw = BufWriter::new(f);
-                            let mut buf = [0u8; 1024];
-                            let mut total_written = 0;
-                            loop {
-                                let bytes_read = bufr
-                                    .read(&mut buf)
-                                    .expect("Could not read from TCP");
-                                if bytes_read == 0 {
-                                    break;
-                                }
-                                let bytes_written = bw
-                                    .write(&buf[..bytes_read])
-                                    .expect("Could not write to file");
-                                total_written += bytes_written;
-                                *message.write().unwrap() = format!(
-									"{} bytes read",
-									total_written
-								);
-                            }
-                            *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
+                            let local_filename = download_filename_from_url(&url);
+                            let open = OpenOptions::new()
+								.write(true)
+								// make sure to not clobber downloaded files
+								.create_new(true)
+								.open(&local_filename);
+
+							match open {
+								Ok(file) => {
+									let mut bw = BufWriter::new(file);
+									let mut buf = [0u8; 1024];
+									let mut total_written = 0;
+									loop {
+										let bytes_read = bufr
+											.read(&mut buf)
+											.expect("Could not read from TCP");
+										if bytes_read == 0 {
+											break;
+										}
+										let bytes_written = bw
+											.write(&buf[..bytes_read])
+											.expect("Could not write to file");
+										total_written += bytes_written;
+										*message.write().unwrap() = format!(
+											"{} bytes read",
+											total_written
+										);
+									}
+									*message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
+								}
+								Err(err) => {
+									*message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
+								}
+							}
                         }
                     }
                 }
@@ -582,62 +586,77 @@ impl Controller {
         thread::spawn(move || {
             // FIXME: Error handling!
             let mut tls = false;
-            let f = File::create(local_filename.clone())
-                .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename));
-            let mut bw = BufWriter::new(f);
-            let mut buf = [0u8; 1024];
-            let mut total_written = 0;
-            if port != 70 {
-                if let Ok(connector) = TlsConnector::new() {
-                    let stream = TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
-                        panic!("Couldn't connect to the server {}", server_details)
-                    });
-                    match connector.connect(&server, stream) {
-                        Ok(mut stream) => {
-                            tls = true;
-                            info!("Connected with TLS");
-                            writeln!(stream, "{}", path).unwrap();
-                            loop {
-                                let bytes_read =
-                                    stream.read(&mut buf).expect("Could not read from TCP");
-                                if bytes_read == 0 {
-                                    break;
+            let open = OpenOptions::new()
+                .write(true)
+                // make sure to not clobber downloaded files
+                .create_new(true)
+                .open(local_filename.clone());
+
+            match open {
+                Ok(file) => {
+                    let mut bw = BufWriter::new(file);
+                    let mut buf = [0u8; 1024];
+                    let mut total_written = 0;
+                    if port != 70 {
+                        if let Ok(connector) = TlsConnector::new() {
+                            let stream =
+                                TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
+                                    panic!("Couldn't connect to the server {}", server_details)
+                                });
+                            match connector.connect(&server, stream) {
+                                Ok(mut stream) => {
+                                    tls = true;
+                                    info!("Connected with TLS");
+                                    writeln!(stream, "{}", path).unwrap();
+                                    loop {
+                                        let bytes_read =
+                                            stream.read(&mut buf).expect("Could not read from TCP");
+                                        if bytes_read == 0 {
+                                            break;
+                                        }
+                                        let bytes_written = bw
+                                            .write(&buf[..bytes_read])
+                                            .expect("Could not write to file");
+                                        total_written += bytes_written;
+                                        *message.write().unwrap() =
+                                            format!("{} bytes read", total_written);
+                                    }
                                 }
-                                let bytes_written = bw
-                                    .write(&buf[..bytes_read])
-                                    .expect("Could not write to file");
-                                total_written += bytes_written;
-                                *message.write().unwrap() = format!("{} bytes read", total_written);
+                                Err(e) => {
+                                    warn!("Could not open tls stream: {} to {}", e, server_details);
+                                }
                             }
-                        }
-                        Err(e) => {
-                            warn!("Could not open tls stream: {} to {}", e, server_details);
+                        } else {
+                            info!("Could not establish tls connection");
                         }
                     }
-                } else {
-                    info!("Could not establish tls connection");
-                }
-            }
-            if !tls {
-                let mut stream = TcpStream::connect(server_details.clone())
-                    .expect("Couldn't connect to the server...");
-                writeln!(stream, "{}", path).unwrap();
-                loop {
-                    let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
-                    if bytes_read == 0 {
-                        break;
+                    if !tls {
+                        let mut stream = TcpStream::connect(server_details.clone())
+                            .expect("Couldn't connect to the server...");
+                        writeln!(stream, "{}", path).unwrap();
+                        loop {
+                            let bytes_read =
+                                stream.read(&mut buf).expect("Could not read from TCP");
+                            if bytes_read == 0 {
+                                break;
+                            }
+                            let bytes_written = bw
+                                .write(&buf[..bytes_read])
+                                .expect("Could not write to file");
+                            total_written += bytes_written;
+                            *message.write().unwrap() = format!("{} bytes read", total_written);
+                        }
                     }
-                    let bytes_written = bw
-                        .write(&buf[..bytes_read])
-                        .expect("Could not write to file");
-                    total_written += bytes_written;
-                    *message.write().unwrap() = format!("{} bytes read", total_written);
+                    *message.write().unwrap() = format!(
+                        "File downloaded: {} ({} bytes)",
+                        local_filename, total_written
+                    );
+                }
+                Err(err) => {
+                    *message.write().unwrap() =
+                        format!("Unable to open file '{}': {}", local_filename, err);
                 }
             }
-            *message.write().unwrap() = format!(
-                "File downloaded: {} ({} bytes)",
-                local_filename, total_written
-            );
         });
     }
 
@@ -652,7 +671,10 @@ impl Controller {
             "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
-            _ => self.set_message(&format!("Invalid URL: {}", url.clone()).as_str()),
+            scheme => {
+                self.set_message(&format!("unknown scheme {}", scheme).as_str());
+                return;
+            }
         }
 
         let url = human_readable_url(&url);
@@ -1021,21 +1043,24 @@ impl Controller {
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
         let path = Path::new(filename.as_str());
-        let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
+        match open {
+            Ok(mut file) => {
+                if let Err(why) = file.write_all(content.as_bytes()) {
+                    self.set_message(&format!("Couldn't open {}: {}", path.display(), why));
+                }
             }
-            Ok(file) => file,
-        };
-
-        // Read the file contents into a string, returns `io::Result<usize>`
-        if let Err(why) = file.write_all(content.as_bytes()) {
-            self.set_message(&format!("Couldn't open {}: {}", display, why));
+            Err(err) => self.set_message(&format!(
+                "Unable to open file '{}': {}",
+                path.display(),
+                err
+            )),
         }
-        // `file` goes out of scope, and the [filename] file gets closed
     }
 
     fn save_gemini(&mut self, filename: String) {
@@ -1054,24 +1079,31 @@ impl Controller {
             .unwrap_or_default();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
-        let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
+
+        match open {
+            Ok(mut file) => {
+                // Read the file contents into a string, returns `io::Result<usize>`
+                for l in lines {
+                    if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                        self.set_message(&format!("Couldn't write {}: {}", path.display(), why));
+                        return;
+                    }
+                }
             }
-            Ok(file) => file,
-        };
-
-        // Read the file contents into a string, returns `io::Result<usize>`
-        for l in lines {
-            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
-                self.set_message(&format!("Couldn't write {}: {}", display, why));
-                return;
+            Err(err) => {
+                self.set_message(&format!(
+                    "Unable to open file '{}': {}",
+                    path.display(),
+                    err
+                ));
             }
         }
-        // `file` goes out of scope and the file gets closed
     }
 
     /// Save the current gophermap to disk
@@ -1100,26 +1132,32 @@ impl Controller {
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
-            }
-            Ok(file) => file,
-        };
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
 
-        // Read the file contents into a string, returns `io::Result<usize>`
-        for l in txtlines {
-            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        match open {
+            Ok(mut file) => {
+                // Read the file contents into a string, returns `io::Result<usize>`
+                for l in txtlines {
+                    if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                        self.set_message(&format!("Couldn't open {}: {}", display, why));
+                        return;
+                    }
+                }
             }
+            Err(err) => self.set_message(&format!(
+                "Unable to open file '{}': {}",
+                path.display(),
+                err
+            )),
         }
-        // `file` goes out of scope and the file gets closed
     }
 
     /// Sets message for statusbar
-    pub fn set_message(&mut self, msg: &str) {
+    pub fn set_message(&self, msg: &str) {
         let mut message = self.message.write().unwrap();
         message.clear();
         message.push_str(msg);
