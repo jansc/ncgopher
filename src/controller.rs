@@ -1139,24 +1139,36 @@ impl Controller {
     pub fn add_bookmark_action(&mut self, url: Url, title: String, tags: String) {
         let tags = tags.as_str().split_whitespace().map(String::from).collect();
         let b = Bookmark { title, url, tags };
-        // Check if bookmark exists
-        if self.bookmarks.lock().unwrap().exists(b.clone().url) {
-            self.bookmarks.lock().unwrap().remove(b.clone().url);
-        }
-        self.bookmarks.lock().unwrap().add(b.clone());
+
+        let mut bookmarks = self.bookmarks.lock().unwrap();
+
+        let index = bookmarks.insert(b.clone());
 
         // add to bookmark menu
         self.sender
             .send(Box::new(move |app| {
                 let url = b.url.clone();
-                app.menubar()
+                let menu = app
+                    .menubar()
                     .find_subtree("Bookmarks")
-                    .expect("bookmarks menu missing")
-                    .insert_leaf(3, b.title.as_str(), move |app| {
+                    .expect("bookmarks menu missing");
+                if let Some(i) = index {
+                    // replace element
+                    // add 3 to account for "Edit..." etc.
+                    menu.remove(i + 3);
+                    menu.insert_leaf(i + 3, &b.title, move |app| {
                         app.user_data::<Controller>()
                             .expect("controller missing")
                             .open_url(url.clone(), true, 0);
                     });
+                } else {
+                    // add new entry to end
+                    menu.add_leaf(&b.title, move |app| {
+                        app.user_data::<Controller>()
+                            .expect("controller missing")
+                            .open_url(url.clone(), true, 0);
+                    });
+                }
             }))
             .unwrap();
     }
@@ -1168,7 +1180,7 @@ impl Controller {
             .bookmarks
             .lock()
             .unwrap();
-        guard.remove(b.url);
+        guard.remove(&b.url);
         let bookmarks = guard.entries.clone();
         drop(guard);
 
@@ -1179,7 +1191,8 @@ impl Controller {
             .expect("bookmarks menu missing");
         menutree.clear();
         // re-add all bookmark entries
-        for entry in &bookmarks {
+        // respecting the order so add_bookmark_action works correctly
+        for entry in bookmarks.iter().rev() {
             let url = entry.url.clone();
             menutree.insert_leaf(3, &b.title, move |app| {
                 app.user_data::<Controller>()

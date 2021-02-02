@@ -16,6 +16,10 @@ pub(super) fn add_bookmark_current_url(app: &mut Cursive) {
 }
 
 pub(crate) fn add_bookmark(app: &mut Cursive, url: Url) {
+    edit_bookmark(app, url, "", "");
+}
+
+pub fn edit_bookmark(app: &mut Cursive, url: Url, title: &str, tags: &str) {
     app.add_layer(
         Dialog::new()
             .title("Add Bookmark")
@@ -29,9 +33,19 @@ pub(crate) fn add_bookmark(app: &mut Cursive, url: Url) {
                             .fixed_width(30),
                     )
                     .child(TextView::new("\nTitle:"))
-                    .child(EditView::new().with_name("title").fixed_width(30))
+                    .child(
+                        EditView::new()
+                            .content(title)
+                            .with_name("title")
+                            .fixed_width(30),
+                    )
                     .child(TextView::new("Tags (comma separated):"))
-                    .child(EditView::new().with_name("tags").fixed_width(30)),
+                    .child(
+                        EditView::new()
+                            .content(tags)
+                            .with_name("tags")
+                            .fixed_width(30),
+                    ),
             )
             .button("Ok", |app| {
                 let url = app.find_name::<EditView>("url").unwrap().get_content();
@@ -134,7 +148,12 @@ pub(super) fn edit_bookmarks(app: &mut Cursive) {
                     None => (),
                     Some(b) => {
                         app.pop_layer();
-                        crate::ui::dialogs::add_bookmark(app, b.url.clone());
+                        crate::ui::dialogs::edit_bookmark(
+                            app,
+                            b.url.clone(),
+                            &b.title,
+                            &b.tags.join(","),
+                        );
                     }
                 }
             })

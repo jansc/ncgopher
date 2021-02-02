@@ -80,23 +80,28 @@ impl Bookmarks {
         dir
     }
 
-    // Checks if a bookmark with a given url exists
-    pub fn exists(&self, url: Url) -> bool {
-        self.entries.iter().any(|v| v.url == url)
-    }
-
-    pub fn add(&mut self, entry: Bookmark) {
+    /// Replace an existting bookmark or add a new bookmark.
+    /// If an entry is replaced, it will remain at the same position
+    /// Returns the index of the existing entry or None.
+    pub fn insert(&mut self, entry: Bookmark) -> Option<usize> {
         info!("Adding entry to bookmark: {:?}", entry);
-        self.entries.push(entry);
-        match self.write_bookmarks_to_file() {
-            Err(why) => warn!("Could not write bookmarks file: {}", why),
-            Ok(()) => (),
-        }
+        let index = self.entries.iter().position(|e| e.url == entry.url);
+        if let Some(i) = index {
+            // replace item
+            self.entries.remove(i);
+            self.entries.insert(i, entry);
+        } else {
+            // insert new item at end
+            self.entries.push(entry);
+        };
+        self.write_bookmarks_to_file()
+            .unwrap_or_else(|err| warn!("Could not write bookmarks file: {}", err));
+        index
     }
 
-    pub fn remove(&mut self, u: Url) {
-        info!("Removing entry to bookmark: {:?}", u);
-        self.entries.retain(|e| e.url != u);
+    pub fn remove(&mut self, url: &Url) {
+        info!("Removing entry to bookmark: {:?}", url);
+        self.entries.retain(|e| &e.url != url);
         match self.write_bookmarks_to_file() {
             Err(why) => warn!("Could not write bookmarks file: {}", why),
             Ok(()) => (),
@@ -104,11 +109,7 @@ impl Bookmarks {
     }
 
     pub fn get_bookmarks(&self) -> Vec<Bookmark> {
-        let mut res = Vec::<Bookmark>::new();
-        for i in 0..self.entries.len() {
-            res.push(self.entries[i].clone());
-        }
-        res
+        self.entries.clone()
     }
 
     pub fn write_bookmarks_to_file(&mut self) -> std::io::Result<()> {
