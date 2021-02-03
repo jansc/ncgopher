@@ -332,7 +332,18 @@ impl Controller {
                 }
                 // after the two digit status code there should be a space
                 // otherwhise the header is invalid too
-                buf.chars().nth(2) == Some(' ')
+                if buf.chars().nth(2) != Some(' ') {
+                    if matches!(buf.chars().nth(2), Some(c) if c.is_whitespace()) {
+                        // not space, but still whitespace
+                        info!("header is invalid, but recoverable: {:?}", buf);
+                    } else {
+                        // really no idea what this is
+                        *message.write().unwrap() =
+                            format!("invalid header from server: malformed: {}", buf);
+                        return false;
+                    }
+                }
+                true
             };
 
             match buf.chars().next() {
