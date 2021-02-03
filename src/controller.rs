@@ -8,7 +8,7 @@ use cursive::{
 use native_tls::{Protocol, TlsConnector};
 use sha2::{Digest, Sha256};
 use std::error::Error;
-use std::fs::File;
+use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
@@ -120,7 +120,7 @@ impl Controller {
         Ok(())
     }
 
-    fn fetch_gemini_url(&self, mut url: Url, add_to_history: bool, index: usize) {
+    fn fetch_gemini_url(&self, mut url: Url, index: usize) {
         trace!("Controller::fetch_gemini_url({})", url);
 
         let request_id = {
@@ -134,11 +134,13 @@ impl Controller {
 
         let host = url.host_str().unwrap().to_string();
         // can only be a gemini URL, no need to check the scheme
-        let server_details = url
-            .socket_addrs(|| Some(1965))
-            .expect("could not understand URL")[0];
-
-        let local_filename = download_filename_from_url(&url);
+        let server_details = match url.socket_addrs(|| Some(1965)) {
+            Ok(sock_addrs) => sock_addrs[0],
+            Err(err) => {
+                self.set_message(&format!("invalid URL: {}", err));
+                return;
+            }
+        };
 
         // Get known certificate fingerprint for host
         let fingerprint = self.certificates.lock().unwrap().get(&url);
@@ -337,18 +339,18 @@ impl Controller {
                 Some('1') => {
                     // INPUT
                     let secret = match buf.chars().nth(1) {
-						Some('1') => true,
-						other => {
-							if !check(other){
-								return
-							} else {
-								false
-							}
-						},
-					};
+                        Some('1') => true,
+                        other => {
+                            if !check(other){
+                                return
+                            } else {
+                                false
+                            }
+                        },
+                    };
                     sender.send(Box::new(move |app|{
-						crate::ui::dialogs::gemini_query(app, url, meta, secret);
-					})).unwrap();
+                        crate::ui::dialogs::gemini_query(app, url, meta, secret);
+                    })).unwrap();
                 }
                 Some('2') => {
                     // SUCCESS
@@ -361,52 +363,55 @@ impl Controller {
                         if meta.starts_with("text/") {
                             let mut buf = vec![];
                             bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-								*message.write().unwrap() = format!(
-									"I/O error: {}",
-									err
-								);
+                                *message.write().unwrap() = format!(
+                                    "I/O error: {}",
+                                    err
+                                );
                                 0
                             });
 
                             let s = String::from_utf8_lossy(&buf).into_owned();
                             sender.send(Box::new(move |app|{
-								let controller = app.user_data::<Controller>().expect("controller missing");
-								controller.set_message(url.as_str());
-								if add_to_history {
-									controller.add_to_history(url.clone(), index);
-								}
-								controller.set_gemini_content(url, GeminiType::Gemini, s, index);
-							})).unwrap();
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                controller.set_message(url.as_str());
+                                controller.set_gemini_content(url, GeminiType::Gemini, s, index);
+                            })).unwrap();
                         } else {
                             // Binary download
-                            let f = File::create(local_filename.clone()).unwrap_or_else(
-                                |_| {
-                                    panic!(
-                                        "Unable to open file '{}'",
-                                        local_filename.clone()
-                                    )
+                            let local_filename = download_filename_from_url(&url);
+                            let open = OpenOptions::new()
+                                .write(true)
+                                // make sure to not clobber downloaded files
+                                .create_new(true)
+                                .open(&local_filename);
+
+                            match open {
+                                Ok(file) => {
+                                    let mut bw = BufWriter::new(file);
+                                    let mut buf = [0u8; 1024];
+                                    let mut total_written = 0;
+                                    loop {
+                                        let bytes_read = bufr
+                                            .read(&mut buf)
+                                            .expect("Could not read from TCP");
+                                        if bytes_read == 0 {
+                                            break;
+                                        }
+                                        let bytes_written = bw
+                                            .write(&buf[..bytes_read])
+                                            .expect("Could not write to file");
+                                        total_written += bytes_written;
+                                        *message.write().unwrap() = format!(
+                                            "{} bytes read",
+                                            total_written
+                                        );
+                                    }
+                                    *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
                                 }
-                            );
-                            let mut bw = BufWriter::new(f);
-                            let mut buf = [0u8; 1024];
-                            let mut total_written = 0;
-                            loop {
-                                let bytes_read = bufr
-                                    .read(&mut buf)
-                                    .expect("Could not read from TCP");
-                                if bytes_read == 0 {
-                                    break;
+                                Err(err) => {
+                                    *message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
                                 }
-                                let bytes_written = bw
-                                    .write(&buf[..bytes_read])
-                                    .expect("Could not write to file");
-                                total_written += bytes_written;
-                                *message.write().unwrap() = format!(
-									"{} bytes read",
-									total_written
-								);
                             }
-                            *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
                         }
                     }
                 }
@@ -425,15 +430,15 @@ impl Controller {
                             // FIXME: Try to parse url, check scheme
                             // FIXME: limit number of redirects
                             sender.send(Box::new(move |app|{
-								let controller = app.user_data::<Controller>().expect("controller missing");
-								controller.fetch_gemini_url(url, true, 0);
-							})).unwrap();
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                controller.open_url(url, true, 0);
+                            })).unwrap();
                         }
                         Err(_) => {
-							*message.write().unwrap() = format!(
-								"invalid redirect url: {}",
-								meta
-							);
+                            *message.write().unwrap() = format!(
+                                "invalid redirect url: {}",
+                                meta
+                            );
                         }
                     }
                 }
@@ -442,28 +447,28 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
-						let header = buf.to_string();
+                        let header = buf.to_string();
                         sender.send(Box::new(move |app|{
-							let controller = app.user_data::<Controller>().expect("controller missing");
-							// reset content and set current URL for retrying
-							controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
-							controller.set_message(&format!("Gemini error: {}", header));
-						})).unwrap();
+                            let controller = app.user_data::<Controller>().expect("controller missing");
+                            // reset content and set current URL for retrying
+                            controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
+                            controller.set_message(&format!("Gemini error: {}", header));
+                        })).unwrap();
                     }
                 }
                 other => {
                     *message.write().unwrap() = if other.is_some() {
-						format!("invalid header from server: invalid status code: {}", buf)
-					} else {
-						format!("invalid header from server: missing status code: {}", buf)
-					};
+                        format!("invalid header from server: invalid status code: {}", buf)
+                    } else {
+                        format!("invalid header from server: missing status code: {}", buf)
+                    };
                 }
             }
             info!("finished reading from gemini stream");
         });
     }
 
-    fn fetch_url(&self, url: Url, item_type: ItemType, add_to_history: bool, index: usize) {
+    fn fetch_url(&self, url: Url, item_type: ItemType, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
         trace!("Controller::fetch_url({})", url);
 
@@ -553,9 +558,6 @@ impl Controller {
                 .send(Box::new(move |app| {
                     let controller = app.user_data::<Controller>().expect("controller missing");
                     controller.set_message(url.as_str());
-                    if add_to_history {
-                        controller.add_to_history(url, index);
-                    }
                     controller.set_gopher_content(item_type, s, index);
                 }))
                 .unwrap();
@@ -582,77 +584,93 @@ impl Controller {
         thread::spawn(move || {
             // FIXME: Error handling!
             let mut tls = false;
-            let f = File::create(local_filename.clone())
-                .unwrap_or_else(|_| panic!("Unable to open file '{}'", local_filename));
-            let mut bw = BufWriter::new(f);
-            let mut buf = [0u8; 1024];
-            let mut total_written = 0;
-            if port != 70 {
-                if let Ok(connector) = TlsConnector::new() {
-                    let stream = TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
-                        panic!("Couldn't connect to the server {}", server_details)
-                    });
-                    match connector.connect(&server, stream) {
-                        Ok(mut stream) => {
-                            tls = true;
-                            info!("Connected with TLS");
-                            writeln!(stream, "{}", path).unwrap();
-                            loop {
-                                let bytes_read =
-                                    stream.read(&mut buf).expect("Could not read from TCP");
-                                if bytes_read == 0 {
-                                    break;
+            let open = OpenOptions::new()
+                .write(true)
+                // make sure to not clobber downloaded files
+                .create_new(true)
+                .open(local_filename.clone());
+
+            match open {
+                Ok(file) => {
+                    let mut bw = BufWriter::new(file);
+                    let mut buf = [0u8; 1024];
+                    let mut total_written = 0;
+                    if port != 70 {
+                        if let Ok(connector) = TlsConnector::new() {
+                            let stream =
+                                TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
+                                    panic!("Couldn't connect to the server {}", server_details)
+                                });
+                            match connector.connect(&server, stream) {
+                                Ok(mut stream) => {
+                                    tls = true;
+                                    info!("Connected with TLS");
+                                    writeln!(stream, "{}", path).unwrap();
+                                    loop {
+                                        let bytes_read =
+                                            stream.read(&mut buf).expect("Could not read from TCP");
+                                        if bytes_read == 0 {
+                                            break;
+                                        }
+                                        let bytes_written = bw
+                                            .write(&buf[..bytes_read])
+                                            .expect("Could not write to file");
+                                        total_written += bytes_written;
+                                        *message.write().unwrap() =
+                                            format!("{} bytes read", total_written);
+                                    }
                                 }
-                                let bytes_written = bw
-                                    .write(&buf[..bytes_read])
-                                    .expect("Could not write to file");
-                                total_written += bytes_written;
-                                *message.write().unwrap() = format!("{} bytes read", total_written);
+                                Err(e) => {
+                                    warn!("Could not open tls stream: {} to {}", e, server_details);
+                                }
                             }
-                        }
-                        Err(e) => {
-                            warn!("Could not open tls stream: {} to {}", e, server_details);
+                        } else {
+                            info!("Could not establish tls connection");
                         }
                     }
-                } else {
-                    info!("Could not establish tls connection");
-                }
-            }
-            if !tls {
-                let mut stream = TcpStream::connect(server_details.clone())
-                    .expect("Couldn't connect to the server...");
-                writeln!(stream, "{}", path).unwrap();
-                loop {
-                    let bytes_read = stream.read(&mut buf).expect("Could not read from TCP");
-                    if bytes_read == 0 {
-                        break;
+                    if !tls {
+                        let mut stream = TcpStream::connect(server_details.clone())
+                            .expect("Couldn't connect to the server...");
+                        writeln!(stream, "{}", path).unwrap();
+                        loop {
+                            let bytes_read =
+                                stream.read(&mut buf).expect("Could not read from TCP");
+                            if bytes_read == 0 {
+                                break;
+                            }
+                            let bytes_written = bw
+                                .write(&buf[..bytes_read])
+                                .expect("Could not write to file");
+                            total_written += bytes_written;
+                            *message.write().unwrap() = format!("{} bytes read", total_written);
+                        }
                     }
-                    let bytes_written = bw
-                        .write(&buf[..bytes_read])
-                        .expect("Could not write to file");
-                    total_written += bytes_written;
-                    *message.write().unwrap() = format!("{} bytes read", total_written);
+                    *message.write().unwrap() = format!(
+                        "File downloaded: {} ({} bytes)",
+                        local_filename, total_written
+                    );
+                }
+                Err(err) => {
+                    *message.write().unwrap() =
+                        format!("Unable to open file '{}': {}", local_filename, err);
                 }
             }
-            *message.write().unwrap() = format!(
-                "File downloaded: {} ({} bytes)",
-                local_filename, total_written
-            );
         });
     }
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
+        if add_to_history {
+            self.add_to_history(url.clone(), index);
+        }
         match url.scheme() {
-            "gopher" => self.open_gopher_address(
-                url.clone(),
-                ItemType::from_url(&url),
-                add_to_history,
-                index,
-            ),
-            "gemini" => self.open_gemini_address(url.clone(), add_to_history, index),
+            "gopher" => self.open_gopher_address(url.clone(), ItemType::from_url(&url), index),
+            "gemini" => self.open_gemini_address(url.clone(), index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
-            _ => self.set_message(&format!("Invalid URL: {}", url.clone()).as_str()),
+            scheme => {
+                self.set_message(&format!("unknown scheme {}", scheme).as_str());
+                return;
+            }
         }
 
         let url = human_readable_url(&url);
@@ -681,23 +699,16 @@ impl Controller {
             }
         };
         self.set_message(&format!("about:{}", url.path()));
-        self.add_to_history(url.clone(), 0);
         self.set_gemini_content(url, GeminiType::Gemini, content, 0);
     }
 
-    pub fn open_gopher_address(
-        &mut self,
-        url: Url,
-        item_type: ItemType,
-        add_to_history: bool,
-        index: usize,
-    ) {
+    pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType, index: usize) {
         self.set_message("Loading ...");
         if item_type.is_download() {
             let filename = download_filename_from_url(&url);
             self.fetch_binary_url(url, filename);
         } else {
-            self.fetch_url(url, item_type, add_to_history, index);
+            self.fetch_url(url, item_type, index);
         }
     }
 
@@ -736,8 +747,8 @@ impl Controller {
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
                 let viewport_width = app.screen_size().x
-				// adjust for left margin
-				- 7;
+                // adjust for left margin
+                - 7;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
 
@@ -827,7 +838,7 @@ impl Controller {
                                     let controller =
                                         app.user_data::<Controller>().expect("controller missing");
                                     controller.set_message("Loading ...");
-                                    controller.fetch_url(url, ItemType::Dir, true, 0);
+                                    controller.fetch_url(url, ItemType::Dir, 0);
                                 }),
                         );
                     } else if entry.item_type.is_html() {
@@ -849,10 +860,10 @@ impl Controller {
             .unwrap();
     }
 
-    fn open_gemini_address(&mut self, url: Url, add_to_history: bool, index: usize) {
+    fn open_gemini_address(&mut self, url: Url, index: usize) {
         self.set_message("Loading ...");
         *self.current_url.lock().unwrap() = url.clone();
-        self.fetch_gemini_url(url, add_to_history, index);
+        self.fetch_gemini_url(url, index);
     }
 
     fn set_gemini_content(
@@ -886,8 +897,8 @@ impl Controller {
                     .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
 
                 let viewport_width = app.screen_size().x
-				// adjust for left margin
-				- 8;
+                // adjust for left margin
+                - 8;
 
                 let viewport_width = std::cmp::min(textwrap, viewport_width);
 
@@ -1021,21 +1032,24 @@ impl Controller {
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
         let path = Path::new(filename.as_str());
-        let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
+        match open {
+            Ok(mut file) => {
+                if let Err(why) = file.write_all(content.as_bytes()) {
+                    self.set_message(&format!("Couldn't open {}: {}", path.display(), why));
+                }
             }
-            Ok(file) => file,
-        };
-
-        // Read the file contents into a string, returns `io::Result<usize>`
-        if let Err(why) = file.write_all(content.as_bytes()) {
-            self.set_message(&format!("Couldn't open {}: {}", display, why));
+            Err(err) => self.set_message(&format!(
+                "Unable to open file '{}': {}",
+                path.display(),
+                err
+            )),
         }
-        // `file` goes out of scope, and the [filename] file gets closed
     }
 
     fn save_gemini(&mut self, filename: String) {
@@ -1054,24 +1068,31 @@ impl Controller {
             .unwrap_or_default();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
-        let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
+
+        match open {
+            Ok(mut file) => {
+                // Read the file contents into a string, returns `io::Result<usize>`
+                for l in lines {
+                    if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                        self.set_message(&format!("Couldn't write {}: {}", path.display(), why));
+                        return;
+                    }
+                }
             }
-            Ok(file) => file,
-        };
-
-        // Read the file contents into a string, returns `io::Result<usize>`
-        for l in lines {
-            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
-                self.set_message(&format!("Couldn't write {}: {}", display, why));
-                return;
+            Err(err) => {
+                self.set_message(&format!(
+                    "Unable to open file '{}': {}",
+                    path.display(),
+                    err
+                ));
             }
         }
-        // `file` goes out of scope and the file gets closed
     }
 
     /// Save the current gophermap to disk
@@ -1100,26 +1121,32 @@ impl Controller {
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
 
-        let mut file = match File::create(&path) {
-            Err(why) => {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
-            }
-            Ok(file) => file,
-        };
+        let open = OpenOptions::new()
+            .write(true)
+            // make sure to not clobber downloaded files
+            .create_new(true)
+            .open(&path);
 
-        // Read the file contents into a string, returns `io::Result<usize>`
-        for l in txtlines {
-            if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
-                self.set_message(&format!("Couldn't open {}: {}", display, why));
-                return;
+        match open {
+            Ok(mut file) => {
+                // Read the file contents into a string, returns `io::Result<usize>`
+                for l in txtlines {
+                    if let Err(why) = file.write_all(format!("{}\n", l).as_bytes()) {
+                        self.set_message(&format!("Couldn't open {}: {}", display, why));
+                        return;
+                    }
+                }
             }
+            Err(err) => self.set_message(&format!(
+                "Unable to open file '{}': {}",
+                path.display(),
+                err
+            )),
         }
-        // `file` goes out of scope and the file gets closed
     }
 
     /// Sets message for statusbar
-    pub fn set_message(&mut self, msg: &str) {
+    pub fn set_message(&self, msg: &str) {
         let mut message = self.message.write().unwrap();
         message.clear();
         message.push_str(msg);
@@ -1206,30 +1233,35 @@ impl Controller {
         let controller = app.user_data::<Controller>().expect("controller missing");
         match Url::parse(url) {
             Ok(url) => controller.open_url(url, true, 0),
-            Err(e) => controller.set_message(&format!("Invalid URL: {}", e)),
+            Err(e) => controller.set_message(&format!("invalid URL: {}", e)),
         }
     }
 
-    pub fn save_as_action(app: &mut Cursive, name: &str) {
-        app.pop_layer();
-        let controller = app.user_data::<Controller>().expect("controller missing");
-        let current_url = controller.current_url.lock().unwrap().clone();
-        let filename = download_filename_from_url(&current_url);
-        if !name.is_empty() {
-            controller.set_message(&format!("saving page as '{}'.", filename).as_str());
+    pub fn save_as_action(app: &mut Cursive, path: &str) {
+        if !path.is_empty() {
+            app.pop_layer();
+
+            let path = path.to_string();
+            let controller = app.user_data::<Controller>().expect("controller missing");
+            controller.set_message(&format!("saving page as '{}'.", path));
+
+            let current_url = controller.current_url.lock().unwrap().clone();
+
             match current_url.scheme() {
                 "gopher" => {
                     let item_type = ItemType::from_url(&current_url);
                     match item_type {
-                        ItemType::Dir => controller.save_gophermap(filename),
-                        ItemType::File => controller.save_textfile(filename),
-                        _ => (),
+                        ItemType::Dir => controller.save_gophermap(path),
+                        ItemType::File => controller.save_textfile(path),
+                        _ => controller.set_message(&format!("cannot save this kind of page")),
                     }
                 }
-                "gemini" => controller.save_gemini(filename),
-                _ => (),
+                "about" | "gemini" => controller.save_gemini(path),
+                other => controller
+                    .set_message(&format!("failed to save page: unknown scheme {}", other)),
             }
         } else {
+            // do not pop the save dialog so user can make corrections
             app.add_layer(Dialog::info("No filename given!"))
         }
     }

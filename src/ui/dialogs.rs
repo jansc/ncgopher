@@ -73,17 +73,17 @@ pub fn edit_bookmark(app: &mut Cursive, url: Url, title: &str, tags: &str) {
 
 pub(crate) fn certificate_changed(app: &mut Cursive, url: Url, fingerprint: String) {
     app.add_layer(
-		Dialog::new()
-			.title("Certificate warning")
-			.content(TextView::new(format!("The certificate for the following domain has changed:\n{}\nDo you want to continue?", url.host_str().unwrap())))
-			.button("Cancel", |app| {
-				app.pop_layer(); // Close dialog
-			})
-			.button("Accept the risk", move |app| {
-				app.pop_layer(); // Close dialog
-				Controller::certificate_changed_action(app, &url, fingerprint.clone());
-			})
-	);
+        Dialog::new()
+            .title("Certificate warning")
+            .content(TextView::new(format!("The certificate for the following domain has changed:\n{}\nDo you want to continue?", url.host_str().unwrap())))
+            .button("Cancel", |app| {
+                app.pop_layer(); // Close dialog
+            })
+            .button("Accept the risk", move |app| {
+                app.pop_layer(); // Close dialog
+                Controller::certificate_changed_action(app, &url, fingerprint.clone());
+            })
+    );
 }
 
 pub(super) fn edit_bookmarks(app: &mut Cursive) {
@@ -300,13 +300,8 @@ pub(super) fn save_as(app: &mut Cursive) {
         .unwrap()
         .clone();
 
-    let mut filename = download_filename_from_url(&current_url);
-    if filename.is_empty() {
-        filename.push_str("download");
-    }
-    if !filename.ends_with(".txt") {
-        filename.push_str(".txt");
-    }
+    let filename = download_filename_from_url(&current_url);
+
     app.add_layer(
         Dialog::new()
             .title("Enter filename:")
@@ -321,8 +316,8 @@ pub(super) fn save_as(app: &mut Cursive) {
                 app.pop_layer();
             })
             .button("Ok", |app| {
-                let name = app.find_name::<EditView>("name").unwrap().get_content();
-                Controller::save_as_action(app, &name)
+                let path = app.find_name::<EditView>("name").unwrap().get_content();
+                Controller::save_as_action(app, &path);
             }),
     );
 }
@@ -337,56 +332,56 @@ pub(super) fn settings(app: &mut Cursive) {
     let darkmode = theme == "darkmode";
     let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
     app.add_layer(
-		Dialog::new()
-			.title("Settings")
-			.content(
-				LinearLayout::vertical()
-					.child(TextView::new("Homepage:"))
-					.child(EditView::new().content(homepage_url).with_name("homepage").fixed_width(50))
-					.child(TextView::new("Download path:"))
-					.child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50))
-					.child(TextView::new("\nUse full path to the external command executable.\nIt will be called with the URL as parameter."))
-					.child(TextView::new("HTML browser:"))
-					.child(EditView::new().content(html_command.as_str()).with_name("html_command").fixed_width(50))
-					.child(TextView::new("Images viewer:"))
-					.child(EditView::new().content(image_command.as_str()).with_name("image_command").fixed_width(50))
-					.child(TextView::new("Telnet client:"))
-					.child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
-					.child(TextView::new("Dark mode:"))
-					.child(Checkbox::new().with_checked(darkmode).with_name("darkmode"))
-					.child(TextView::new("Text wrap column:"))
-					.child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
-			)
-			.button("Cancel", |app| {
-				app.pop_layer();
-			})
-			.button("Apply",  |app| {
-				let homepage = app.find_name::<EditView>("homepage").unwrap().get_content();
-				let download = app.find_name::<EditView>("download_path").unwrap().get_content();
-				let darkmode = app.find_name::<Checkbox>("darkmode").unwrap().is_checked();
-				let html_command = app.find_name::<EditView>("html_command").unwrap().get_content();
-				let image_command = app.find_name::<EditView>("image_command").unwrap().get_content();
-				let telnet_command = app.find_name::<EditView>("telnet_command").unwrap().get_content();
-				let textwrap = app.find_name::<EditView>("textwrap").unwrap().get_content();
-				app.pop_layer();
-				if Url::parse(&homepage).is_ok() {
-					// only write to settings if data is correct
-					SETTINGS.write().unwrap().set::<String>("homepage", homepage.to_string()).unwrap();
-					SETTINGS.write().unwrap().set::<String>("download_path", download.to_string()).unwrap();
-					SETTINGS.write().unwrap().set::<String>("html_command", html_command.to_string()).unwrap();
-					SETTINGS.write().unwrap().set::<String>("image_command", image_command.to_string()).unwrap();
-					SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.to_string()).unwrap();
-					SETTINGS.write().unwrap().set::<String>("textwrap", textwrap.to_string()).unwrap();
-					let theme = if darkmode { "darkmode" } else { "lightmode" };
-					app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
-					SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
+        Dialog::new()
+            .title("Settings")
+            .content(
+                LinearLayout::vertical()
+                    .child(TextView::new("Homepage:"))
+                    .child(EditView::new().content(homepage_url).with_name("homepage").fixed_width(50))
+                    .child(TextView::new("Download path:"))
+                    .child(EditView::new().content(download_path.as_str()).with_name("download_path").fixed_width(50))
+                    .child(TextView::new("\nUse full path to the external command executable.\nIt will be called with the URL as parameter."))
+                    .child(TextView::new("HTML browser:"))
+                    .child(EditView::new().content(html_command.as_str()).with_name("html_command").fixed_width(50))
+                    .child(TextView::new("Images viewer:"))
+                    .child(EditView::new().content(image_command.as_str()).with_name("image_command").fixed_width(50))
+                    .child(TextView::new("Telnet client:"))
+                    .child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
+                    .child(TextView::new("Dark mode:"))
+                    .child(Checkbox::new().with_checked(darkmode).with_name("darkmode"))
+                    .child(TextView::new("Text wrap column:"))
+                    .child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
+            )
+            .button("Cancel", |app| {
+                app.pop_layer();
+            })
+            .button("Apply",  |app| {
+                let homepage = app.find_name::<EditView>("homepage").unwrap().get_content();
+                let download = app.find_name::<EditView>("download_path").unwrap().get_content();
+                let darkmode = app.find_name::<Checkbox>("darkmode").unwrap().is_checked();
+                let html_command = app.find_name::<EditView>("html_command").unwrap().get_content();
+                let image_command = app.find_name::<EditView>("image_command").unwrap().get_content();
+                let telnet_command = app.find_name::<EditView>("telnet_command").unwrap().get_content();
+                let textwrap = app.find_name::<EditView>("textwrap").unwrap().get_content();
+                app.pop_layer();
+                if Url::parse(&homepage).is_ok() {
+                    // only write to settings if data is correct
+                    SETTINGS.write().unwrap().set::<String>("homepage", homepage.to_string()).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("download_path", download.to_string()).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("html_command", html_command.to_string()).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("image_command", image_command.to_string()).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.to_string()).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("textwrap", textwrap.to_string()).unwrap();
+                    let theme = if darkmode { "darkmode" } else { "lightmode" };
+                    app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
+                    SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
 
-					if let Err(why) = SETTINGS.write().unwrap().write_settings_to_file() {
-						app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
-					}
-				} else {
-					app.add_layer(Dialog::info("Invalid homepage url"));
-				}
-			}),
-	);
+                    if let Err(why) = SETTINGS.write().unwrap().write_settings_to_file() {
+                        app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));
+                    }
+                } else {
+                    app.add_layer(Dialog::info("Invalid homepage url"));
+                }
+            }),
+    );
 }
