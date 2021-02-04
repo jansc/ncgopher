@@ -332,7 +332,18 @@ impl Controller {
                 }
                 // after the two digit status code there should be a space
                 // otherwhise the header is invalid too
-                buf.chars().nth(2) == Some(' ')
+                if buf.chars().nth(2) != Some(' ') {
+                    if matches!(buf.chars().nth(2), Some(c) if c.is_whitespace()) {
+                        // not space, but still whitespace
+                        info!("header is invalid, but recoverable: {:?}", buf);
+                    } else {
+                        // really no idea what this is
+                        *message.write().unwrap() =
+                            format!("invalid header from server: malformed: {}", buf);
+                        return false;
+                    }
+                }
+                true
             };
 
             match buf.chars().next() {
@@ -662,6 +673,7 @@ impl Controller {
         if add_to_history {
             self.add_to_history(url.clone(), index);
         }
+        *self.current_url.lock().unwrap() = url.clone();
         match url.scheme() {
             "gopher" => self.open_gopher_address(url.clone(), ItemType::from_url(&url), index),
             "gemini" => self.open_gemini_address(url.clone(), index),
@@ -672,17 +684,6 @@ impl Controller {
                 return;
             }
         }
-
-        let url = human_readable_url(&url);
-        self.sender
-            .send(Box::new(move |app| {
-                let mut layout = app
-                    .find_name::<Layout>("main")
-                    .expect("main layout missing");
-                let view = layout.get_current_view();
-                layout.set_title(view, url.clone());
-            }))
-            .unwrap();
     }
 
     /// Show an internal page from the "about" URL scheme
@@ -732,9 +733,18 @@ impl Controller {
         // ensure gopher view is focused before setting content
         self.sender
             .send(Box::new(|app| {
-                app.find_name::<Layout>("main")
-                    .expect("main layout missing")
-                    .set_view("content")
+                let mut layout = app
+                    .find_name::<Layout>("main")
+                    .expect("main layout missing");
+                layout.set_view("content");
+                let human_url = human_readable_url(
+                    &app.user_data::<Controller>()
+                        .expect("controller missing")
+                        .current_url
+                        .lock()
+                        .unwrap(),
+                );
+                layout.set_title("content".into(), human_url);
             }))
             .unwrap();
 
@@ -862,7 +872,6 @@ impl Controller {
 
     fn open_gemini_address(&mut self, url: Url, index: usize) {
         self.set_message("Loading ...");
-        *self.current_url.lock().unwrap() = url.clone();
         self.fetch_gemini_url(url, index);
     }
 
@@ -878,12 +887,16 @@ impl Controller {
         guard.push_str(content.as_str());
         drop(guard);
 
+        let human_url = human_readable_url(&url);
         // ensure gemini view is focused before setting content
         self.sender
-            .send(Box::new(|app| {
-                app.find_name::<Layout>("main")
-                    .expect("main layout mising")
-                    .set_view("gemini_content");
+            .send(Box::new(move |app| {
+                // set title
+                let mut layout = app
+                    .find_name::<Layout>("main")
+                    .expect("main layout missing");
+                layout.set_view("gemini_content");
+                layout.set_title("gemini_content".into(), human_url);
                 info!("set gemini view");
             }))
             .unwrap();
