@@ -54,9 +54,8 @@ pub fn human_readable_url(url: &Url) -> String {
             // the domain and the path will be percent encoded
             // it is easiest to do it all at once
             percent_encoding::percent_decode_str(url.as_str())
-                .decode_utf8()
-                .unwrap()
-                .to_string()
+                .decode_utf8_lossy()
+                .into_owned()
         }
     }
 }

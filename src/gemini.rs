@@ -45,6 +45,8 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
             match node {
                 Node::Text(text) => {
                     let text = if text.is_empty() { " " } else { &text };
+                    // Do not use continuation_lines here because text lines
+                    // should continue without special markup.
                     LinesIterator::new(text, viewport_width)
                         .map(|row| (format!("       {}", &text[row.start..row.end]), None))
                         .collect()
@@ -52,22 +54,28 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                 Node::Link { to, name } => {
                     use crate::url_tools::human_readable_url;
 
-                    let url = base_url.join(&to).expect("could not parse link url");
-                    let prefix = match url.scheme() {
-                        "https" | "http" => "[WWW]".to_string(),
-                        "gemini" => "[GEM]".to_string(),
-                        "gopher" => "[GPH]".to_string(),
-                        "mailto" => "[ \u{2709} ]".to_string(),
-                        "about" => "ABOUT".to_string(),
-                        // show first three letters of scheme, lower case to differentiate
-                        other => format!("[{}]", other.chars().take(3).collect::<String>()),
-                    };
+                    if let Ok(url) = base_url.join(&to) {
+                        let prefix = match url.scheme() {
+                            "https" | "http" => "[WWW]".to_string(),
+                            "gemini" => "[GEM]".to_string(),
+                            "gopher" => "[GPH]".to_string(),
+                            "mailto" => "[ \u{2709} ]".to_string(),
+                            "about" => "[ABT]".to_string(),
+                            // show first three letters of scheme, lower case to differentiate
+                            other => format!("[{}]", other.chars().take(3).collect::<String>()),
+                        };
 
-                    // transform the URL into a human redable form
-                    // escaping (by parsing as a URL) and unescaping is necessary because
-                    // the URL might have been escaped by the author
-                    let name = name.unwrap_or_else(|| human_readable_url(&url));
-                    continuation_lines(&prefix, &name, Some(url))
+                        // transform the URL into a human redable form
+                        // escaping (by parsing as a URL) and unescaping is necessary because
+                        // the URL might have been escaped by the author
+                        let name = name.unwrap_or_else(|| human_readable_url(&url));
+                        continuation_lines(&prefix, &name, Some(url))
+                    } else {
+                        // broken link
+                        let mut name = name.unwrap_or_default();
+                        name.push_str(&format!(" ?URL? {}", to));
+                        continuation_lines("?URL?", &name, None)
+                    }
                 }
                 Node::Heading { level, body } => {
                     let text = if body.is_empty() { " " } else { &body };
@@ -75,6 +83,8 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                 }
                 Node::Quote(text) => {
                     let text = if text.is_empty() { " " } else { &text };
+                    // Do not use continuation_lines here because quote lines
+                    // are simply rewrapped and then handled like text.
                     LinesIterator::new(text, viewport_width)
                         .map(|row| (format!("    >  {}", &text[row.start..row.end]), None))
                         .collect()
