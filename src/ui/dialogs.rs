@@ -245,8 +245,8 @@ pub(crate) fn gemini_query(app: &mut Cursive, url: Url, query: String, secret: b
                 }
                 // Call `show_popup` when the user presses `Enter`
                 //FIXME: create closure with url: .on_submit(search)
-                .fixed_width(30)
-                .with_name("query"),
+                .with_name("query")
+                .fixed_width(30),
             )
             .button("Cancel", |app| {
                 app.pop_layer();
