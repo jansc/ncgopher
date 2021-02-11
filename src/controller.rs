@@ -694,6 +694,7 @@ impl Controller {
             "help" => include_str!("about/help.gmi").into(),
             "sites" => include_str!("about/sites.gmi").into(),
             "error" => "An error occured.".into(),
+            "license" => concat!(include_str!("about/license_header.gmi"), include_str!("../LICENSE")).into(),
             other => {
                 self.set_message(&format!("The about page {} does not exist", other));
                 return;

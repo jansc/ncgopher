@@ -1,0 +1,5 @@
+ncgopher is distributed under the BSD 2-Clause license.
+=> https://opensource.org/licenses/BSD-2-Clause more about the BSD 2-Clause license
+=> https://github.com/jansc/ncgopher ncgopher Git Repository
+
+Here is the BSD 2-Clause license:
