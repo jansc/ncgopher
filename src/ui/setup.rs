@@ -150,11 +150,13 @@ fn setup_menu(app: &mut Cursive) {
             )
             .leaf("About", |s| {
                 s.add_layer(Dialog::info(format!(
-                    ":               ncgopher v{:<25}:\n\
-					 :      A Gopher client for the modern internet     :\n\
-					 : (c) 2019-2020 by Jan Schreiber <jan@mecinus.com> :\n\
-					 :                 gopher://jan.bio                 :\n\
-					 :                 gemini://jan.bio                 :",
+                    ":                       ncgopher v{:<15}            :\n\
+                     :     A Gopher and Gemini client for the modern internet     :\n\
+                     :              (c) 2019-2021 The ncgopher AUTHORS            :\n\
+                     :                                                            :\n\
+                     :  Originally developed by Jan Schreiber <jan@mecinus.com>   :\n\
+                     :                     gopher://jan.bio                       :\n\
+                     :                     gemini://jan.bio                       :",
                     env!("CARGO_PKG_VERSION")
                 )))
             }),
