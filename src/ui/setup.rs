@@ -152,7 +152,7 @@ fn setup_menu(app: &mut Cursive) {
                 s.add_layer(Dialog::info(format!(
                     ":                       ncgopher v{:<15}            :\n\
                      :     A Gopher and Gemini client for the modern internet     :\n\
-                     :              (c) 2019-2021 The ncgopher AUTHORS            :\n\
+                     :              (c) 2019-2021 The ncgopher Authors            :\n\
                      :                                                            :\n\
                      :  Originally developed by Jan Schreiber <jan@mecinus.com>   :\n\
                      :                     gopher://jan.bio                       :\n\

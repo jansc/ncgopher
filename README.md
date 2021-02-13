@@ -123,5 +123,5 @@ program with `RUST_BACKTRACE` to get a backtrace too.
 
 `ncgopher` is licensed under the BSD 2-clause license.
 
-Copyright (c) 2019-2021 The ncgopher AUTHORS. Parts of the
+Copyright (c) 2019-2021 The ncgopher Authors. Parts of the
 status bar implementation are Copyright (c) 2019, Henrik Friedrichsen
