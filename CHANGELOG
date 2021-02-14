@@ -1,6 +1,8 @@
 * NcGopher Changelog
 
 ** [unreleased]
+
+** 0.2.0
   New features:
   - Setting for automatic text wrapping of gemini content
   - Unknown success status codes are now handled gracefully, displaying any content.
