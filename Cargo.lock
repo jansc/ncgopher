@@ -684,6 +684,7 @@ dependencies = [
  "native-tls",
  "pancurses",
  "percent-encoding",
+ "regex",
  "rusqlite",
  "serde 1.0.123",
  "serde_derive",

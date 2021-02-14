@@ -1,4 +1,5 @@
 use url::Url;
+use regex::Regex;
 
 /// An menu item in a directory of Gopher resources.
 #[derive(Clone, Debug)]
@@ -42,7 +43,13 @@ impl GopherMapEntry {
         }
         let ch = l[0].chars().next().unwrap();
         let item_type = ItemType::decode(ch);
-        let name = l[0][ch.len_utf8()..].to_string();
+
+        let mut name = l[0][ch.len_utf8()..].to_string();
+
+        // Remove ANSI sequences. baud.baby, I'm looking at you
+        let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
+        name = ansi_sequences.replace_all(name.as_str(), "").to_string();
+
         let selector = l[1].to_string();
         let host = l[2].to_string();
         // Parse port, ignore invalid values
