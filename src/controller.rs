@@ -670,6 +670,7 @@ impl Controller {
     }
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
+        info!("Open_url: {} position {}", url, index);
         if add_to_history {
             self.add_to_history(url.clone(), index);
         }
@@ -947,30 +948,32 @@ impl Controller {
         // works because add_to_history is called _before_
         // set_content.
         info!(
-            "add_to_history(): updating last item's position to {}",
-            index
+            "add_to_history(): updating last item's position to {} (URL: {})",
+            index,
+            url
         );
-        let mut guard = self.history.lock().unwrap();
-        guard.update_selected_item(index);
-        drop(guard);
 
-        info!("add_to_history(): {}", url);
-        let h = HistoryEntry {
-            title: url.clone().into_string(),
-            url: url.clone(),
-            timestamp: Local::now(),
-            visited_count: 1,
-            position: 0,
-        };
-        self.history
-            .lock()
-            .unwrap()
-            .add(h.clone())
-            .expect("Could not add to history");
-
-        // add to history menu
         self.sender
             .send(Box::new(move |app| {
+                let idx = Controller::get_selected_item_index(app);
+                let controller = app.user_data::<Controller>()
+                    .expect("controller missing");
+                let mut guard = controller.history.lock().unwrap();
+                guard.update_selected_item(idx);
+                drop(guard);
+                info!("add_to_history(): {}", url);
+                let h = HistoryEntry {
+                    title: url.clone().into_string(),
+                    url: url.clone(),
+                    timestamp: Local::now(),
+                    visited_count: 1,
+                    position: 0,
+                };
+                controller.history
+                    .lock()
+                    .unwrap()
+                    .add(h.clone())
+                    .expect("Could not add to history");
                 let menu = app
                     .menubar()
                     .find_subtree("History")
