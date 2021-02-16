@@ -58,7 +58,7 @@ pub struct Controller {
 
 impl Controller {
     /// Create a new controller (created in main.rs)
-    pub fn new(app: &mut CursiveRunnable, url: Url) -> Result<(), Box<dyn Error>> {
+    pub fn setup(app: &mut CursiveRunnable, url: Url) -> Result<(), Box<dyn Error>> {
         crate::ui::setup::setup(app);
 
         let mut controller = Controller {
@@ -715,10 +715,7 @@ impl Controller {
             "gemini" => self.open_gemini_address(url.clone(), index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
-            scheme => {
-                self.set_message(&format!("unknown scheme {}", scheme).as_str());
-                return;
-            }
+            scheme => self.set_message(&format!("unknown scheme {}", scheme).as_str()),
         }
     }
 
@@ -1308,7 +1305,7 @@ impl Controller {
                     match item_type {
                         ItemType::Dir => controller.save_gophermap(path),
                         ItemType::File => controller.save_textfile(path),
-                        _ => controller.set_message(&format!("cannot save this kind of page")),
+                        _ => controller.set_message("cannot save this kind of page"),
                     }
                 }
                 "about" | "gemini" => controller.save_gemini(path),

@@ -137,7 +137,7 @@ fn main() {
     let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme))
         .unwrap();
-    Controller::new(&mut app, homepage).expect("could not create controller");
+    Controller::setup(&mut app, homepage).expect("could not create controller");
     // required so async updates to the status bar get shown
     app.set_autorefresh(true);
     app.run();
