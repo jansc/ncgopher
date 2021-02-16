@@ -5,6 +5,7 @@ use cursive::{
     views::{Dialog, EditView, SelectView},
     Cursive, CursiveRunnable,
 };
+use mime::Mime;
 use native_tls::{Protocol, TlsConnector};
 use sha2::{Digest, Sha256};
 use std::error::Error;
@@ -367,61 +368,95 @@ impl Controller {
                     // SUCCESS
                     // there are not yet any other status codes
                     // than 20 in this category
-                    if check(buf.chars().nth(1)) {
-                        // If mimetype is text/* download as gemini
-                        // Otherwise initiate a binary download
-                        // FIXME: for now assumes all text is gemini text
-                        if meta.starts_with("text/") {
-                            let mut buf = vec![];
-                            bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                                *message.write().unwrap() = format!(
-                                    "I/O error: {}",
-                                    err
-                                );
-                                0
-                            });
+                    if !check(buf.chars().nth(1)) {
+                        return;
+                    }
 
-                            let s = String::from_utf8_lossy(&buf).into_owned();
-                            sender.send(Box::new(move |app|{
-                                let controller = app.user_data::<Controller>().expect("controller missing");
-                                controller.set_message(url.as_str());
-                                controller.set_gemini_content(url, GeminiType::Gemini, s, index);
+                    let mime = meta.parse::<Mime>()
+                        .unwrap_or_else(|_| "text/gemini".parse().unwrap());
+
+                    if mime.type_() == "text" {
+                        // some kind of text. First check encoding.
+                        let encoding = mime.get_param("charset")
+                            // default is UTF-8
+                            .map_or("utf-8", |param| param.as_str())
+                            // charset identifiers are case-insensitive
+                            .to_lowercase();
+
+                        if !matches!(encoding.as_str(),
+                            // IANA has many aliases for ASCII
+                            // https://www.iana.org/assignments/character-sets/character-sets.xhtml
+                            // since it's a strict subset of UTF-8 we can read it
+                            "us-ascii" | "iso-ir-6" | "ansi_x3.4-1968"
+                            | "ansi_x3.4-1986" | "iso_646.rv:1991"
+                            | "iso646-us" | "us" | "IBM367" | "cp367"
+                            | "csascii"
+                            // UTF-8, also allow a nonstandard spelling
+                            | "utf-8" | "csutf8" | "utf8")
+                        {
+                            // not UTF-8 or ASCII, encoding not supported
+                            sender.send(Box::new(move |app| {
+                                app.add_layer(Dialog::info(format!("The page you tried to access is encoded as \"{}\". This encoding is not supported by ncgopher.", encoding)))
                             })).unwrap();
-                        } else {
-                            // Binary download
-                            let local_filename = download_filename_from_url(&url);
-                            let open = OpenOptions::new()
-                                .write(true)
-                                // make sure to not clobber downloaded files
-                                .create_new(true)
-                                .open(&local_filename);
+                            return;
+                        }
+                        // if we get this far, it has to be UTF-8/ASCII
 
-                            match open {
-                                Ok(file) => {
-                                    let mut bw = BufWriter::new(file);
-                                    let mut buf = [0u8; 1024];
-                                    let mut total_written = 0;
-                                    loop {
-                                        let bytes_read = bufr
-                                            .read(&mut buf)
-                                            .expect("Could not read from TCP");
-                                        if bytes_read == 0 {
-                                            break;
-                                        }
-                                        let bytes_written = bw
-                                            .write(&buf[..bytes_read])
-                                            .expect("Could not write to file");
-                                        total_written += bytes_written;
-                                        *message.write().unwrap() = format!(
-                                            "{} bytes read",
-                                            total_written
-                                        );
+                        let mut buf = vec![];
+                        bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
+                            *message.write().unwrap() = format!(
+                                "I/O error: {}",
+                                err
+                            );
+                            0
+                        });
+
+                        let gemini_type = match mime.subtype().as_str() {
+                            "gemini" => GeminiType::Gemini,
+                            // FIXME: add HTML handler
+                            _ => GeminiType::Text,
+                        };
+
+                        let s = String::from_utf8_lossy(&buf).into_owned();
+                        sender.send(Box::new(move |app|{
+                            let controller = app.user_data::<Controller>().expect("controller missing");
+                            controller.set_message(url.as_str());
+                            controller.set_gemini_content(url, gemini_type, s, index);
+                        })).unwrap();
+                    } else {
+                        // Binary download
+                        let local_filename = download_filename_from_url(&url);
+                        let open = OpenOptions::new()
+                            .write(true)
+                            // make sure to not clobber downloaded files
+                            .create_new(true)
+                            .open(&local_filename);
+
+                        match open {
+                            Ok(file) => {
+                                let mut bw = BufWriter::new(file);
+                                let mut buf = [0u8; 1024];
+                                let mut total_written = 0;
+                                loop {
+                                    let bytes_read = bufr
+                                        .read(&mut buf)
+                                        .expect("Could not read from TCP");
+                                    if bytes_read == 0 {
+                                        break;
                                     }
-                                    *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
+                                    let bytes_written = bw
+                                        .write(&buf[..bytes_read])
+                                        .expect("Could not write to file");
+                                    total_written += bytes_written;
+                                    *message.write().unwrap() = format!(
+                                        "{} bytes read",
+                                        total_written
+                                    );
                                 }
-                                Err(err) => {
-                                    *message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
-                                }
+                                *message.write().unwrap() = format!("File downloaded: {} ({} bytes)", local_filename, total_written);
+                            }
+                            Err(err) => {
+                                *message.write().unwrap() = format!("Unable to open file '{}': {}", local_filename, err);
                             }
                         }
                     }
@@ -695,7 +730,11 @@ impl Controller {
             "help" => include_str!("about/help.gmi").into(),
             "sites" => include_str!("about/sites.gmi").into(),
             "error" => "An error occured.".into(),
-            "license" => concat!(include_str!("about/license_header.gmi"), include_str!("../LICENSE")).into(),
+            "license" => concat!(
+                include_str!("about/license_header.gmi"),
+                include_str!("../LICENSE")
+            )
+            .into(),
             other => {
                 self.set_message(&format!("The about page {} does not exist", other));
                 return;
@@ -949,15 +988,13 @@ impl Controller {
         // set_content.
         info!(
             "add_to_history(): updating last item's position to {} (URL: {})",
-            index,
-            url
+            index, url
         );
 
         self.sender
             .send(Box::new(move |app| {
                 let idx = Controller::get_selected_item_index(app);
-                let controller = app.user_data::<Controller>()
-                    .expect("controller missing");
+                let controller = app.user_data::<Controller>().expect("controller missing");
                 let mut guard = controller.history.lock().unwrap();
                 guard.update_selected_item(idx);
                 drop(guard);
@@ -969,7 +1006,8 @@ impl Controller {
                     visited_count: 1,
                     position: 0,
                 };
-                controller.history
+                controller
+                    .history
                     .lock()
                     .unwrap()
                     .add(h.clone())

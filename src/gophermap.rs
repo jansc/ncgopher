@@ -1,5 +1,5 @@
-use url::Url;
 use regex::Regex;
+use url::Url;
 
 /// An menu item in a directory of Gopher resources.
 #[derive(Clone, Debug)]

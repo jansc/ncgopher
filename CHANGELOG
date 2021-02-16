@@ -2,6 +2,12 @@
 
 ** [unreleased]
 
+  Changes:
+  - parsing MIME type from gemini response instead of just checking for "text/".
+    Other text types will now be displayed as text/plain, not text/gemini.
+    This also allows the supposed encoding to be detected and ncgopher will now abort
+    a request if the server signals an unsupported charset. A dialog will be displayed.
+
 ** 0.2.0
   New features:
   - Setting for automatic text wrapping of gemini content
