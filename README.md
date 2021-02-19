@@ -42,6 +42,27 @@ Obligatory screenshot:
 
 ## Installation
 
+
+### Arch Linux
+
+Arch Linux users can install ncgopher using pacman:
+
+    sudo pacman -S ncgopher
+
+### NixOS
+
+NixOS users can install ncgopher using nix-env:
+
+    nix-env -iA nixos.ncgopher
+
+### NetBSD
+
+NetBSD users can install ncgopher using pkgin:
+
+    pkgin install ncgopher
+
+### All other systems
+
 `ncgopher` has no fancy installation process right now. There are some external
 dependencies which have to be installed. First and foremost you will of course
 need to have Rust installed. Further dependencies are the *openssl*, *ncurses*
