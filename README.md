@@ -72,7 +72,7 @@ you will most likely be able to tell what is missing.
 ---
 ### Debian-based Linux
 
-    sudo apt install build-essential pkg-config libssl-dev libncurses-dev libsql3-dev
+    sudo apt install build-essential pkg-config libssl-dev libncurses-dev libsqlite3-dev
 
 ### Arch-based Linux
 
