@@ -9,7 +9,7 @@ fn url_serialize<S>(url: &Url, s: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    s.serialize_str(url.clone().into_string().as_str())
+    s.serialize_str(&url.to_string())
 }
 
 #[derive(Clone, Debug, serde::Serialize)]

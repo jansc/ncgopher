@@ -997,7 +997,7 @@ impl Controller {
                 drop(guard);
                 info!("add_to_history(): {}", url);
                 let h = HistoryEntry {
-                    title: url.clone().into_string(),
+                    title: url.to_string(),
                     url: url.clone(),
                     timestamp: Local::now(),
                     visited_count: 1,
@@ -1063,16 +1063,15 @@ impl Controller {
 
     fn open_command(&mut self, command: &str, url: Url) -> Result<(), Box<dyn Error>> {
         // Opens an image in an external application - if defined in settings
-        let u = url.clone().into_string();
         let command = SETTINGS.read().unwrap().get_str(command)?;
         if !command.is_empty() {
-            if let Err(err) = Command::new(&command).arg(u).spawn() {
+            if let Err(err) = Command::new(&command).arg(url.to_string()).spawn() {
                 self.set_message(&format!("Command failed: {}: {}", err, command));
             }
         } else {
             self.set_message(&format!(
                 "No command for opening {} defined.",
-                url.into_string()
+                url
             ));
         }
         Ok(())

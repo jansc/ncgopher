@@ -55,7 +55,7 @@ fn setup_keys(app: &mut Cursive) {
                 if let Some((_, item)) = view.get_item(cur) {
                     match item.item_type {
                         ItemType::Html => {
-                            let mut url = item.url.clone().into_string();
+                            let mut url = item.url.to_string();
                             if url.starts_with("URL:") {
                                 url.replace_range(..3, "");
                             }
