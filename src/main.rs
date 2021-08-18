@@ -139,7 +139,6 @@ fn main() {
         .unwrap();
     Controller::setup(&mut app, homepage).expect("could not create controller");
     // required so async updates to the status bar get shown
-    app.set_autorefresh(true);
     app.run();
     print!("\x1B[?1002l");
     stdout().flush().expect("could not flush stdout");

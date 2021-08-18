@@ -1201,6 +1201,11 @@ impl Controller {
         let mut message = self.message.write().unwrap();
         message.clear();
         message.push_str(msg);
+        self.sender
+            .send(Box::new(move |app| {
+                app.clear(); // trigger a refresh
+            }))
+            .unwrap();
     }
 
     pub fn get_selected_item_index(app: &mut Cursive) -> usize {
