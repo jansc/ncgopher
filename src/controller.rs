@@ -715,7 +715,7 @@ impl Controller {
             "gemini" => self.open_gemini_address(url.clone(), index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
-            scheme => self.set_message(&format!("unknown scheme {}", scheme).as_str()),
+            scheme => self.set_message(format!("unknown scheme {}", scheme).as_str()),
         }
     }
 
