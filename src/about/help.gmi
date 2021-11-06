@@ -30,7 +30,7 @@ ncgopher is a browser for the gemini and the gopher protocols, sometimes also co
 
 ## Gopher
 Gopher was deveolped in 1991 at the University of Minnesota, and named after the school's mascot. Gopher is a menu-driven interface that allows a user to browse for text information served off of various gopher servers.
-=> gopher://gopherpedia.com:70/1/about some information about gopher (and gopherpedia) at gopherpedia, a Wikipedia mirror for the gohper protocol
+=> gopher://gopherpedia.com:70/1/about some information about gopher (and gopherpedia) at gopherpedia, a Wikipedia mirror for the gopher protocol
 
 ## Gemini
 Gemini is a new application-level internet protocol for the distribution of arbitrary files, with some special consideration for serving a lightweight hypertext format which facilitates linking between files.
