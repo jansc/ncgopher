@@ -554,7 +554,7 @@ impl Controller {
                         Ok(mut stream) => {
                             tls = true;
                             info!("Connected with TLS");
-                            writeln!(stream, "{}", path).unwrap();
+                            write!(stream, "{}\r\n", path).unwrap();
 
                             loop {
                                 match stream.read_to_end(&mut buf) {
@@ -576,7 +576,7 @@ impl Controller {
             if !tls {
                 match TcpStream::connect(server_details.clone()) {
                     Ok(mut stream) => {
-                        writeln!(stream, "{}", path).unwrap();
+                        write!(stream, "{}\r\n", path).unwrap();
                         loop {
                             match stream.read_to_end(&mut buf) {
                                 Ok(_) => break,
