@@ -23,7 +23,7 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
             //     \  multiple lines
             // ```
             let continuation_lines = |first_prefix, text: &str, url: Option<Url>| {
-                let lines = make_lines(if text.is_empty() { " " } else { &text }, viewport_width);
+                let lines = make_lines(if text.is_empty() { " " } else { text }, viewport_width);
                 lines
                     .iter()
                     .enumerate()
@@ -79,7 +79,7 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                 }
                 Node::Heading { level, body } => {
                     let text = if body.is_empty() { " " } else { &body };
-                    continuation_lines(&"#".repeat(level as usize), &text, None)
+                    continuation_lines(&"#".repeat(level as usize), text, None)
                 }
                 Node::Quote(text) => {
                     let text = if text.is_empty() { " " } else { &text };
