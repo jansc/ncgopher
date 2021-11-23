@@ -52,6 +52,8 @@ pub struct Controller {
     /// When the user triggers several requests, only the last request
     /// will be displayed, the other will be canceled.
     last_request_id: Arc<Mutex<i64>>,
+    /// Number of redirects in gemini protocol
+    redirect_count: Arc<Mutex<i32>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
 }
@@ -69,6 +71,7 @@ impl Controller {
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("about:blank").unwrap())),
             last_request_id: Arc::new(Mutex::new(0)),
+            redirect_count: Arc::new(Mutex::new(0)),
             message: app
                 .find_name::<crate::ui::statusbar::StatusBar>("statusbar")
                 .unwrap()
@@ -130,6 +133,7 @@ impl Controller {
             *guard
         };
         let request_id_ref = self.last_request_id.clone();
+        let redirect_count = self.redirect_count.clone();
 
         normalize_domain(&mut url);
 
@@ -347,7 +351,14 @@ impl Controller {
                 true
             };
 
-            match buf.chars().next() {
+            let status = buf.chars().next();
+            // Reset redirect count when the status does not indicate a redirect
+            if status != Some('3') {
+                    let mut guard = redirect_count.lock().unwrap();
+                    *guard = 0;
+            }
+
+            match status {
                 Some('1') => {
                     // INPUT
                     let secret = match buf.chars().nth(1) {
@@ -463,6 +474,22 @@ impl Controller {
                 }
                 Some('3') => {
                     // REDIRECT
+                    let redirect_count = {
+                        let mut guard = redirect_count.lock().unwrap();
+                        *guard += 1;
+                        *guard
+                    };
+                    if redirect_count >= 5 {
+                        sender.send(Box::new(move |app|{
+                            let controller = app.user_data::<Controller>().expect("controller missing");
+                            controller.set_gemini_content(url.clone(), GeminiType::Gemini,
+                            format!("# Too many redirects\n\nYou are probably stuck in a redirect loop. \
+                                    Here is the next redirected URL if you want to continue manually:\n\n=> {}", url.to_string()), 0);
+                            controller.set_message(&format!("Detected redirect loop."));
+                        })).unwrap();
+                        return;
+                    }
+
                     let other = buf.chars().nth(1);
                     if other == Some('1') {
                         // redirect is permanent
@@ -474,7 +501,6 @@ impl Controller {
                     match url.join(&meta) {
                         Ok(url) => {
                             // FIXME: Try to parse url, check scheme
-                            // FIXME: limit number of redirects
                             sender.send(Box::new(move |app|{
                                 let controller = app.user_data::<Controller>().expect("controller missing");
                                 controller.open_url(url, true, 0);

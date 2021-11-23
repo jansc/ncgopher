@@ -72,7 +72,7 @@ config-auto Ignore config-filechanges while running for now
    - [X] Handle prefomatting toggle lines
    - [X] Bugfix: Can\'t open WWW links from gemini
    - [X] Implement save as text for gemini
-   - [ ] Limit number of redirects to 5
+   - [X] Limit number of redirects to 5
    - [ ] Warning when redirecting to external server
    - [ ] Client certificates, see [Alex\' gemini wiki](https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl))
    - [X] TOFU certificate pinning
