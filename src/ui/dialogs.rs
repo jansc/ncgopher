@@ -82,6 +82,9 @@ pub(crate) fn certificate_changed(app: &mut Cursive, url: Url, fingerprint: Stri
             .button("Accept the risk", move |app| {
                 app.pop_layer(); // Close dialog
                 Controller::certificate_changed_action(app, &url, fingerprint.clone());
+                app.user_data::<Controller>()
+                    .expect("controller missing")
+                    .open_url(url.clone(), true, 0);
             })
     );
 }
