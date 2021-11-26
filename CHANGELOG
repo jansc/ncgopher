@@ -1,5 +1,12 @@
 * NcGopher Changelog
 
+** [unreleasd]
+
+  Bugfixes:
+  - Clicking "accept the risk" in the certificate dialog will now automaically open
+    the URL
+  - Update status message display when fetching content
+
 ** 0.3.0
 
   Changes:
