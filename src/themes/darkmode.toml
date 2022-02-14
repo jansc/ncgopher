@@ -21,7 +21,7 @@ borders = "simple" # Alternatives are "none" and "outset"
 	# An array with a single value has the same effect as a simple value.
 	primary   = "blue"
 	#secondary = "#EEEEEE"
-	#tertiary  = "#252521"
+	tertiary  = "#252521"
 
 	# Hex values can use lower or uppercase.
 	# (base color MUST be lowercase)
