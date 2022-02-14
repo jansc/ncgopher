@@ -1,5 +1,5 @@
 use chrono::{DateTime, Local};
-use rusqlite::{params, Connection, Result, NO_PARAMS};
+use rusqlite::{params, Connection, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
 use url::Url;
@@ -34,7 +34,7 @@ impl History {
              timestmp DATETIME DEFAULT CURRENT_TIMESTAMP,
              visitedcount NUMBER NOT NULL DEFAULT 1
          )",
-            NO_PARAMS,
+            [],
         )?;
         Ok(History {
             stack: Vec::new(),
@@ -81,7 +81,7 @@ impl History {
     pub fn clear(&mut self) -> Result<()> {
         trace!("History::clear()");
         self.stack.clear();
-        self.sql.execute("DELETE FROM history", NO_PARAMS)?;
+        self.sql.execute("DELETE FROM history", [])?;
         Ok(())
     }
 
