@@ -47,7 +47,7 @@ Obligatory screenshot:
 
 Arch Linux users can install ncgopher using pacman:
 
-    sudo pacman -S ncgopher
+    sudo pacman -S ncgopher-git
 
 ### NixOS
 
