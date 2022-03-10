@@ -6,6 +6,7 @@
   - Clicking "accept the risk" in the certificate dialog will now automaically open
     the URL
   - Update status message display when fetching content
+  - Url-decode path in gopher URIs. Fixes #78
 
 ** 0.3.0
 

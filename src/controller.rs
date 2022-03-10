@@ -17,6 +17,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use url::Url;
+use urlencoding::decode_binary;
 use x509_parser::prelude::*;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
@@ -689,7 +690,11 @@ impl Controller {
         let port = url.port().unwrap_or(70);
         let server = url.host_str().expect("no host").to_string();
         let path = url.path();
-        let mut path = str::replace(path, "%09", "\t");
+
+        // Decode %xx to binary values. Fixes #78
+        let binary = decode_binary(path.as_bytes());
+        let mut path = String::from_utf8_lossy(&binary).as_ref().to_owned();
+
         info!("fetch_url(): About to open URL {}", path);
         if path.len() > 2 {
             // TODO: check x[0] == / and x[1] == itemtype
