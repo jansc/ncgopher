@@ -1,4 +1,4 @@
-use chrono::{Duration, Local, Utc};
+use chrono::{DateTime, Local, Utc};
 use cursive::{
     utils::{lines::simple::LinesIterator, markup::StyledString},
     view::{Nameable, Resizable},
@@ -16,6 +16,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
+use std::time::{SystemTime};
 use url::Url;
 use urlencoding::decode_binary;
 use x509_parser::prelude::*;
@@ -292,14 +293,10 @@ impl Controller {
                         info!("Successfully parsed certificate");
                         match cert.tbs_certificate.validity.time_to_expiration() {
                             Some(duration) => {
-                                let now = Utc::now();
-                                let expires =
-                                    now.checked_add_signed(Duration::from_std(duration).unwrap());
-                                match expires {
-                                    Some(x) => info!("Certificate expires {}", x.to_rfc3339()),
-                                    None => warn!("Certificate expire date overflows!"),
-                                }
-
+                                let now = SystemTime::now();
+                                let expires = now + duration;
+                                let expires: DateTime<Utc> = expires.into();
+                                info!("Certificate expires {}", expires.to_rfc3339());
                                 info!("Certificate valid {:?}", duration);
                             }
                             None => {
