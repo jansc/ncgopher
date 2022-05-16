@@ -13,7 +13,7 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
     let mut nodes = gemtext::parse(text);
     nodes
         .drain(..)
-        .map(|node: gemtext::Node| -> Vec<(String, Option<Url>)> {
+        .flat_map(|node: gemtext::Node| -> Vec<(String, Option<Url>)> {
             use gemtext::Node;
 
             // Helper function to wrap lines if necessary while indicating that they are continuations like this
@@ -99,6 +99,5 @@ pub fn parse(text: &str, base_url: &Url, viewport_width: usize) -> Vec<(String, 
                 }
             }
         })
-        .flatten()
         .collect::<Vec<_>>()
 }

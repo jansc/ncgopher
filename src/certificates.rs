@@ -47,9 +47,8 @@ impl Certificates {
         info!("Adding entry to known_hosts: {} = {}", id, fingerprint);
 
         self.entries.insert(id, fingerprint);
-        match self.write_to_file() {
-            Err(why) => warn!("Could not write known_hosts to file: {}", why),
-            Ok(()) => (),
+        if let Err(why) = self.write_to_file() {
+            warn!("Could not write known_hosts to file: {}", why)
         }
     }
 

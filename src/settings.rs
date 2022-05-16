@@ -68,7 +68,7 @@ fn default_download_path() -> String {
         DirBuilder::new().recursive(true).create(&dl_dir).ok(); // Continue on failure.
         return dl_dir.into_os_string().into_string().unwrap_or_default();
     }
-    return String::new();
+    String::new()
 }
 
 fn default_homepage() -> String { "about:help".to_owned() }
@@ -87,9 +87,8 @@ impl Settings {
                 dir.push(env!("CARGO_PKG_NAME"));
                 let dir = dir.into_os_string().into_string().unwrap();
                 if !Path::new(&dir).exists() {
-                    match fs::create_dir_all(dir) {
-                        Err(why) => warn!("Could not create config dir: {}", why),
-                        Ok(()) => (),
+                    if let Err(why) = fs::create_dir_all(dir) {
+                        warn!("Could not create config dir: {}", why)
                     }
                 }
             }
@@ -127,8 +126,8 @@ impl Settings {
 
         Settings {
             config: config_table,
-            config_filename: config_filename,
-            themes: themes
+            config_filename,
+            themes
         }
     }
 

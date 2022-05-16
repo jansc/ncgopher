@@ -605,7 +605,7 @@ impl Controller {
                             let controller = app.user_data::<Controller>().expect("controller missing");
                             controller.set_gemini_content(url.clone(), GeminiType::Gemini,
                             format!("# Too many redirects\n\nYou are probably stuck in a redirect loop. \
-                                    Here is the next redirected URL if you want to continue manually:\n\n=> {}", url.to_string()), 0);
+                                    Here is the next redirected URL if you want to continue manually:\n\n=> {}", url), 0);
                             controller.set_message("Detected redirect loop.");
                         })).unwrap();
                         return;

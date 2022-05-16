@@ -64,9 +64,8 @@ impl Bookmarks {
     pub fn remove(&mut self, url: &Url) {
         info!("Removing entry to bookmark: {:?}", url);
         self.entries.retain(|e| &e.url != url);
-        match self.write_bookmarks_to_file() {
-            Err(why) => warn!("Could not write bookmarks file: {}", why),
-            Ok(()) => (),
+        if let Err(why) = self.write_bookmarks_to_file() {
+            warn!("Could not write bookmarks file: {}", why) 
         }
     }
 

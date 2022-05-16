@@ -143,7 +143,7 @@ pub enum ItemType {
     /// Item is a video file
     Video,
     /// Item is MIME encoded file
-    MIME,
+    Mime,
     /// Item is a calendar file (ical?)
     Calendar,
     /// Item is a sound file
@@ -174,7 +174,7 @@ impl ItemType {
             'h' => ItemType::Html,
             'd' => ItemType::Document,
             ';' => ItemType::Video,
-            'M' => ItemType::MIME,
+            'M' => ItemType::Mime,
             'c' => ItemType::Calendar,
             's' => ItemType::Sound,
             'i' => ItemType::Inline,
@@ -201,7 +201,7 @@ impl ItemType {
             ItemType::Html => "[HTM]",
             ItemType::Document => "[DOC]",
             ItemType::Video => "[VID]",
-            ItemType::MIME => "[MME]",
+            ItemType::Mime => "[MME]",
             ItemType::Calendar => "[CAL]",
             ItemType::Sound => "[SND]",
             ItemType::Inline => "     ",
@@ -221,7 +221,7 @@ impl ItemType {
                 | ItemType::Image
                 | ItemType::Document
                 | ItemType::Video
-                | ItemType::MIME
+                | ItemType::Mime
                 | ItemType::Calendar
                 | ItemType::Sound
         )
