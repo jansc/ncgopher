@@ -326,14 +326,14 @@ pub(super) fn save_as(app: &mut Cursive) {
 }
 
 pub(super) fn settings(app: &mut Cursive) {
-    let download_path = SETTINGS.read().unwrap().get_str("download_path").unwrap();
-    let homepage_url = SETTINGS.read().unwrap().get_str("homepage").unwrap();
-    let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
-    let html_command = SETTINGS.read().unwrap().get_str("html_command").unwrap();
-    let image_command = SETTINGS.read().unwrap().get_str("image_command").unwrap();
-    let telnet_command = SETTINGS.read().unwrap().get_str("telnet_command").unwrap();
+    let download_path = SETTINGS.read().unwrap().config.download_path.clone();
+    let homepage_url = SETTINGS.read().unwrap().config.homepage.clone();
+    let theme = SETTINGS.read().unwrap().config.theme.clone();
+    let html_command = SETTINGS.read().unwrap().config.html_command.clone();
+    let image_command = SETTINGS.read().unwrap().config.image_command.clone();
+    let telnet_command = SETTINGS.read().unwrap().config.telnet_command.clone();
     let darkmode = theme == "darkmode";
-    let textwrap = SETTINGS.read().unwrap().get_str("textwrap").unwrap();
+    let textwrap = SETTINGS.read().unwrap().config.textwrap.clone();
     app.add_layer(
         Dialog::new()
             .title("Settings")
@@ -369,15 +369,15 @@ pub(super) fn settings(app: &mut Cursive) {
                 app.pop_layer();
                 if Url::parse(&homepage).is_ok() {
                     // only write to settings if data is correct
-                    SETTINGS.write().unwrap().set::<String>("homepage", homepage.to_string()).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("download_path", download.to_string()).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("html_command", html_command.to_string()).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("image_command", image_command.to_string()).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("telnet_command", telnet_command.to_string()).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("textwrap", textwrap.to_string()).unwrap();
+                    SETTINGS.write().unwrap().config.homepage = homepage.to_string();
+                    SETTINGS.write().unwrap().config.download_path = download.to_string();
+                    SETTINGS.write().unwrap().config.html_command = html_command.to_string();
+                    SETTINGS.write().unwrap().config.image_command = image_command.to_string();
+                    SETTINGS.write().unwrap().config.telnet_command = telnet_command.to_string();
+                    SETTINGS.write().unwrap().config.textwrap = textwrap.to_string();
                     let theme = if darkmode { "darkmode" } else { "lightmode" };
                     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
-                    SETTINGS.write().unwrap().set::<String>("theme", theme.to_string()).unwrap();
+                    SETTINGS.write().unwrap().config.theme = theme.to_string();
 
                     if let Err(why) = SETTINGS.write().unwrap().write_settings_to_file() {
                         app.add_layer(Dialog::info(format!("Could not write config file: {}", why)));

@@ -3,7 +3,6 @@ extern crate clap;
 #[macro_use]
 extern crate log;
 extern crate base64;
-extern crate config;
 extern crate dirs;
 extern crate idna;
 extern crate percent_encoding;
@@ -35,7 +34,7 @@ mod url_tools;
 
 lazy_static! {
     static ref SETTINGS: RwLock<Settings> =
-        RwLock::new(Settings::new().expect("could not read settings"));
+        RwLock::new(Settings::new());
 }
 
 struct Logger {
@@ -103,8 +102,8 @@ fn main() {
                 SETTINGS
                     .read()
                     .unwrap()
-                    .get_str("homepage")
-                    .unwrap() // there is a default in Settings, so this will never fail
+                    .config
+                    .homepage
                     .as_str(),
             )
             .expect("Invalid URL for configured homepage")
@@ -133,8 +132,7 @@ fn main() {
     }));
 
     let mut app = cursive::default();
-    //app.set_theme(SETTINGS.read().unwrap().get_theme());
-    let theme = SETTINGS.read().unwrap().get_str("theme").unwrap();
+    let theme = SETTINGS.read().unwrap().config.theme.clone();
     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme))
         .unwrap();
     Controller::setup(&mut app, homepage).expect("could not create controller");

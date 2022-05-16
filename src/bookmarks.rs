@@ -1,21 +1,14 @@
-use config::{Config, File, FileFormat};
-use serde::{Serialize, Serializer};
+use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
 use std::fs::File as FsFile;
+use std::fs::read_to_string;
 use std::io::Write;
 use std::path::PathBuf;
 use url::Url;
 
-fn url_serialize<S>(url: &Url, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    s.serialize_str(&url.to_string())
-}
-
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Bookmark {
     pub title: String,
-    #[serde(serialize_with = "url_serialize")]
     pub url: Url,
     pub tags: Vec<String>,
 }
@@ -28,48 +21,17 @@ pub struct Bookmarks {
 
 impl Bookmarks {
     pub fn new() -> Bookmarks {
-        let mut s = Config::new();
         let confdir = Bookmarks::get_bookmark_path();
         println!("Looking for bookmarks file {:?}", confdir);
+        let mut bookmarks_string = String::new();
         if confdir.as_path().exists() {
-            match s.merge(File::new(
-                confdir.to_str().expect("non-UTF8 bookmarks filename"),
-                FileFormat::Toml,
-            )) {
-                Ok(_s) => (),
-                Err(e) => {
-                    println!("Could not read bookmarks file: {}", e);
-                }
-            }
+            bookmarks_string = read_to_string(confdir).unwrap();
         }
-        let mut entries = Vec::new();
         println!("Reading bookmarks...");
-        info!("bookmarks: {:?}", s.get_array("bookmark"));
-        if let Ok(e) = s.get_array("bookmark") {
-            for value in e {
-                if let Ok(v) = value.into_table() {
-                    let url = if let Ok(url) = v["url"].clone().into_str() {
-                        url
-                    } else {
-                        continue;
-                    };
-                    let title = if let Ok(title) = v["title"].clone().into_str() {
-                        title
-                    } else {
-                        continue;
-                    };
-                    if let Ok(u) = Url::parse(&url) {
-                        let h = Bookmark {
-                            url: u.clone(),
-                            title,
-                            tags: Vec::new(),
-                        };
-                        entries.push(h);
-                    }
-                }
-            }
-        }
-        Bookmarks { entries }
+        let bookmarks_table: HashMap<String, Vec<Bookmark>> = toml::from_str(&bookmarks_string).unwrap_or_default();
+        let entries: &[Bookmark] = &bookmarks_table["bookmark"];
+
+        Bookmarks { entries: entries.to_vec() }
     }
 
     fn get_bookmark_path() -> PathBuf {

@@ -66,8 +66,9 @@ pub fn download_filename_from_url(url: &Url) -> String {
     let download_path = crate::SETTINGS
         .read()
         .unwrap()
-        .get_str("download_path")
-        .unwrap_or_default();
+        .config
+        .download_path
+        .clone();
 
     let filename = match url.path_segments() {
         Some(path_segments) => path_segments.last().unwrap_or_default(),

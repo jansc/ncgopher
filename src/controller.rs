@@ -1006,8 +1006,10 @@ impl Controller {
                 let textwrap = SETTINGS
                     .read()
                     .unwrap()
-                    .get_str("textwrap")
-                    .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
+                    .config
+                    .textwrap
+                    .parse()
+                    .unwrap_or(usize::MAX);
 
                 let viewport_width = app.screen_size().x
                 // adjust for left margin
@@ -1159,8 +1161,10 @@ impl Controller {
                 let textwrap = SETTINGS
                     .read()
                     .unwrap()
-                    .get_str("textwrap")
-                    .map_or(usize::MAX, |txt| txt.parse().unwrap_or(usize::MAX));
+                    .config
+                    .textwrap
+                    .parse()
+                    .unwrap_or(usize::MAX);
 
                 let viewport_width = app.screen_size().x
                 // adjust for left margin
@@ -1277,8 +1281,14 @@ impl Controller {
     }
 
     fn open_command(&mut self, command: &str, url: Url) -> Result<(), Box<dyn Error>> {
-        // Opens an image in an external application - if defined in settings
-        let command = SETTINGS.read().unwrap().get_str(command)?;
+        // Opens a URL in an external application - if defined in settings
+        let command = match command {
+            "html_command" => SETTINGS.read().unwrap().config.html_command.clone(),
+            "image_command" => SETTINGS.read().unwrap().config.image_command.clone(),
+            "telnet_command" => SETTINGS.read().unwrap().config.telnet_command.clone(),
+            _ => panic!("unknown field"),
+        };
+
         if !command.is_empty() {
             if let Err(err) = Command::new(&command).arg(url.to_string()).spawn() {
                 self.set_message(&format!("Command failed: {}: {}", err, command));
@@ -1327,8 +1337,9 @@ impl Controller {
         let download_path = SETTINGS
             .read()
             .unwrap()
-            .get_str("download_path")
-            .unwrap_or_default();
+            .config
+            .download_path
+            .clone();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
 
@@ -1378,8 +1389,9 @@ impl Controller {
         let download_path = SETTINGS
             .read()
             .unwrap()
-            .get_str("download_path")
-            .unwrap_or_default();
+            .config
+            .download_path
+            .clone();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();

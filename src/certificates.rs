@@ -1,68 +1,30 @@
-use config::{Config, File, FileFormat};
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
 use url::Url;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct Certificates {
     /// All known server certificates
     #[serde(rename = "certificate")]
+
+    #[serde(default = "default_entries")]
     pub entries: HashMap<String, String>,
 }
 
+fn default_entries() -> HashMap<String, String> { HashMap::<String, String>::new() }
+
 impl Certificates {
     pub fn new() -> Certificates {
-        let mut s = Config::new();
         let confdir = Certificates::get_known_hosts_filename();
+        let mut config_string = String::new();
         if Path::new(confdir.as_str()).exists() {
-            match s.merge(File::new(confdir.as_str(), FileFormat::Toml)) {
-                Ok(_s) => (),
-                Err(e) => {
-                    println!("Could not read known_hosts file: {}", e);
-                }
-            }
+            config_string = std::fs::read_to_string(&confdir).unwrap_or_default();
         }
+        // println!("Could not read known_hosts file: {}", e);
 
-        let mut entries = HashMap::<String, String>::new();
-
-        info!("loading certificate fingerprints");
-        match s.get_table("certificate") {
-            Ok(file_entries) => {
-                // improved known hosts format
-                for (host, value) in file_entries {
-                    match value.into_str() {
-                        Ok(fingerprint) => {
-                            entries.insert(host, fingerprint);
-                        }
-                        Err(e) => error!("could not read fingerprint for host {}: {:?}", host, e),
-                    }
-                }
-            }
-            Err(config::ConfigError::Type { .. }) => {
-                // known hosts format of v0.1.5 and earlier
-                warn!("trying old known hosts format");
-                if let Ok(e) = s.get_array("certificate") {
-                    for value in e {
-                        if let Ok(v) = value.into_table() {
-                            // old hosts have to be canonicalised
-                            if let Ok(mut url) = Url::parse(&format!("gemini://{}", v["host"])) {
-                                crate::url_tools::normalize_domain(&mut url);
-                                entries.insert(
-                                    Certificates::extract_domain_port(&url),
-                                    v["fingerprint"].to_string(),
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    error!("known hosts file is malformed");
-                }
-            }
-            Err(e) => warn!("could not read known hosts file: {:?}", e),
-        }
-        Certificates { entries }
+        toml::from_str(&config_string).unwrap_or_default()
     }
 
     fn get_known_hosts_filename() -> String {

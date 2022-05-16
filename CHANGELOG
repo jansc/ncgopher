@@ -2,6 +2,9 @@
 
 ** [unreleasd]
 
+  Changes:
+  - Removed Config as a dependency and use serde instead
+
   Bugfixes:
   - Clicking "accept the risk" in the certificate dialog will now automaically open
     the URL

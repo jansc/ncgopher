@@ -1,4 +1,5 @@
-use config::{Config, ConfigError, File, Value};
+use serde::{Serialize, Deserialize, Deserializer};
+use toml::Value;
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, DirBuilder, File as FsFile};
@@ -10,20 +11,76 @@ use std::path::{Path, PathBuf};
 //use cursive::theme::PaletteColor::*;
 
 pub struct Settings {
-    config: Config,
+    pub config: NewConfig,
     config_filename: String,
     themes: HashMap<String, String>,
 }
 
-impl Settings {
-    pub fn new() -> Result<Self, ConfigError> {
-        let s = Config::new();
-        let mut settings = Settings {
-            config: s,
-            config_filename: String::new(),
-            themes: HashMap::new(),
-        };
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NewConfig {
+    #[serde(default = "default_download_path")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub download_path: String,
+    #[serde(default = "default_homepage")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub homepage: String,
+    #[serde(default = "default_debug")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub debug: String,
+    #[serde(default = "default_theme")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub theme: String,
+    #[serde(default = "default_html_command")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub html_command: String,
+    #[serde(default = "default_image_command")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub image_command: String,
+    #[serde(default = "default_telnet_command")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub telnet_command: String,
+    #[serde(default = "default_textwrap")]
+    #[serde(deserialize_with = "ok_or_default")]
+    pub textwrap: String
+}
 
+fn ok_or_default<'a, T, D>(deserializer: D) -> Result<T, D::Error>
+    where T: Deserialize<'a> + Default,
+                    D: Deserializer<'a>
+{
+        let v: Value = Deserialize::deserialize(deserializer)?;
+            Ok(T::deserialize(v).unwrap_or_default())
+}
+
+fn default_download_path() -> String {
+    // Try to determine a sensible default download dir and create it if need be.
+    let dl_dir = if let Ok(home) = env::var("HOME") {
+        Some([&home, "Downloads"].iter().collect::<PathBuf>())
+    } else if let Ok(tmp) = env::var("TMP") {
+        Some(PathBuf::from(tmp))
+    } else if let Ok(cwd) = env::current_exe() {
+        Some(cwd)
+    } else {
+        None
+    };
+
+    if let Some(dl_dir) = dl_dir {
+        DirBuilder::new().recursive(true).create(&dl_dir).ok(); // Continue on failure.
+        return dl_dir.into_os_string().into_string().unwrap_or_default();
+    }
+    return String::new();
+}
+
+fn default_homepage() -> String { "about:help".to_owned() }
+fn default_debug() -> String { "false".to_owned() }
+fn default_theme() -> String { "lightmode".to_owned() }
+fn default_html_command() -> String { "".to_owned() }
+fn default_image_command() -> String { "".to_owned() }
+fn default_telnet_command() -> String { "".to_owned() }
+fn default_textwrap() -> String { "80".to_owned() }
+
+impl Settings {
+    pub fn new() -> Settings {
         // Create config dir if necessary
         match dirs::config_dir() {
             Some(mut dir) => {
@@ -49,63 +106,30 @@ impl Settings {
             }
             None => String::new(),
         };
-        settings.config_filename = confdir.clone();
+        let config_filename = confdir.clone();
         println!("Looking for config file {}", confdir);
 
-        // Set defaults
-
-        // Try to determine a sensible default download dir and create it if need be.
-        let dl_dir = if let Ok(home) = env::var("HOME") {
-            Some([&home, "Downloads"].iter().collect::<PathBuf>())
-        } else if let Ok(tmp) = env::var("TMP") {
-            Some(PathBuf::from(tmp))
-        } else if let Ok(cwd) = env::current_exe() {
-            Some(cwd)
-        } else {
-            None
-        };
-
-        if let Some(dl_dir) = dl_dir {
-            DirBuilder::new().recursive(true).create(&dl_dir).ok(); // Continue on failure.
-            settings
-                .config
-                .set_default("download_path", dl_dir.to_str())?;
-        }
-
-        settings.config.set_default("homepage", "about:help")?;
-        settings.config.set_default("debug", false)?;
-        settings.config.set_default("theme", "lightmode")?;
-        settings.config.set_default("html_command", "")?;
-        settings.config.set_default("image_command", "")?;
-        settings.config.set_default("telnet_command", "")?;
-        settings.config.set_default("textwrap", "80")?;
-        settings.themes.insert(
+        let mut themes = HashMap::new();
+        themes.insert(
             "darkmode".to_string(),
             include_str!("themes/darkmode.toml").to_string(),
         );
-        settings.themes.insert(
+        themes.insert(
             "lightmode".to_string(),
             include_str!("themes/lightmode.toml").to_string(),
         );
 
+        let mut config_string = String::new();
         if Path::new(confdir.as_str()).exists() {
-            // Start off by merging in the "default" configuration file
-            match settings.config.merge(File::with_name(confdir.as_str())) {
-                Ok(_) => (),
-                Err(e) => {
-                    println!("Could not read config file: {}", e);
-                }
-            }
+            config_string = std::fs::read_to_string(confdir).unwrap();
         }
+        let config_table: NewConfig = toml::from_str(&config_string).unwrap();
 
-        // Debug: Now that we're done, let's access our configuration
-        //println!("debug: {:?}", settings.config.get_bool("debug").unwrap());
-        //println!("homepage: {:?}", settings.config.get::<String>("homepage").unwrap());
-        //println!("theme: {:?}", settings.config.get::<String>("theme").unwrap());
-
-        // You can deserialize (and thus freeze) the entire configuration as
-        //s.try_into()
-        Ok(settings)
+        Settings {
+            config: config_table,
+            config_filename: config_filename,
+            themes: themes
+        }
     }
 
     pub fn write_settings_to_file(&mut self) -> std::io::Result<()> {
@@ -121,17 +145,11 @@ impl Settings {
 
         file.write_all(b"# Automatically generated by ncgopher.\n")?;
 
-        let config = match self.config.clone().try_into::<HashMap<String, String>>() {
-            Ok(str) => str,
-            Err(err) => {
-                warn!("Could not write config: {}", err);
-                HashMap::new()
-            }
-        };
-        let toml = toml::to_string(&config).unwrap();
+        let toml = toml::to_string(&self.config).unwrap();
         file.write_all(toml.as_bytes())
     }
 
+    /*
     pub fn set<T>(&mut self, key: &str, value: T) -> Result<&mut Config, ConfigError>
     where
         T: Into<Value>,
@@ -140,8 +158,9 @@ impl Settings {
     }
 
     pub fn get_str(&self, key: &str) -> Result<String, ConfigError> {
-        self.config.get_str(key)
+        self.config.get_string(key)
     }
+    */
 
     /*
     // Get custom theme. TODO: Read from config file
