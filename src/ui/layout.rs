@@ -6,7 +6,7 @@ use cursive::event::{AnyCb, Event, EventResult};
 use cursive::theme::ColorStyle;
 use cursive::traits::View;
 use cursive::vec::Vec2;
-use cursive::view::{IntoBoxedView, Selector};
+use cursive::view::{CannotFocus, IntoBoxedView, Selector};
 use cursive::Printer;
 use unicode_width::UnicodeWidthStr;
 
@@ -167,7 +167,7 @@ impl View for Layout {
         }
     }
 
-    fn take_focus(&mut self, source: Direction) -> bool {
+    fn take_focus(&mut self, source: Direction) -> Result<EventResult, CannotFocus> {
         self.get_current_screen_mut().view.take_focus(source)
     }
 }

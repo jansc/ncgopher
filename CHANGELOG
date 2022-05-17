@@ -4,6 +4,7 @@
 
   Changes:
   - Removed Config as a dependency and use serde instead
+  - Upgraded cursive to 0.18.0
 
   Bugfixes:
   - Clicking "accept the risk" in the certificate dialog will now automaically open

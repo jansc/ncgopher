@@ -3,7 +3,7 @@ use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::ui::{dialogs, layout::Layout, statusbar::StatusBar};
 use cursive::{
     event::Key,
-    menu::MenuTree,
+    menu::Tree,
     view::{Nameable, Resizable, Scrollable},
     views::{Dialog, NamedView, OnEventView, ResizedView, ScrollView, SelectView, ViewRef},
     Cursive, View,
@@ -109,7 +109,7 @@ fn setup_menu(app: &mut Cursive) {
     let menubar = app.menubar();
     menubar.add_subtree(
         "File",
-        MenuTree::new()
+        Tree::new()
             .leaf("Open URL...", dialogs::open_url)
             .delimiter()
             .leaf("Save page as...", dialogs::save_as)
@@ -119,7 +119,7 @@ fn setup_menu(app: &mut Cursive) {
     );
     menubar.add_subtree(
         "History",
-        MenuTree::new()
+        Tree::new()
             .leaf("Show all history...", dialogs::edit_history)
             .leaf("Clear history", |app| {
                 app.user_data::<Controller>()
@@ -130,17 +130,17 @@ fn setup_menu(app: &mut Cursive) {
     );
     menubar.add_subtree(
         "Bookmarks",
-        MenuTree::new()
+        Tree::new()
             .leaf("Edit...", dialogs::edit_bookmarks)
             .leaf("Add bookmark", dialogs::add_bookmark_current_url)
             .delimiter(),
     );
     menubar.add_subtree(
         "Help",
-        MenuTree::new()
+        Tree::new()
             .subtree(
                 "Help",
-                MenuTree::new()
+                Tree::new()
                     .leaf("Keys", |s| s.add_layer(Dialog::info(HELP)))
                     .leaf("Extended", |app| {
                         app.user_data::<Controller>()
@@ -315,7 +315,7 @@ fn move_to_link_gemini(app: &mut Cursive, dir: Direction) {
             }
         }
     }
-    view.take_focus(cursive::direction::Direction::front());
+    view.take_focus(cursive::direction::Direction::front()).ok();
     view.set_selection(i);
 
     // Scroll to selected row
@@ -373,7 +373,7 @@ fn move_to_link_gopher(app: &mut Cursive, dir: Direction) {
             }
         }
     }
-    view.take_focus(cursive::direction::Direction::front());
+    view.take_focus(cursive::direction::Direction::front()).ok();
     view.set_selection(i);
 
     // Scroll to selected row
