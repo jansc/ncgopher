@@ -5,6 +5,7 @@
   Changes:
   - Removed Config as a dependency and use serde instead
   - Upgraded cursive to 0.18.0
+  - Upgraded clap to 3.1.18
 
   Bugfixes:
   - Clicking "accept the risk" in the certificate dialog will now automaically open

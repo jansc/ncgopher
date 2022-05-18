@@ -13,7 +13,7 @@ extern crate sha2;
 extern crate toml;
 extern crate x509_parser;
 
-use clap::{App, Arg};
+use clap::Parser;
 use controller::Controller;
 use lazy_static::lazy_static;
 use settings::Settings;
@@ -73,29 +73,22 @@ impl log::Log for Logger {
     }
 }
 
-fn main() {
-    let app_name = env!("CARGO_PKG_NAME");
-    let matches = App::new(app_name)
-        .version(env!("CARGO_PKG_VERSION"))
-        .author("Jan Schreiber <jan@mecinus.com>")
-        .about("An ncurses gopher client for the modern internet")
-        .arg(
-            Arg::with_name("debug")
-                .short("d")
-                .long("debug")
-                .value_name("FILE")
-                .help("Enable debug logging to the specified file. If the file already exists, new content will be appended.")
-                .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("URL")
-                .help("URL to open after startup")
-                .index(1),
-        )
-        .get_matches();
+/// An ncurses gopher client for the modern internet
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Enable debug logging to the specified file. If the file already exists, new content will be appended.
+    #[clap(short, long)]
+    debug: Option<String>,
 
-    let homepage = matches
-        .value_of("URL")
+    /// Url to open after startup
+	url: Option<String>,
+}
+
+fn main() {
+    let args = Args::parse();
+
+    let homepage = args.url.as_deref()
         .map(|url| Url::parse(url).unwrap_or_else(|_| panic!("Invalid URL: {}", url)))
         .unwrap_or_else(|| {
             Url::parse(
@@ -108,7 +101,7 @@ fn main() {
             )
             .expect("Invalid URL for configured homepage")
         });
-    if let Some(log_file) = matches.value_of("debug") {
+    if let Some(log_file) = args.debug.as_deref() {
         let file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
