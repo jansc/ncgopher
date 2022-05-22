@@ -7,6 +7,7 @@ use cursive::theme::ColorStyle;
 use cursive::traits::View;
 use cursive::vec::Vec2;
 use cursive::view::{CannotFocus, IntoBoxedView, Selector};
+use cursive::views::EditView;
 use cursive::Printer;
 use unicode_width::UnicodeWidthStr;
 
@@ -19,6 +20,8 @@ pub struct Layout {
     views: HashMap<String, Screen>,
     stack: Vec<Screen>,
     statusbar: Box<dyn View>,
+    pub search: EditView,
+    search_focused: bool,
     focus: Option<String>,
     screenchange: bool,
     last_size: Vec2,
@@ -31,6 +34,8 @@ impl Layout {
             views: HashMap::new(),
             stack: Vec::new(),
             statusbar: status.into_boxed_view(),
+            search: EditView::new(),
+            search_focused: false,
             focus: None,
             screenchange: true,
             last_size: Vec2::new(0, 0),
@@ -57,6 +62,7 @@ impl Layout {
         let s = id.into();
         self.focus = Some(s);
         self.screenchange = true;
+        self.search_focused = false;
         self.stack.clear();
     }
 
@@ -94,10 +100,23 @@ impl Layout {
                 .unwrap_or_else(|| panic!("View {} missing", id))
         }
     }
+
+    pub fn enable_search(&mut self) {
+        if !self.search_focused {
+            self.search.set_content("/");
+            self.search_focused = true;
+        }
+    }
+
+    pub fn clear_search(&mut self) {
+        self.search.set_content("");
+        self.search_focused = false;
+    }
 }
 
 impl View for Layout {
     fn draw(&self, printer: &Printer<'_, '_>) {
+        let search_visible = self.search.get_content().len() > 0;
         let screen = self.get_current_screen();
         // screen title
         printer.with_color(ColorStyle::title_primary(), |printer| {
@@ -119,12 +138,18 @@ impl View for Layout {
 
         self.statusbar
             .draw(&printer.offset((0, printer.size.y - 2)));
+
+        if search_visible {
+            let printer = &printer.offset((0, printer.size.y - 1));
+            self.search.draw(printer);
+        }
     }
 
     fn layout(&mut self, size: Vec2) {
         self.last_size = size;
 
         self.statusbar.layout(Vec2::new(size.x, 2));
+        self.search.layout(Vec2::new(size.x, 1));
 
         self.get_current_screen_mut()
             .view
@@ -142,6 +167,7 @@ impl View for Layout {
     }
 
     fn on_event(&mut self, event: Event) -> EventResult {
+        let search_visible = self.search.get_content().len() > 0;
         if let Event::Mouse { position, .. } = event {
             if position.y < self.last_size.y.saturating_sub(2) {
                 if let Some(ref id) = self.focus {
@@ -154,6 +180,8 @@ impl View for Layout {
             }
 
             EventResult::Consumed(None)
+        } else if search_visible {
+            self.search.on_event(event)
         } else {
             self.get_current_screen_mut().view.on_event(event)
         }
@@ -168,6 +196,9 @@ impl View for Layout {
     }
 
     fn take_focus(&mut self, source: Direction) -> Result<EventResult, CannotFocus> {
+        if self.search_focused {
+            return self.search.take_focus(source);
+        }
         self.get_current_screen_mut().view.take_focus(source)
     }
 }

@@ -24,7 +24,11 @@ fn setup_keys(app: &mut Cursive) {
     app.set_autohide_menu(false);
 
     // TODO: Make keys configurable
-    app.add_global_callback(Key::Esc, |s| s.select_menubar());
+    app.add_global_callback(Key::Esc, |app| {
+        app.call_on_name("main", |v: &mut Layout| v.clear_search())
+            .expect("main layout missing");
+        app.select_menubar()
+    });
     app.add_global_callback('q', Cursive::quit);
     app.add_global_callback('g', dialogs::open_url);
     app.add_global_callback('b', |app| {
@@ -93,16 +97,62 @@ fn setup_keys(app: &mut Cursive) {
         // go to previous line
         move_selection(app, Direction::Previous);
     });
-    app.add_global_callback('n' /*Key::Tab*/, |app| {
+    app.add_global_callback('l' /*Key::Tab*/, |app| {
         // go to next link
         move_to_link(app, Direction::Next);
     });
-    app.add_global_callback('p' /*Event::Shift(Key::Tab)*/, |app| {
+    app.add_global_callback('L' /*Event::Shift(Key::Tab)*/, |app| {
         // go to previous link
         move_to_link(app, Direction::Previous);
     });
     app.add_global_callback('a', dialogs::add_bookmark_current_url);
     app.add_global_callback('?', |s| s.add_layer(Dialog::info(HELP)));
+    app.add_global_callback('/', move |app| {
+        app.call_on_name("main", |v: &mut Layout| v.enable_search())
+            .expect("main layout missing");
+    });
+    app.add_global_callback('n', |app| {
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        let hits = controller.current_search_results.clone();
+        if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
+            let scroll_view = app
+                .find_name::<ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>>(
+                    "content_scroll",
+                )
+                .expect("gopher scroll view missing");
+            move_to_next_item(content, scroll_view, Direction::Next, hits);
+        } else if let Some(content) = app.find_name::<SelectView<Option<Url>>>("gemini_content") {
+            let scroll_view = app
+                .find_name::<ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>>(
+                    "gemini_content_scroll",
+                )
+                .expect("gemini scroll view missing");
+            move_to_next_item(content, scroll_view, Direction::Next, hits);
+        } else {
+            unreachable!("view content and gemini_content missing");
+        }
+    });
+    app.add_global_callback('N', |app| {
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        let hits = controller.current_search_results.clone();
+        if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
+            let scroll_view = app
+                .find_name::<ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>>(
+                    "content_scroll",
+                )
+                .expect("gopher scroll view missing");
+            move_to_next_item(content, scroll_view, Direction::Previous, hits);
+        } else if let Some(content) = app.find_name::<SelectView<Option<Url>>>("gemini_content") {
+            let scroll_view = app
+                .find_name::<ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>>(
+                    "gemini_content_scroll",
+                )
+                .expect("gemini scroll view missing");
+            move_to_next_item(content, scroll_view, Direction::Previous, hits);
+        } else {
+            unreachable!("view content and gemini_content missing");
+        }
+    });
 }
 
 fn setup_menu(app: &mut Cursive) {
@@ -152,7 +202,7 @@ fn setup_menu(app: &mut Cursive) {
                 s.add_layer(Dialog::info(format!(
                     ":                       ncgopher v{:<15}            :\n\
                      :     A Gopher and Gemini client for the modern internet     :\n\
-                     :              (c) 2019-2021 The ncgopher Authors            :\n\
+                     :              (c) 2019-2022 The ncgopher Authors            :\n\
                      :                                                            :\n\
                      :  Originally developed by Jan Schreiber <jan@mecinus.com>   :\n\
                      :                     gopher://jan.bio                       :\n\
@@ -208,6 +258,25 @@ fn setup_ui(app: &mut Cursive) {
         .view("gemini_content", gemini_event_view, "Gemini");
     layout.set_view("content");
     app.add_fullscreen_layer(layout.with_name("main"));
+
+    app.call_on_name("main", |v: &mut Layout| {
+        v.search.set_on_edit(move |app, cmd, _| {
+            app.call_on_name("main", |v: &mut Layout| {
+                if cmd.is_empty() {
+                    v.clear_search();
+                }
+            });
+        });
+        v.search.set_on_submit(move |app, search_str| {
+            app.call_on_name("main", |v: &mut Layout| {
+                v.clear_search();
+            });
+            app.user_data::<Controller>()
+                .expect("controller missing")
+                .search(search_str[1..].to_string());
+        });
+    })
+    .expect("main layout missing");
 }
 
 //--------- interface manipulation functions ---------------------------
@@ -383,4 +452,38 @@ fn move_to_link_gopher(app: &mut Cursive, dir: Direction) {
     )
     .expect("gopher scroll view missing")
     .set_offset(cursive::Vec2::new(0, selected_id));
+}
+
+/// Moves the current selection to the next/previous item in the given vector of indices
+pub(crate) fn move_to_next_item<T>(
+    mut view: ViewRef<SelectView<T>>,
+    mut scroll_view: ViewRef<ScrollView<ResizedView<NamedView<SelectView<T>>>>>,
+    dir: Direction,
+    hits: Vec<usize>,
+) -> usize {
+    if hits.is_empty() {
+        // Not hits - don't move
+        return 0;
+    }
+    let cur = view.selected_id().unwrap_or(0);
+    let newpos = match dir {
+        Direction::Next => {
+            let first = hits.clone().into_iter().next().unwrap();
+            match hits.into_iter().find(|&x| x > cur) {
+                Some(x) => x,
+                None => first, // wrap search
+            }
+        }
+        Direction::Previous => {
+            let last = hits.clone().into_iter().nth(hits.len() - 1).unwrap();
+            match hits.into_iter().rev().find(|&x| x < cur) {
+                Some(x) => x,
+                None => last, // wrap search
+            }
+        }
+    };
+    view.take_focus(cursive::direction::Direction::front()).ok();
+    view.set_selection(newpos);
+    scroll_view.set_offset(cursive::Vec2::new(0, newpos));
+    newpos
 }

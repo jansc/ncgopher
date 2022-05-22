@@ -33,8 +33,7 @@ mod ui;
 mod url_tools;
 
 lazy_static! {
-    static ref SETTINGS: RwLock<Settings> =
-        RwLock::new(Settings::new());
+    static ref SETTINGS: RwLock<Settings> = RwLock::new(Settings::new());
 }
 
 struct Logger {
@@ -82,24 +81,19 @@ struct Args {
     debug: Option<String>,
 
     /// Url to open after startup
-	url: Option<String>,
+    url: Option<String>,
 }
 
 fn main() {
     let args = Args::parse();
 
-    let homepage = args.url.as_deref()
+    let homepage = args
+        .url
+        .as_deref()
         .map(|url| Url::parse(url).unwrap_or_else(|_| panic!("Invalid URL: {}", url)))
         .unwrap_or_else(|| {
-            Url::parse(
-                SETTINGS
-                    .read()
-                    .unwrap()
-                    .config
-                    .homepage
-                    .as_str(),
-            )
-            .expect("Invalid URL for configured homepage")
+            Url::parse(SETTINGS.read().unwrap().config.homepage.as_str())
+                .expect("Invalid URL for configured homepage")
         });
     if let Some(log_file) = args.debug.as_deref() {
         let file = std::fs::OpenOptions::new()

@@ -63,12 +63,7 @@ pub fn human_readable_url(url: &Url) -> String {
 /// Returns a path into the configured download directory with either
 /// the file name in the Url
 pub fn download_filename_from_url(url: &Url) -> String {
-    let download_path = crate::SETTINGS
-        .read()
-        .unwrap()
-        .config
-        .download_path
-        .clone();
+    let download_path = crate::SETTINGS.read().unwrap().config.download_path.clone();
 
     let filename = match url.path_segments() {
         Some(path_segments) => path_segments.last().unwrap_or_default(),

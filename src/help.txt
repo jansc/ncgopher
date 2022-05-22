@@ -2,7 +2,6 @@
 | Key        | Command                        |
 |------------+--------------------------------|
 | Arrow keys | Move around in text            |
-| j/k        | Move around in text (like vi)  |
 | Enter      | Open the link under the cursor |
 | Esc        | Go to menubar                  |
 | Space      | Scroll down one page           |
@@ -12,9 +11,14 @@
 | s          | Save current page              |
 | r          | Reload current page            |
 | i          | Show link under cursor         |
-| n          | Go to next link                |
-| p          | Go to previous link            |
 | a          | Add bookmark for current page  |
+| l          | Go to next link                |
+| L          | Go to previous link            |
+| j          | Move one line down             |
+| k          | Move one line up               |
+| /          | Search in text                 |
+| n          | Move to next search result     |
+| N          | Move to previous search result |
 | ?          | Display this help text         |
 |------------+--------------------------------|
 

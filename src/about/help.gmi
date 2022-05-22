@@ -6,7 +6,6 @@ Welcome to ncgopher, a ncurses client for gemini and gopher. You can use the fol
 | Key        | Command                        |
 |------------+--------------------------------|
 | Arrow keys | Move around in text            |
-| j/k        | Move around in text (like vi)  |
 | Enter      | Open the link under the cursor |
 | Esc        | Go to menubar                  |
 | Space      | Scroll down one page           |
@@ -16,10 +15,15 @@ Welcome to ncgopher, a ncurses client for gemini and gopher. You can use the fol
 | s          | Save current page              |
 | r          | Reload current page            |
 | i          | Show link under cursor         |
-| n          | Go to next link                |
-| p          | Go to previous link            |
 | a          | Add bookmark for current page  |
-| ?          | Display the key map again      |
+| l          | Go to next link                |
+| L          | Go to previous link            |
+| j          | Move one line down             |
+| k          | Move one line up               |
+| /          | Search in text                 |
+| n          | Move to next search result     |
+| N          | Move to previous search result |
+| ?          | Display this help text         |
 |------------+--------------------------------|
 ```
 
@@ -41,4 +45,4 @@ And actually, the document you are seeing here is written in Gemini's text forma
 ncgopher is free (libre) and open source software licensed under the "2-clause BSD" or "FreeBSD" license.  It is written in the Rust programming language. The source code is versioned in a git repository available through GitHub:
 => https://github.com/jansc/ncgopher
 If you have any issues or feel something important is missing, you can raise that as an issue there. Or feel free to contribute there as well!
-Copyright © 2019-2021 The ncgopher Authors. Parts of the status bar implementation are Copyright © 2019, Henrik Friedrichsen.
+Copyright © 2019-2022 The ncgopher Authors. Parts of the status bar implementation are Copyright © 2019, Henrik Friedrichsen.

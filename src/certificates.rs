@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::Path;
@@ -8,12 +8,13 @@ use url::Url;
 pub struct Certificates {
     /// All known server certificates
     #[serde(rename = "certificate")]
-
     #[serde(default = "default_entries")]
     pub entries: HashMap<String, String>,
 }
 
-fn default_entries() -> HashMap<String, String> { HashMap::<String, String>::new() }
+fn default_entries() -> HashMap<String, String> {
+    HashMap::<String, String>::new()
+}
 
 impl Certificates {
     pub fn new() -> Certificates {

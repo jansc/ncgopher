@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use serde::{Serialize, Deserialize};
-use std::fs::File as FsFile;
 use std::fs::read_to_string;
+use std::fs::File as FsFile;
 use std::io::Write;
 use std::path::PathBuf;
 use url::Url;
@@ -28,10 +28,13 @@ impl Bookmarks {
             bookmarks_string = read_to_string(confdir).unwrap();
         }
         println!("Reading bookmarks...");
-        let bookmarks_table: HashMap<String, Vec<Bookmark>> = toml::from_str(&bookmarks_string).unwrap_or_default();
+        let bookmarks_table: HashMap<String, Vec<Bookmark>> =
+            toml::from_str(&bookmarks_string).unwrap_or_default();
         let entries: &[Bookmark] = &bookmarks_table["bookmark"];
 
-        Bookmarks { entries: entries.to_vec() }
+        Bookmarks {
+            entries: entries.to_vec(),
+        }
     }
 
     fn get_bookmark_path() -> PathBuf {
@@ -65,7 +68,7 @@ impl Bookmarks {
         info!("Removing entry to bookmark: {:?}", url);
         self.entries.retain(|e| &e.url != url);
         if let Err(why) = self.write_bookmarks_to_file() {
-            warn!("Could not write bookmarks file: {}", why) 
+            warn!("Could not write bookmarks file: {}", why)
         }
     }
 

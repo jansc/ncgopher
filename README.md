@@ -98,25 +98,26 @@ To install the latest development version:
 During alpha, the keybindings are not configurable and many operations
 are still not implemented.
 
-    |------------+--------------------------------|
-    | Key        | Command                        |
-    |------------+--------------------------------|
-    | Arrow keys | Move around in text            |
-    | Enter      | Open the link under the cursor |
-    | Esc        | Go to menubar                  |
-    | Space      | Scroll down one page           |
-    | g          | Open new URL                   |
-    | b          | Navigate back                  |
-    | q          | Close application              |
-    | s          | Save current page              |
-    | r          | Reload current page            |
-    | i          | Show link under cursor         |
-    | a          | Add bookmark for current page  |
-    | n          | Go to next link                |
-    | p          | Go to previous link            |
-    | j          | Move one line down             |
-    | k          | Move one line up               |
-    |------------+--------------------------------|
+| Key        | Command                        |
+|:-----------+:-------------------------------|
+| Arrow keys | Move around in text            |
+| Enter      | Open the link under the cursor |
+| Esc        | Go to menubar                  |
+| Space      | Scroll down one page           |
+| g          | Open new URL                   |
+| b          | Navigate back                  |
+| q          | Close application              |
+| s          | Save current page              |
+| r          | Reload current page            |
+| i          | Show link under cursor         |
+| a          | Add bookmark for current page  |
+| l          | Go to next link                |
+| L          | Go to previous link            |
+| j          | Move one line down             |
+| k          | Move one line up               |
+| /          | Search in text                 |
+| n          | Move to next search result     |
+| N          | Move to previous search result |
 
 ## Mouse support
 
@@ -144,5 +145,5 @@ program with `RUST_BACKTRACE` to get a backtrace too.
 
 `ncgopher` is licensed under the BSD 2-clause license.
 
-Copyright (c) 2019-2021 The ncgopher Authors. Parts of the
+Copyright (c) 2019-2022 The ncgopher Authors. Parts of the
 status bar implementation are Copyright (c) 2019, Henrik Friedrichsen

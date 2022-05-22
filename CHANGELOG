@@ -1,8 +1,12 @@
 * NcGopher Changelog
 
 ** [unreleasd]
+  New features:
+  - Search in documents. Finally. Search with '/'. Jump to next/previous
+    result with n/N. Fixes #5
 
   Changes:
+  - Breaking: Changed key shortcuts for next/previous link to l/L
   - Removed Config as a dependency and use serde instead
   - Upgraded cursive to 0.18.0
   - Upgraded clap to 3.1.18

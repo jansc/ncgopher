@@ -49,7 +49,7 @@ config-auto Ignore config-filechanges while running for now
  - [X] Setting for text wrap column
  - [ ] Tor support for gopher
  - [ ] Handle tags for bookmarks
- - [ ] Search in text
+ - [X] Search in text
  - [ ] Caching of gophermaps
  - [ ] mailcap handling
  - [ ] Reading list (ala Safari)

@@ -1,10 +1,10 @@
-use serde::{Serialize, Deserialize, Deserializer};
-use toml::Value;
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{self, DirBuilder, File as FsFile};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use toml::Value;
 //use cursive::theme::{Theme, BorderStyle};
 //use cursive::theme::BaseColor::*;
 //use cursive::theme::Color::*;
@@ -41,15 +41,16 @@ pub struct NewConfig {
     pub telnet_command: String,
     #[serde(default = "default_textwrap")]
     #[serde(deserialize_with = "ok_or_default")]
-    pub textwrap: String
+    pub textwrap: String,
 }
 
 fn ok_or_default<'a, T, D>(deserializer: D) -> Result<T, D::Error>
-    where T: Deserialize<'a> + Default,
-                    D: Deserializer<'a>
+where
+    T: Deserialize<'a> + Default,
+    D: Deserializer<'a>,
 {
-        let v: Value = Deserialize::deserialize(deserializer)?;
-            Ok(T::deserialize(v).unwrap_or_default())
+    let v: Value = Deserialize::deserialize(deserializer)?;
+    Ok(T::deserialize(v).unwrap_or_default())
 }
 
 fn default_download_path() -> String {
@@ -71,13 +72,27 @@ fn default_download_path() -> String {
     String::new()
 }
 
-fn default_homepage() -> String { "about:help".to_owned() }
-fn default_debug() -> String { "false".to_owned() }
-fn default_theme() -> String { "lightmode".to_owned() }
-fn default_html_command() -> String { "".to_owned() }
-fn default_image_command() -> String { "".to_owned() }
-fn default_telnet_command() -> String { "".to_owned() }
-fn default_textwrap() -> String { "80".to_owned() }
+fn default_homepage() -> String {
+    "about:help".to_owned()
+}
+fn default_debug() -> String {
+    "false".to_owned()
+}
+fn default_theme() -> String {
+    "lightmode".to_owned()
+}
+fn default_html_command() -> String {
+    "".to_owned()
+}
+fn default_image_command() -> String {
+    "".to_owned()
+}
+fn default_telnet_command() -> String {
+    "".to_owned()
+}
+fn default_textwrap() -> String {
+    "80".to_owned()
+}
 
 impl Settings {
     pub fn new() -> Settings {
@@ -127,7 +142,7 @@ impl Settings {
         Settings {
             config: config_table,
             config_filename,
-            themes
+            themes,
         }
     }
 

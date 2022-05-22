@@ -1,8 +1,9 @@
 use chrono::{DateTime, Local, Utc};
 use cursive::{
+    theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
     view::{Nameable, Resizable},
-    views::{Dialog, EditView, SelectView},
+    views::{Dialog, EditView, NamedView, ResizedView, ScrollView, SelectView},
     Cursive, CursiveRunnable,
 };
 use mime::Mime;
@@ -16,7 +17,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use std::time::{SystemTime};
+use std::time::SystemTime;
 use url::Url;
 use urlencoding::decode_binary;
 use x509_parser::prelude::*;
@@ -27,6 +28,7 @@ use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
 use crate::ui::layout::Layout;
+use crate::ui::setup::move_to_next_item;
 use crate::url_tools::{download_filename_from_url, human_readable_url, normalize_domain};
 use crate::SETTINGS;
 
@@ -58,6 +60,10 @@ pub struct Controller {
     redirect_count: Arc<Mutex<i32>>,
     /// Message shown in statusbar
     message: Arc<RwLock<String>>,
+    // Current search string
+    current_search: String,
+    // Current search results
+    pub current_search_results: Vec<usize>,
 }
 
 impl Controller {
@@ -78,6 +84,8 @@ impl Controller {
                 .find_name::<crate::ui::statusbar::StatusBar>("statusbar")
                 .unwrap()
                 .get_message(),
+            current_search: String::new(),
+            current_search_results: Vec::new(),
         };
 
         // Add old entries to history on start-up
@@ -528,6 +536,7 @@ impl Controller {
                         let s = String::from_utf8_lossy(&buf).into_owned();
                         sender.send(Box::new(move |app|{
                             let controller = app.user_data::<Controller>().expect("controller missing");
+                            controller.clear_search();
                             controller.set_message(url.as_str());
                             controller.set_gemini_content(url, gemini_type, s, index);
                         })).unwrap();
@@ -789,6 +798,7 @@ impl Controller {
                 .send(Box::new(move |app| {
                     let controller = app.user_data::<Controller>().expect("controller missing");
                     controller.set_message(url.as_str());
+                    controller.clear_search();
                     controller.set_gopher_content(item_type, s, index);
                 }))
                 .unwrap();
@@ -954,6 +964,7 @@ impl Controller {
         };
         self.set_message(&format!("about:{}", url.path()));
         self.set_gemini_content(url, GeminiType::Gemini, content, 0);
+        self.clear_search();
     }
 
     pub fn open_gopher_address(&mut self, url: Url, item_type: ItemType, index: usize) {
@@ -974,6 +985,7 @@ impl Controller {
         drop(guard);
 
         if item_type.is_text() {
+            self.clear_search();
             self.set_gemini_content(
                 Url::parse("about:blank").unwrap(),
                 GeminiType::Text,
@@ -1334,12 +1346,7 @@ impl Controller {
         info!("Save textfile: {}", filename);
 
         // Create a path to the desired file
-        let download_path = SETTINGS
-            .read()
-            .unwrap()
-            .config
-            .download_path
-            .clone();
+        let download_path = SETTINGS.read().unwrap().config.download_path.clone();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
 
@@ -1386,12 +1393,7 @@ impl Controller {
         info!("Save textfile: {}", filename);
         // Create a path to the desired file
         // FIXME: use url_tools::download_filename_from_url
-        let download_path = SETTINGS
-            .read()
-            .unwrap()
-            .config
-            .download_path
-            .clone();
+        let download_path = SETTINGS.read().unwrap().config.download_path.clone();
 
         let path = Path::new(download_path.as_str()).join(filename.as_str());
         let display = path.display();
@@ -1553,5 +1555,88 @@ impl Controller {
             .lock()
             .expect("could not lock certificate store")
             .insert(url, cert_fingerprint);
+    }
+
+    pub fn search(&mut self, search_str: String) {
+        info!("Searching for {}", search_str);
+        self.current_search = search_str.clone();
+        let sender = self.sender.clone();
+        sender
+            .send(Box::new(move |app| {
+                let mut hits = Vec::new();
+                if let Some(mut content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
+                    for (index, listitem) in content.try_iter_mut().enumerate() {
+                        let (label, _item) = listitem; //(&mut SpannedString<Style>, &mut GopherMapEntry)
+                        let label_source = label.source();
+                        if !search_str.is_empty() && label_source.contains(&search_str) {
+                            hits.push(index);
+                            let split = label_source.split(&search_str);
+                            let mut l = StyledString::new();
+
+                            let vec: Vec<&str> = split.collect();
+                            for (pos, part) in vec.iter().enumerate() {
+                                l.append(*part);
+                                if pos != vec.len() - 1 {
+                                    //l.append_styled(&search_str, ColorStyle::new(Color::Dark(BaseColor::Red), ColorType::Palette(PaletteColor::Highlight)));
+                                    l.append_styled(&search_str, ColorStyle::highlight());
+                                }
+                            }
+                            *label = l.clone();
+                        } else {
+                            // This will remove previous search results
+                            let mut l = StyledString::new();
+                            l.append(label_source);
+                            *label = l.clone();
+                        }
+                    }
+                    let scroll_view = app.find_name::<ScrollView<ResizedView<NamedView<SelectView<GopherMapEntry>>>>>(
+                        "content_scroll",
+                        ).expect("gopher scroll view missing");
+                    move_to_next_item(content, scroll_view, Direction::Next, hits.clone());
+                } else if let Some(mut content) = app.find_name::<SelectView<Option<Url>>>("gemini_content") {
+                    info!("Found gemini content!!!!");
+                    for (index, listitem) in content.try_iter_mut().enumerate() {
+                        let (label, _item) = listitem; //(&mut SpannedString<Style>, &mut GopherMapEntry)
+                        let label_source = label.source();
+                        if !search_str.is_empty() && label_source.contains(&search_str) {
+                            hits.push(index);
+                            let split = label_source.split(&search_str);
+                            let mut l = StyledString::new();
+
+                            let vec: Vec<&str> = split.collect();
+                            for (pos, part) in vec.iter().enumerate() {
+                                l.append(*part);
+                                if pos != vec.len() - 1 {
+                                    l.append_styled(&search_str, ColorStyle::highlight());
+                                }
+                            }
+                            *label = l.clone();
+                        } else {
+                            // This will remove previous search results
+                            let mut l = StyledString::new();
+                            l.append(label_source);
+                            *label = l.clone();
+                        }
+                    }
+                    let scroll_view = app.find_name::<ScrollView<ResizedView<NamedView<SelectView<Option<Url>>>>>>(
+                        "gemini_content_scroll",
+                        ).expect("gemini scroll view missing");
+                    move_to_next_item(content, scroll_view, Direction::Next, hits.clone());
+                } else {
+                    unreachable!("view content and gemini_content missing");
+                }
+                info!("Found hits: {:?}", hits);
+                app.user_data::<Controller>()
+                    .expect("controller missing")
+                    .set_search_hits(hits.clone());
+            })).unwrap();
+    }
+
+    pub fn set_search_hits(&mut self, hits: Vec<usize>) {
+        self.current_search_results = hits;
+    }
+
+    pub fn clear_search(&mut self) {
+        self.current_search_results.clear();
     }
 }
