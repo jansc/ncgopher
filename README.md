@@ -99,7 +99,7 @@ During alpha, the keybindings are not configurable and many operations
 are still not implemented.
 
 | Key        | Command                        |
-|:-----------+:-------------------------------|
+| :--------- | :----------------------------- |
 | Arrow keys | Move around in text            |
 | Enter      | Open the link under the cursor |
 | Esc        | Go to menubar                  |
