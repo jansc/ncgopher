@@ -4,20 +4,35 @@
   New features:
   - Search in documents. Finally. Search with '/'. Jump to next/previous
     result with n/N. Fixes #5
+  - Gemini: Check for redirect loops
 
   Changes:
   - Breaking: Changed key shortcuts for next/previous link to l/L
   - Removed Config as a dependency and use serde instead
   - Upgraded cursive to 0.18.0
   - Upgraded clap to 3.1.18
+  - Upgraded regex to 1.5.6
+  - Upgraded toml to 0.5.9
+  - Upgraded serde to 1.0.137
+  - Upgraded x509-parse to 0.13.1
+  - Upgraded log to 0.4.17
+  - Upgraded backtrace to 0.3.65
+  - Upgraded crossbeam-channel to 0.5.4
+  - Upgraded rusqlite to 0.27.0
+  - Upgraded sha2 to 0.10.2
+  - Upgraded pancurses to 0.17.0
+  - Upgraded dirs to 4.0.0
+  - Upgraded unicode-width to 0.1.9
 
   Bugfixes:
   - Clicking "accept the risk" in the certificate dialog will now automaically open
     the URL
   - Update status message display when fetching content
   - Url-decode path in gopher URIs. Fixes #78
+  - Fixed crash when darkmode is enabled (pull request #69)
   - Introduced and fixed crash when bookmarks file does not exist
   - The open image command finally works again
+  - Fixed name of arch package in README
 
 ** 0.3.0
 
