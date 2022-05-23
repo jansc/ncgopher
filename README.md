@@ -77,6 +77,10 @@ you will most likely be able to tell what is missing.
 ### Arch-based Linux
 
     sudo pacman -S base-devel pkg-config openssl ncurses sqlite
+
+### OpenBSD
+
+    doas pkg_add sqlite3 rust
 ---
 
 If you know how to install the listed dependencies on your operating system and it is
