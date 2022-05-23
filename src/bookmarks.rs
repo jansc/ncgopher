@@ -30,7 +30,10 @@ impl Bookmarks {
         println!("Reading bookmarks...");
         let bookmarks_table: HashMap<String, Vec<Bookmark>> =
             toml::from_str(&bookmarks_string).unwrap_or_default();
-        let entries: &[Bookmark] = &bookmarks_table["bookmark"];
+        let entries: &[Bookmark] = match bookmarks_table.contains_key("bookmark") {
+            true => &bookmarks_table["bookmark"],
+            false => &[],
+        };
 
         Bookmarks {
             entries: entries.to_vec(),
