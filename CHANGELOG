@@ -16,6 +16,8 @@
     the URL
   - Update status message display when fetching content
   - Url-decode path in gopher URIs. Fixes #78
+  - Introduced and fixed crash when bookmarks file does not exist
+  - The open image command finally works again
 
 ** 0.3.0
 

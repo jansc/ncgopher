@@ -584,6 +584,10 @@ impl Controller {
                                             "File downloaded: {} ({} bytes)",
                                             local_filename, total_written
                                         ));
+                                        if mime.type_() == "image" {
+                                            let path = Path::new(&local_filename);
+                                            controller.open_image_from_file(path).ok();
+                                        }
                                     }))
                                     .unwrap();
                             }
@@ -805,7 +809,7 @@ impl Controller {
         });
     }
 
-    fn fetch_binary_url(&mut self, url: Url, local_filename: String) {
+    fn fetch_binary_url(&mut self, url: Url, item_type: ItemType, local_filename: String) {
         self.set_message("Downloading binary file...");
 
         let port = url.port().unwrap_or(70);
@@ -910,6 +914,10 @@ impl Controller {
                                 "File downloaded: {} ({} bytes)",
                                 local_filename, total_written
                             ));
+                            if item_type == ItemType::Gif || item_type == ItemType::Image {
+                                let path = Path::new(&local_filename);
+                                controller.open_image_from_file(path).ok();
+                            }
                         }))
                         .unwrap();
                 }
@@ -922,6 +930,7 @@ impl Controller {
                                 "Unable to open file: '{}' {}",
                                 local_filename, err
                             ));
+
                         }))
                         .unwrap();
                 }
@@ -971,7 +980,7 @@ impl Controller {
         self.set_message("Loading ...");
         if item_type.is_download() {
             let filename = download_filename_from_url(&url);
-            self.fetch_binary_url(url, filename);
+            self.fetch_binary_url(url, item_type, filename);
         } else {
             self.fetch_url(url, item_type, index);
         }
@@ -1307,6 +1316,18 @@ impl Controller {
             }
         } else {
             self.set_message(&format!("No command for opening {} defined.", url));
+        }
+        Ok(())
+    }
+
+    fn open_image_from_file(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
+        let command = SETTINGS.read().unwrap().config.image_command.clone();
+        if !command.is_empty() {
+            if let Err(err) = Command::new(&command).arg(path.as_os_str().to_str().unwrap()).spawn() {
+                self.set_message(&format!("Command failed: {}: {}", err, command));
+            }
+        } else {
+            self.set_message(&format!("No command for opening {} defined.", path.as_os_str().to_str().unwrap()));
         }
         Ok(())
     }
