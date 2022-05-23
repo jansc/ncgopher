@@ -1,6 +1,6 @@
 * NcGopher Changelog
 
-** [unreleasd]
+** 0.4.0
   New features:
   - Search in documents. Finally. Search with '/'. Jump to next/previous
     result with n/N. Fixes #5
