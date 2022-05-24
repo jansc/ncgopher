@@ -1,5 +1,12 @@
 * NcGopher Changelog
 
+** [Unreleased]
+  New features:
+  - Setting for disabling history recording. NB. ncgopher will still save
+    gemini certificate fingerprints and log some url info to the debug log
+    if --debug switch is activated. Already recorded history will not be
+    deleted.
+
 ** 0.4.0
   New features:
   - Search in documents. Finally. Search with '/'. Jump to next/previous

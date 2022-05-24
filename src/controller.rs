@@ -135,7 +135,9 @@ impl Controller {
     }
 
     fn fetch_gemini_url(&self, mut url: Url, index: usize) {
-        trace!("Controller::fetch_gemini_url({})", url);
+        if !SETTINGS.read().unwrap().config.disable_history {
+            trace!("Controller::fetch_gemini_url({})", url);
+        };
 
         let request_id = {
             let mut guard = self.last_request_id.lock().unwrap();
@@ -335,7 +337,9 @@ impl Controller {
             }
 
             // Handshake done, request URL from gemini server
-            info!("Writing url '{}'", url.as_str());
+            if !SETTINGS.read().unwrap().config.disable_history {
+                info!("Writing url '{}'", url.as_str());
+            }
             stream.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
 
             let mut bufr = BufReader::new(stream);
@@ -689,7 +693,9 @@ impl Controller {
 
     fn fetch_url(&self, url: Url, item_type: ItemType, index: usize) {
         // index is the position in the text (used when navigatin back or reloading)
-        trace!("Controller::fetch_url({})", url);
+        if !SETTINGS.read().unwrap().config.disable_history {
+            trace!("Controller::fetch_url({})", url);
+        }
 
         let request_id = {
             let mut guard = self.last_request_id.lock().unwrap();
@@ -705,7 +711,9 @@ impl Controller {
         let binary = decode_binary(path.as_bytes());
         let mut path = String::from_utf8_lossy(&binary).as_ref().to_owned();
 
-        info!("fetch_url(): About to open URL {}", path);
+        if !SETTINGS.read().unwrap().config.disable_history {
+            info!("fetch_url(): About to open URL {}", path);
+        }
         if path.len() > 2 {
             // TODO: check x[0] == / and x[1] == itemtype
             path = path[2..].to_string();
@@ -939,7 +947,9 @@ impl Controller {
     }
 
     pub fn open_url(&mut self, url: Url, add_to_history: bool, index: usize) {
-        info!("Open_url: {} position {}", url, index);
+        if !SETTINGS.read().unwrap().config.disable_history {
+            info!("Open_url: {} position {}", url, index);
+        }
         if add_to_history {
             self.add_to_history(url.clone(), index);
         }
@@ -1220,6 +1230,9 @@ impl Controller {
     }
 
     fn add_to_history(&mut self, url: Url, index: usize) {
+        if SETTINGS.read().unwrap().config.disable_history {
+            return
+        }
         // Updates the position of the last item on the stack This
         // works because add_to_history is called _before_
         // set_content.

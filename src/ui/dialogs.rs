@@ -334,6 +334,7 @@ pub(super) fn settings(app: &mut Cursive) {
     let telnet_command = SETTINGS.read().unwrap().config.telnet_command.clone();
     let darkmode = theme == "darkmode";
     let textwrap = SETTINGS.read().unwrap().config.textwrap.clone();
+    let disable_history = SETTINGS.read().unwrap().config.disable_history.clone();
     app.add_layer(
         Dialog::new()
             .title("Settings")
@@ -352,6 +353,8 @@ pub(super) fn settings(app: &mut Cursive) {
                     .child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
                     .child(TextView::new("Dark mode:"))
                     .child(Checkbox::new().with_checked(darkmode).with_name("darkmode"))
+                    .child(TextView::new("Disable history recording:"))
+                    .child(Checkbox::new().with_checked(disable_history).with_name("disable_history"))
                     .child(TextView::new("Text wrap column:"))
                     .child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
             )
@@ -362,6 +365,7 @@ pub(super) fn settings(app: &mut Cursive) {
                 let homepage = app.find_name::<EditView>("homepage").unwrap().get_content();
                 let download = app.find_name::<EditView>("download_path").unwrap().get_content();
                 let darkmode = app.find_name::<Checkbox>("darkmode").unwrap().is_checked();
+                let disable_history = app.find_name::<Checkbox>("disable_history").unwrap().is_checked();
                 let html_command = app.find_name::<EditView>("html_command").unwrap().get_content();
                 let image_command = app.find_name::<EditView>("image_command").unwrap().get_content();
                 let telnet_command = app.find_name::<EditView>("telnet_command").unwrap().get_content();
@@ -375,6 +379,7 @@ pub(super) fn settings(app: &mut Cursive) {
                     SETTINGS.write().unwrap().config.image_command = image_command.to_string();
                     SETTINGS.write().unwrap().config.telnet_command = telnet_command.to_string();
                     SETTINGS.write().unwrap().config.textwrap = textwrap.to_string();
+                    SETTINGS.write().unwrap().config.disable_history = disable_history;
                     let theme = if darkmode { "darkmode" } else { "lightmode" };
                     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
                     SETTINGS.write().unwrap().config.theme = theme.to_string();

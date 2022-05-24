@@ -18,30 +18,24 @@ pub struct Settings {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewConfig {
-    #[serde(default = "default_download_path")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_download_path", deserialize_with = "ok_or_default")]
     pub download_path: String,
-    #[serde(default = "default_homepage")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_homepage", deserialize_with = "ok_or_default")]
     pub homepage: String,
-    #[serde(default = "default_debug")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_debug", deserialize_with = "ok_or_default")]
     pub debug: String,
-    #[serde(default = "default_theme")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_theme", deserialize_with = "ok_or_default")]
     pub theme: String,
-    #[serde(default = "default_html_command")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_html_command", deserialize_with = "ok_or_default")]
     pub html_command: String,
-    #[serde(default = "default_image_command")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_image_command", deserialize_with = "ok_or_default")]
     pub image_command: String,
-    #[serde(default = "default_telnet_command")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_telnet_command", deserialize_with = "ok_or_default")]
     pub telnet_command: String,
-    #[serde(default = "default_textwrap")]
-    #[serde(deserialize_with = "ok_or_default")]
+    #[serde(default = "default_textwrap", deserialize_with = "ok_or_default")]
     pub textwrap: String,
+    #[serde(default = "default_disable_history", deserialize_with = "ok_or_default")]
+    pub disable_history: bool,
 }
 
 fn ok_or_default<'a, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -92,6 +86,9 @@ fn default_telnet_command() -> String {
 }
 fn default_textwrap() -> String {
     "80".to_owned()
+}
+fn default_disable_history() -> bool {
+    false
 }
 
 impl Settings {

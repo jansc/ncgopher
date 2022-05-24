@@ -45,7 +45,7 @@ config-auto Ignore config-filechanges while running for now
  - [X] Better keyboard navigation, emacs/vim key presets
  - [X] SPACE to page
  - [X] Settings dialog
- - [ ] Setting for disabling history recording
+ - [X] Setting for disabling history recording
  - [X] Setting for text wrap column
  - [ ] Tor support for gopher
  - [ ] Handle tags for bookmarks
@@ -54,7 +54,7 @@ config-auto Ignore config-filechanges while running for now
  - [ ] mailcap handling
  - [ ] Reading list (ala Safari)
  - [ ] Bookmarks [0/1]
-   - [ ] Export bookmarks to gophermap/txt
+   - [ ] Export bookmarks to gophermap/gemini-txt/txt
  - [X] [#C] Themes
  - [X] [#C] Add tracing of UiMessage and ControllerMessage in log
  - [X] [#A] Bugfix: search not working
