@@ -692,7 +692,7 @@ impl Controller {
     }
 
     fn fetch_url(&self, url: Url, item_type: ItemType, index: usize) {
-        // index is the position in the text (used when navigatin back or reloading)
+        // index is the position in the text (used when navigating back or reloading)
         if !SETTINGS.read().unwrap().config.disable_history {
             trace!("Controller::fetch_url({})", url);
         }
@@ -955,12 +955,88 @@ impl Controller {
         }
         *self.current_url.lock().unwrap() = url.clone();
         match url.scheme() {
+            "finger" => self.open_finger_address(url.clone(), index),
             "gopher" => self.open_gopher_address(url.clone(), ItemType::from_url(&url), index),
             "gemini" => self.open_gemini_address(url.clone(), index),
             "about" => self.open_about(url.clone()),
             "http" | "https" => self.open_command("html_command", url.clone()).unwrap(),
             scheme => self.set_message(format!("unknown scheme {}", scheme).as_str()),
         }
+    }
+
+    fn fetch_finger_url(&self, url: Url, index: usize) {
+        // index is the position in the text (used when navigating back or reloading)
+        if !SETTINGS.read().unwrap().config.disable_history {
+            trace!("Controller::fetch_finger_url({})", url);
+        }
+
+        let request_id = {
+            let mut guard = self.last_request_id.lock().unwrap();
+            *guard += 1;
+            *guard
+        };
+
+        let port = url.port().unwrap_or(79);
+        let server = url.host_str().expect("no host").to_string();
+        let username = url.username().clone();
+        let path = match username.is_empty() {
+            true => url.path().trim_matches('/').to_string(),
+            false => username.to_string()
+        };
+        let server_details = format!("{}:{}", server, port);
+        let request_id_ref = self.last_request_id.clone();
+        let sender = self.sender.clone();
+
+        thread::spawn(move || {
+            let mut buf = vec![];
+            match TcpStream::connect(server_details.clone()) {
+                Ok(mut stream) => {
+                    write!(stream, "{}\r\n", path).unwrap();
+                    loop {
+                        match stream.read_to_end(&mut buf) {
+                            Ok(_) => break,
+                            Err(e) => {
+                                sender
+                                    .send(Box::new(move |app| {
+                                        let controller = app
+                                            .user_data::<Controller>()
+                                            .expect("controller missing");
+                                        controller.set_message(&format!("I/O error: {}", e));
+                                    }))
+                                .unwrap();
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    sender
+                        .send(Box::new(move |app| {
+                            let controller =
+                                app.user_data::<Controller>().expect("controller missing");
+                            controller
+                                .set_message(&format!("Couldn't connect to server: {}", e));
+                        }))
+                    .unwrap();
+                    return;
+                }
+            };
+
+            let guard = request_id_ref.lock().unwrap();
+            if request_id < *guard {
+                return;
+            }
+            drop(guard);
+
+            let s = String::from_utf8_lossy(&buf).into_owned();
+            sender
+                .send(Box::new(move |app| {
+                    let controller = app.user_data::<Controller>().expect("controller missing");
+                    controller.set_message(url.as_str());
+                    controller.clear_search();
+                    controller.set_finger_content(url, s, index);
+                }))
+                .unwrap();
+        });
     }
 
     /// Show an internal page from the "about" URL scheme
@@ -1161,6 +1237,11 @@ impl Controller {
         self.fetch_gemini_url(url, index);
     }
 
+    fn open_finger_address(&mut self, url: Url, index: usize) {
+        self.set_message("Loading ...");
+        self.fetch_finger_url(url, index);
+    }
+
     fn set_gemini_content(
         &mut self,
         url: Url,
@@ -1209,6 +1290,7 @@ impl Controller {
                 view.clear();
 
                 if gemini_type == GeminiType::Text {
+                    let content = str::replace(&content, "\t", "        ");
                     view.add_all(
                         LinesIterator::new(&content, viewport_width)
                             .map(|row| (&content[row.start..row.end], None))
@@ -1227,6 +1309,23 @@ impl Controller {
                 view.set_selection(index);
             }))
             .unwrap();
+    }
+
+    /// Renders finger content
+    fn set_finger_content(&mut self, url: Url, content: String, index: usize) {
+        let mut guard = self.content.lock().unwrap();
+        guard.clear();
+        guard.push_str(content.as_str());
+        drop(guard);
+
+        self.clear_search();
+        self.set_gemini_content(
+            url.clone(),
+            GeminiType::Text,
+            content,
+            index,
+            );
+        return;
     }
 
     fn add_to_history(&mut self, url: Url, index: usize) {

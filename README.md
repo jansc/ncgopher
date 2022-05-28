@@ -1,6 +1,6 @@
 # ncgopher
 
-`ncgopher` is a gopher and gemini client for the modern internet. It uses
+`ncgopher` is a gopher, gemini and finger client for the modern internet. It uses
 ncurses and is written in Rust.
 
 ## gopher
@@ -26,7 +26,7 @@ Obligatory screenshot:
 
 ## Features
 
--   Gopher and gemini support
+-   Gopher, gemini and finger support
 -   Ncurses interface
 -   Keyboard commands for navigation
 -   Bookmarks support including custom title
@@ -37,8 +37,9 @@ Obligatory screenshot:
 -   Mouse support in some terminals
 -   TLS support
 -   Darkmode!
--   Common search providers in search menu for quick access
 -   External commands for HTML, images and Telnet
+-   Vi-like search in text
+-   Bookmarks, history and option to disable history recording
 
 ## Installation
 
