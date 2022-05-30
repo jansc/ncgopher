@@ -1562,7 +1562,9 @@ impl Controller {
         message.push_str(msg);
         self.sender
             .send(Box::new(move |app| {
-                app.clear(); // trigger a refresh
+                // Send a no-op callback to trigger a refresh
+                // See cursive issue #244
+                app.cb_sink().send(Box::new(|_| {})).unwrap();
             }))
             .unwrap();
     }

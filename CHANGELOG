@@ -8,6 +8,9 @@
     if --debug switch is activated. Already recorded history will not be
     deleted.
 
+  Bugfixes:
+   - Got rid of screen flickering on redraw
+
 ** 0.4.0
   New features:
   - Search in documents. Finally. Search with '/'. Jump to next/previous
