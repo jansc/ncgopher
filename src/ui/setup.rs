@@ -186,6 +186,14 @@ fn setup_menu(app: &mut Cursive) {
             .delimiter(),
     );
     menubar.add_subtree(
+        "Identities",
+        Tree::new()
+            .leaf("New identity...", |app| {
+                dialogs::add_client_certificate(app, None);
+            })
+            .leaf("Manage identities...", dialogs::manage_client_certificates),
+    );
+    menubar.add_subtree(
         "Help",
         Tree::new()
             .subtree(
@@ -200,13 +208,13 @@ fn setup_menu(app: &mut Cursive) {
             )
             .leaf("About", |s| {
                 s.add_layer(Dialog::info(format!(
-                    ":                       ncgopher v{:<15}            :\n\
-                     :     A Gopher and Gemini client for the modern internet     :\n\
-                     :              (c) 2019-2022 The ncgopher Authors            :\n\
-                     :                                                            :\n\
-                     :  Originally developed by Jan Schreiber <jan@mecinus.com>   :\n\
-                     :                     gopher://jan.bio                       :\n\
-                     :                     gemini://jan.bio                       :",
+                    "                      ncgopher v{:<15}\n\
+                     \u{20}     A Gopher and Gemini client for the modern internet\n\
+                     \u{20}              (c) 2019-2022 The ncgopher Authors\n\
+                     \u{20}\n\
+                     \u{20}  Originally developed by Jan Schreiber <jan@mecinus.com>\n\
+                     \u{20}                     gopher://jan.bio\n\
+                     \u{20}                     gemini://jan.bio",
                     env!("CARGO_PKG_VERSION")
                 )))
             }),

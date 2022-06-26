@@ -2,11 +2,15 @@
 
 ** [Unreleased]
   New features:
+  - Gemini TLS client certificate support
   - Added finger support
   - Setting for disabling history recording. NB. ncgopher will still save
     gemini certificate fingerprints and log some url info to the debug log
     if --debug switch is activated. Already recorded history will not be
     deleted.
+
+  Changes:
+   - Use ring instead of sha2 crate to calculate certificate fingerprints
 
   Bugfixes:
    - Got rid of screen flickering on redraw

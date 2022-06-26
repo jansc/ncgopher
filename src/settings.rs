@@ -34,8 +34,16 @@ pub struct NewConfig {
     pub telnet_command: String,
     #[serde(default = "default_textwrap", deserialize_with = "ok_or_default")]
     pub textwrap: String,
-    #[serde(default = "default_disable_history", deserialize_with = "ok_or_default")]
+    #[serde(
+        default = "default_disable_history",
+        deserialize_with = "ok_or_default"
+    )]
     pub disable_history: bool,
+    #[serde(
+        default = "default_disable_identities",
+        deserialize_with = "ok_or_default"
+    )]
+    pub disable_identities: bool,
 }
 
 fn ok_or_default<'a, T, D>(deserializer: D) -> Result<T, D::Error>
@@ -88,6 +96,9 @@ fn default_textwrap() -> String {
     "80".to_owned()
 }
 fn default_disable_history() -> bool {
+    false
+}
+fn default_disable_identities() -> bool {
     false
 }
 

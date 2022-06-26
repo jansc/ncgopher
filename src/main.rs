@@ -5,11 +5,13 @@ extern crate log;
 extern crate base64;
 extern crate dirs;
 extern crate idna;
+extern crate pem;
 extern crate percent_encoding;
+extern crate rcgen;
+extern crate ring;
 extern crate rusqlite;
 extern crate serde;
 extern crate serde_derive;
-extern crate sha2;
 extern crate toml;
 extern crate x509_parser;
 
@@ -24,6 +26,7 @@ use url::Url;
 
 mod bookmarks;
 mod certificates;
+mod clientcertificates;
 mod controller;
 mod gemini;
 mod gophermap;

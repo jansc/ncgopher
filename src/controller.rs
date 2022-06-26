@@ -1,3 +1,5 @@
+use ::pem;
+use ::time::{Date, OffsetDateTime};
 use chrono::{DateTime, Local, Utc};
 use cursive::{
     theme::ColorStyle,
@@ -7,8 +9,8 @@ use cursive::{
     Cursive, CursiveRunnable,
 };
 use mime::Mime;
-use native_tls::{Protocol, TlsConnector};
-use sha2::{Digest, Sha256};
+use native_tls::{Identity, Protocol, TlsConnector};
+use rcgen::{date_time_ymd, Certificate, CertificateParams, DistinguishedName, DnType};
 use std::error::Error;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Read, Write};
@@ -18,12 +20,13 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use std::time::SystemTime;
-use url::Url;
+use url::{Position, Url};
 use urlencoding::decode_binary;
 use x509_parser::prelude::*;
 
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::Certificates;
+use crate::clientcertificates::{ClientCertificate, ClientCertificates};
 use crate::gemini::GeminiType;
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::{History, HistoryEntry};
@@ -47,6 +50,8 @@ pub struct Controller {
     pub(crate) history: Arc<Mutex<History>>,
     /// Bookmarks
     pub(crate) bookmarks: Arc<Mutex<Bookmarks>>,
+    /// ClientCertificates (gemini)
+    pub(crate) client_certificates: Arc<Mutex<ClientCertificates>>,
     /// Known hosts for gemini TOFU
     certificates: Arc<Mutex<Certificates>>,
     /// Current textual content
@@ -75,6 +80,7 @@ impl Controller {
             sender: app.cb_sink().clone(),
             history: Arc::new(Mutex::new(History::new()?)),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
+            client_certificates: Arc::new(Mutex::new(ClientCertificates::new())),
             certificates: Arc::new(Mutex::new(Certificates::new())),
             content: Arc::new(Mutex::new(String::new())),
             current_url: Arc::new(Mutex::new(Url::parse("about:blank").unwrap())),
@@ -134,7 +140,7 @@ impl Controller {
         Ok(())
     }
 
-    fn fetch_gemini_url(&self, mut url: Url, index: usize) {
+    pub fn fetch_gemini_url(&self, mut url: Url, index: usize) {
         if !SETTINGS.read().unwrap().config.disable_history {
             trace!("Controller::fetch_gemini_url({})", url);
         };
@@ -163,6 +169,78 @@ impl Controller {
         let fingerprint = self.certificates.lock().unwrap().get(&url);
         let sender = self.sender.clone();
 
+        // Check if a client certificate exists for this host.
+        let mut identity: Option<Identity> = None;
+        let mut client_cert_fingerprint: Option<String> = None;
+
+        if !SETTINGS.read().unwrap().config.disable_identities {
+            // Based on 'url' generate a list of URLs like so:
+            // url = gemini://host/a/b/c?foo=bar =>
+            // [gemini://host/a/b/c, gemini://host/a/b, gemini://host/a, gemini://host/, gemini://host]
+            let mut u = Url::parse(&url[..Position::AfterPath]).unwrap();
+
+            let mut urls: Vec<Url> = vec![u.clone()];
+
+            while u.path() != "" {
+                if u.path() == "/" {
+                    u.set_path("");
+                } else if let Ok(mut path_segments) =
+                    u.path_segments_mut().map_err(|_| "cannot be base")
+                {
+                    path_segments.pop();
+                } else {
+                    break;
+                }
+                urls.push(u.clone());
+            }
+            let mut client_certificates = self.client_certificates.lock().unwrap();
+            urls.into_iter().find_map(|url| {
+                info!("Checking URL for client certificate match {}", url.as_str());
+                if let Some(fingerprint) =
+                    client_certificates.get_client_certificate_fingerprint(&url)
+                {
+                    info!(
+                        "Found certificate for URL {} with fingerprint {}",
+                        url.as_str(),
+                        fingerprint
+                    );
+                    client_cert_fingerprint = Some(fingerprint.clone());
+                    let key_pem = client_certificates.get_cert_by_fingerprint(&fingerprint);
+                    let private_key_pem =
+                        client_certificates.get_private_key_by_fingerprint(&fingerprint);
+
+                    if let Some(key_pem) = key_pem {
+                        if let Some(private_key_pem) = private_key_pem {
+                            identity = match Identity::from_pkcs8(
+                                &key_pem.into_bytes(),
+                                &private_key_pem.into_bytes(),
+                            ) {
+                                Ok(id) => Some(id),
+                                Err(error) => {
+                                    error!("Could not create client certificate: {:?}", error);
+                                    sender
+                                        .send(Box::new(move |app| {
+                                            let controller = app
+                                                .user_data::<Controller>()
+                                                .expect("controller missing");
+                                            controller.set_message(&format!(
+                                                "Could not create client certificate: {}",
+                                                error
+                                            ));
+                                        }))
+                                        .unwrap();
+                                    None
+                                }
+                            }
+                        }
+                    }
+                    return Some(url);
+                }
+                None
+            });
+            drop(client_certificates);
+        }
+
         thread::spawn(move || {
             let mut buf = String::new();
             let mut builder = TlsConnector::builder();
@@ -175,6 +253,11 @@ impl Controller {
             // Rust's native-tls does not yet provide Tlsv13 :(
             // Alternative implementation: rusttls
             builder.min_protocol_version(Some(Protocol::Tlsv12));
+
+            if let Some(id) = identity {
+                info!("Using identity for request");
+                builder.identity(id);
+            }
 
             let connector = match builder.build() {
                 Ok(connector) => connector,
@@ -246,12 +329,10 @@ impl Controller {
             if let Some(cert) = cert_opt {
                 // TOFU: Check if we already have a certificate fingerprint for a given host
                 let cert_fingerprint = cert.to_der().unwrap();
-                // create a Sha256 object
-                let mut hasher = Sha256::new();
-                hasher.update(cert_fingerprint);
-                let cert_fingerprint = base64::encode(hasher.finalize());
+                let hash = ring::digest::digest(&ring::digest::SHA256, &cert_fingerprint);
+                let cert_fingerprint = base64::encode(hash);
+                info!("Peer certificate: {:?}", &cert_fingerprint);
 
-                info!("Peer certificate: {:?}", cert_fingerprint);
                 match fingerprint {
                     Some(f) => {
                         if f != cert_fingerprint {
@@ -542,7 +623,7 @@ impl Controller {
                             let controller = app.user_data::<Controller>().expect("controller missing");
                             controller.clear_search();
                             controller.set_message(url.as_str());
-                            controller.set_gemini_content(url, gemini_type, s, index);
+                            controller.set_gemini_content(url, gemini_type, s, index, client_cert_fingerprint);
                         })).unwrap();
                     } else {
                         // Binary download
@@ -622,7 +703,8 @@ impl Controller {
                             let controller = app.user_data::<Controller>().expect("controller missing");
                             controller.set_gemini_content(url.clone(), GeminiType::Gemini,
                             format!("# Too many redirects\n\nYou are probably stuck in a redirect loop. \
-                                    Here is the next redirected URL if you want to continue manually:\n\n=> {}", url), 0);
+                                     Here is the next redirected URL if you want to continue manually:\n\n=> {}", url), 0,
+                            None);
                             controller.set_message("Detected redirect loop.");
                         })).unwrap();
                         return;
@@ -663,13 +745,37 @@ impl Controller {
                 | Some('6') // CLIENT CERTIFICATE
                 => {
                     if check(buf.chars().nth(1)) {
-                        let header = buf.to_string();
-                        sender.send(Box::new(move |app|{
-                            let controller = app.user_data::<Controller>().expect("controller missing");
-                            // reset content and set current URL for retrying
-                            controller.set_gemini_content(url, GeminiType::Text, String::new(), 0);
-                            controller.set_message(&format!("Gemini error: {}", header));
-                        })).unwrap();
+                        if status == Some('6') && buf.chars().nth(1) == Some('0') {
+                            if SETTINGS.read().unwrap().config.disable_identities {
+                                sender.send(Box::new(move |app|{
+                                    app.add_layer(Dialog::info("The server requests a client certificate, but\n\
+                                                                identities are globally disabled in the settings."));
+                                })).unwrap();
+                            } else {
+                                sender.send(Box::new(move |app|{
+                                    crate::ui::dialogs::choose_client_certificate(app, url);
+                                })).unwrap();
+                            }
+                        } else if status == Some('6') && buf.chars().nth(1) == Some('1') {
+                            debug!("TODO: Handle gemini code 61 - certificate not authorized");
+
+                            // FIXME: Rewrite this
+                            let header = buf.to_string();
+                            sender.send(Box::new(move |app|{
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                // reset content and set current URL for retrying
+                                controller.set_gemini_content(url, GeminiType::Text, String::new(), 0, None);
+                                controller.set_message(&format!("Gemini error: {}", header));
+                            })).unwrap();
+                        } else { // FAILURE, PERMANENT FAILURE, etc.
+                            let header = buf.to_string();
+                            sender.send(Box::new(move |app|{
+                                let controller = app.user_data::<Controller>().expect("controller missing");
+                                // reset content and set current URL for retrying
+                                controller.set_gemini_content(url, GeminiType::Text, String::new(), 0, None);
+                                controller.set_message(&format!("Gemini error: {}", header));
+                            })).unwrap();
+                        }
                     }
                 }
                 other => {
@@ -938,7 +1044,6 @@ impl Controller {
                                 "Unable to open file: '{}' {}",
                                 local_filename, err
                             ));
-
                         }))
                         .unwrap();
                 }
@@ -978,10 +1083,10 @@ impl Controller {
 
         let port = url.port().unwrap_or(79);
         let server = url.host_str().expect("no host").to_string();
-        let username = url.username().clone();
+        let username = <&str>::clone(&url.username());
         let path = match username.is_empty() {
             true => url.path().trim_matches('/').to_string(),
-            false => username.to_string()
+            false => username.to_string(),
         };
         let server_details = format!("{}:{}", server, port);
         let request_id_ref = self.last_request_id.clone();
@@ -1003,7 +1108,7 @@ impl Controller {
                                             .expect("controller missing");
                                         controller.set_message(&format!("I/O error: {}", e));
                                     }))
-                                .unwrap();
+                                    .unwrap();
                             }
                         }
                     }
@@ -1013,10 +1118,9 @@ impl Controller {
                         .send(Box::new(move |app| {
                             let controller =
                                 app.user_data::<Controller>().expect("controller missing");
-                            controller
-                                .set_message(&format!("Couldn't connect to server: {}", e));
+                            controller.set_message(&format!("Couldn't connect to server: {}", e));
                         }))
-                    .unwrap();
+                        .unwrap();
                     return;
                 }
             };
@@ -1058,7 +1162,7 @@ impl Controller {
             }
         };
         self.set_message(&format!("about:{}", url.path()));
-        self.set_gemini_content(url, GeminiType::Gemini, content, 0);
+        self.set_gemini_content(url, GeminiType::Gemini, content, 0, None);
         self.clear_search();
     }
 
@@ -1081,11 +1185,13 @@ impl Controller {
 
         if item_type.is_text() {
             self.clear_search();
+            let human_url = human_readable_url(&self.current_url.lock().unwrap());
             self.set_gemini_content(
-                Url::parse("about:blank").unwrap(),
+                Url::parse(&human_url).unwrap(),
                 GeminiType::Text,
                 content,
                 index,
+                None,
             );
             return;
         }
@@ -1248,11 +1354,24 @@ impl Controller {
         gemini_type: GeminiType,
         content: String,
         index: usize,
+        cert_fingerprint: Option<String>,
     ) {
         let mut guard = self.content.lock().unwrap();
         guard.clear();
         guard.push_str(content.as_str());
         drop(guard);
+
+        let mut cert_common_name_label = String::new();
+        if let Some(fingerprint) = cert_fingerprint {
+            if let Some(cc) = self
+                .client_certificates
+                .lock()
+                .unwrap()
+                .get_client_certificate(&fingerprint)
+            {
+                cert_common_name_label.push_str(format!("[Identity: {}]", cc.common_name).as_str());
+            }
+        }
 
         let human_url = human_readable_url(&url);
         // ensure gemini view is focused before setting content
@@ -1263,7 +1382,10 @@ impl Controller {
                     .find_name::<Layout>("main")
                     .expect("main layout missing");
                 layout.set_view("gemini_content");
-                layout.set_title("gemini_content".into(), human_url);
+                layout.set_title(
+                    "gemini_content".into(),
+                    format!("{} {}", human_url, cert_common_name_label),
+                );
                 info!("set gemini view");
             }))
             .unwrap();
@@ -1319,18 +1441,12 @@ impl Controller {
         drop(guard);
 
         self.clear_search();
-        self.set_gemini_content(
-            url.clone(),
-            GeminiType::Text,
-            content,
-            index,
-            );
-        return;
+        self.set_gemini_content(url, GeminiType::Text, content, index, None);
     }
 
     fn add_to_history(&mut self, url: Url, index: usize) {
         if SETTINGS.read().unwrap().config.disable_history {
-            return
+            return;
         }
         // Updates the position of the last item on the stack This
         // works because add_to_history is called _before_
@@ -1435,11 +1551,17 @@ impl Controller {
     fn open_image_from_file(&mut self, path: &Path) -> Result<(), Box<dyn Error>> {
         let command = SETTINGS.read().unwrap().config.image_command.clone();
         if !command.is_empty() {
-            if let Err(err) = Command::new(&command).arg(path.as_os_str().to_str().unwrap()).spawn() {
+            if let Err(err) = Command::new(&command)
+                .arg(path.as_os_str().to_str().unwrap())
+                .spawn()
+            {
                 self.set_message(&format!("Command failed: {}: {}", err, command));
             }
         } else {
-            self.set_message(&format!("No command for opening {} defined.", path.as_os_str().to_str().unwrap()));
+            self.set_message(&format!(
+                "No command for opening {} defined.",
+                path.as_os_str().to_str().unwrap()
+            ));
         }
         Ok(())
     }
@@ -1646,6 +1768,43 @@ impl Controller {
         }
     }
 
+    pub fn remove_client_certificate_action(app: &mut Cursive, cc: &ClientCertificate) {
+        let mut guard = app
+            .user_data::<Controller>()
+            .expect("controller missing")
+            .client_certificates
+            .lock()
+            .unwrap();
+        guard.remove(&cc.fingerprint);
+        drop(guard);
+    }
+
+    pub fn use_current_site_client_certificate_action(
+        app: &mut Cursive,
+        cc: ClientCertificate,
+    ) -> bool {
+        let current_url: Url = app
+            .user_data::<Controller>()
+            .expect("controller missing")
+            .current_url
+            .lock()
+            .unwrap()
+            .clone();
+        if current_url.scheme() == "gemini" {
+            let mut guard = app
+                .user_data::<Controller>()
+                .expect("controller missing")
+                .client_certificates
+                .lock()
+                .unwrap();
+            guard.use_current_site(&current_url, &cc.fingerprint);
+            drop(guard);
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn open_url_action(app: &mut Cursive, url: &str) {
         let controller = app.user_data::<Controller>().expect("controller missing");
         match Url::parse(url) {
@@ -1690,6 +1849,61 @@ impl Controller {
             .lock()
             .expect("could not lock certificate store")
             .insert(url, cert_fingerprint);
+    }
+
+    pub fn create_client_certificate(
+        &mut self,
+        common_name: String,
+        note: String,
+        expiration_date: Date,
+        specified_url: Option<Url>,
+    ) {
+        let mut params: CertificateParams = Default::default();
+        let now = OffsetDateTime::now_utc().date();
+        params.not_before = date_time_ymd(now.year(), now.month().into(), now.day());
+        params.not_after = date_time_ymd(
+            expiration_date.year(),
+            expiration_date.month().into(),
+            expiration_date.day(),
+        );
+        params.distinguished_name = DistinguishedName::new();
+        params
+            .distinguished_name
+            .push(DnType::CommonName, common_name.as_str());
+        if let Ok(cert) = Certificate::from_params(params) {
+            if let (Ok(cert), private_key) =
+                (cert.serialize_pem(), cert.serialize_private_key_pem())
+            {
+                if let Ok(parsed) = pem::parse(&cert) {
+                    // Create fingerprint:
+                    let der_serialized = parsed.contents;
+                    let hash = ring::digest::digest(&ring::digest::SHA256, &der_serialized);
+                    let fingerprint: String = hash
+                        .as_ref()
+                        .iter()
+                        .map(|b| format!("{:02X}", b))
+                        .collect::<Vec<String>>()
+                        .join(":");
+
+                    let client_certificate = ClientCertificate {
+                        common_name,
+                        note,
+                        fingerprint,
+                        cert,
+                        private_key,
+                        expiration_date,
+                    };
+                    self.client_certificates
+                        .lock()
+                        .unwrap()
+                        .insert(client_certificate, &specified_url);
+                }
+            }
+        }
+    }
+
+    pub fn update_client_certificate(&mut self, cc: &ClientCertificate, urls: Vec<Url>) {
+        self.client_certificates.lock().unwrap().update(cc, urls);
     }
 
     pub fn search(&mut self, search_str: String) {

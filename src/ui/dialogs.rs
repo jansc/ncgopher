@@ -1,13 +1,20 @@
 use crate::bookmarks::Bookmark;
+use crate::clientcertificates::ClientCertificate;
 use crate::history::HistoryEntry;
 use crate::url_tools::download_filename_from_url;
 use crate::{Controller, SETTINGS};
 use cursive::{
     view::{Nameable, Resizable, Scrollable},
-    views::{Checkbox, Dialog, EditView, LinearLayout, SelectView, TextView},
+    views::{
+        Button, Checkbox, Dialog, DummyView, EditView, LinearLayout, RadioButton, RadioGroup,
+        SelectView, TextArea, TextView,
+    },
     Cursive,
 };
-use url::Url;
+use std::time::SystemTime;
+use std::vec::Vec;
+use time::{format_description, Date, OffsetDateTime};
+use url::{Position, Url};
 
 pub(super) fn add_bookmark_current_url(app: &mut Cursive) {
     let controller = app.user_data::<Controller>().expect("controller missing");
@@ -334,7 +341,8 @@ pub(super) fn settings(app: &mut Cursive) {
     let telnet_command = SETTINGS.read().unwrap().config.telnet_command.clone();
     let darkmode = theme == "darkmode";
     let textwrap = SETTINGS.read().unwrap().config.textwrap.clone();
-    let disable_history = SETTINGS.read().unwrap().config.disable_history.clone();
+    let disable_history = SETTINGS.read().unwrap().config.disable_history;
+    let disable_identities = SETTINGS.read().unwrap().config.disable_identities;
     app.add_layer(
         Dialog::new()
             .title("Settings")
@@ -351,21 +359,35 @@ pub(super) fn settings(app: &mut Cursive) {
                     .child(EditView::new().content(image_command.as_str()).with_name("image_command").fixed_width(50))
                     .child(TextView::new("Telnet client:"))
                     .child(EditView::new().content(telnet_command.as_str()).with_name("telnet_command").fixed_width(50))
-                    .child(TextView::new("Dark mode:"))
-                    .child(Checkbox::new().with_checked(darkmode).with_name("darkmode"))
-                    .child(TextView::new("Disable history recording:"))
-                    .child(Checkbox::new().with_checked(disable_history).with_name("disable_history"))
-                    .child(TextView::new("Text wrap column:"))
-                    .child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
+                    .child(DummyView)
+                    .child(LinearLayout::horizontal()
+                           .child(Checkbox::new().with_checked(darkmode).with_name("darkmode"))
+                           .child(DummyView)
+                           .child(TextView::new("Dark mode"))
+                    )
+                    .child(LinearLayout::horizontal()
+                           .child(Checkbox::new().with_checked(disable_history).with_name("disable_history"))
+                           .child(DummyView)
+                           .child(TextView::new("Disable history recording"))
+                    )
+                    .child(LinearLayout::horizontal()
+                           .child(Checkbox::new().with_checked(disable_identities).with_name("disable_identities"))
+                           .child(DummyView)
+                           .child(TextView::new("Disable identities"))
+                    )
+                    .child(DummyView)
+                    .child(LinearLayout::horizontal()
+                           .child(TextView::new("Text wrap column:"))
+                           .child(DummyView)
+                           .child(EditView::new().content(textwrap.as_str()).with_name("textwrap").fixed_width(5))
+                    )
             )
-            .button("Cancel", |app| {
-                app.pop_layer();
-            })
             .button("Apply",  |app| {
                 let homepage = app.find_name::<EditView>("homepage").unwrap().get_content();
                 let download = app.find_name::<EditView>("download_path").unwrap().get_content();
                 let darkmode = app.find_name::<Checkbox>("darkmode").unwrap().is_checked();
                 let disable_history = app.find_name::<Checkbox>("disable_history").unwrap().is_checked();
+                let disable_identities = app.find_name::<Checkbox>("disable_identities").unwrap().is_checked();
                 let html_command = app.find_name::<EditView>("html_command").unwrap().get_content();
                 let image_command = app.find_name::<EditView>("image_command").unwrap().get_content();
                 let telnet_command = app.find_name::<EditView>("telnet_command").unwrap().get_content();
@@ -380,6 +402,7 @@ pub(super) fn settings(app: &mut Cursive) {
                     SETTINGS.write().unwrap().config.telnet_command = telnet_command.to_string();
                     SETTINGS.write().unwrap().config.textwrap = textwrap.to_string();
                     SETTINGS.write().unwrap().config.disable_history = disable_history;
+                    SETTINGS.write().unwrap().config.disable_identities = disable_identities;
                     let theme = if darkmode { "darkmode" } else { "lightmode" };
                     app.load_toml(SETTINGS.read().unwrap().get_theme_by_name(theme.to_string())).unwrap();
                     SETTINGS.write().unwrap().config.theme = theme.to_string();
@@ -390,6 +413,535 @@ pub(super) fn settings(app: &mut Cursive) {
                 } else {
                     app.add_layer(Dialog::info("Invalid homepage url"));
                 }
+            })
+            .button("Cancel", |app| {
+                app.pop_layer();
+            })
+    );
+}
+
+pub(crate) fn manage_client_certificates(app: &mut Cursive) {
+    let client_certificates = app
+        .user_data::<Controller>()
+        .expect("controller missing")
+        .client_certificates
+        .lock()
+        .unwrap()
+        .get_client_certificates();
+    let mut view: SelectView<ClientCertificate> = SelectView::new();
+    for cc in client_certificates {
+        let mut common_name = format!("{:<30}", cc.common_name.clone().as_str());
+        let format =
+            format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+        let now = OffsetDateTime::now_utc().date();
+        let expiration_date = format!("{:<10}", cc.expiration_date.format(&format).unwrap());
+        let warning = if now > cc.expiration_date { "!" } else { " " };
+
+        let urls = app
+            .user_data::<Controller>()
+            .expect("controller missing")
+            .client_certificates
+            .lock()
+            .unwrap()
+            .get_urls_for_certificate(&cc.fingerprint);
+        let used_on = match urls.len() {
+            0 => "Unused".to_string(),
+            1 => "1 URL".to_string(),
+            _ => format!("{} URLs", urls.len()),
+        };
+
+        common_name.truncate(30);
+        view.add_item(
+            format!(
+                "{} | {}{} | {}",
+                common_name, warning, expiration_date, used_on
+            ),
+            cc,
+        );
+    }
+    app.add_layer(
+        Dialog::new()
+            .title("Edit identities")
+            .content(
+                LinearLayout::vertical().child(view.with_name("client_certificates").scrollable()),
+            )
+            .button("Create identity", |app| {
+                app.pop_layer();
+                add_client_certificate(app, None);
+            })
+            .button("Delete", |app| {
+                let selected = app
+                    .call_on_name(
+                        "client_certificates",
+                        |view: &mut SelectView<ClientCertificate>| view.selection(),
+                    )
+                    .unwrap();
+                app.add_layer(
+                    Dialog::around(TextView::new("Do you really want to delete this identity?"))
+                        .button("Delete", move |app| {
+                            app.pop_layer(); // Confirm dialog
+                            match &selected {
+                                None => (),
+                                Some(client_certificate) => {
+                                    app.call_on_name(
+                                        "client_certificates",
+                                        |view: &mut SelectView<ClientCertificate>| {
+                                            view.remove_item(view.selected_id().unwrap());
+                                        },
+                                    )
+                                    .unwrap();
+                                    Controller::remove_client_certificate_action(
+                                        app,
+                                        client_certificate,
+                                    );
+                                }
+                            }
+                        })
+                        .dismiss_button("Cancel"),
+                );
+            })
+            .button("Edit", |app| {
+                let selected = app
+                    .call_on_name(
+                        "client_certificates",
+                        |view: &mut SelectView<ClientCertificate>| view.selection(),
+                    )
+                    .unwrap();
+                if let Some(cc) = selected {
+                    app.pop_layer();
+                    crate::ui::dialogs::edit_client_certificate(app, (*cc).clone());
+                };
+            })
+            .button("Close", |app| {
+                app.pop_layer();
+            }),
+    );
+}
+
+pub(crate) fn choose_client_certificate(app: &mut Cursive, url: Url) {
+    let client_certificates = app
+        .user_data::<Controller>()
+        .expect("controller missing")
+        .client_certificates
+        .lock()
+        .unwrap()
+        .get_client_certificates();
+    let mut view: SelectView<ClientCertificate> = SelectView::new();
+    for cc in client_certificates {
+        let mut common_name = format!("{:<30}", cc.common_name.clone().as_str());
+        let format =
+            format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+        let now = OffsetDateTime::now_utc().date();
+        let expiration_date = format!("{:<10}", cc.expiration_date.format(&format).unwrap());
+        let warning = if now > cc.expiration_date { "!" } else { " " };
+
+        let urls = app
+            .user_data::<Controller>()
+            .expect("controller missing")
+            .client_certificates
+            .lock()
+            .unwrap()
+            .get_urls_for_certificate(&cc.fingerprint);
+        let used_on = match urls.len() {
+            0 => "Unused".to_string(),
+            1 => "1 URL".to_string(),
+            _ => format!("{} URLs", urls.len()),
+        };
+
+        common_name.truncate(30);
+        view.add_item(
+            format!(
+                "{} | {}{} | {}",
+                common_name, warning, expiration_date, used_on
+            ),
+            cc,
+        );
+    }
+    let original_url = url.clone();
+    app.add_layer(
+        Dialog::new()
+            .title("Choose identity")
+            .content(
+                LinearLayout::vertical()
+                    .child(TextView::new(
+                        "The current gemini site requests a client certificate.\n\
+                                          Select an identity or create a new one to continue.",
+                    ))
+                    .child(DummyView)
+                    .child(view.with_name("client_certificates").scrollable()),
+            )
+            .button("Create identity", move |app| {
+                app.pop_layer();
+                add_client_certificate(app, Some(original_url.clone()));
+            })
+            .button("Use identity", move |app| {
+                let selected = app
+                    .call_on_name(
+                        "client_certificates",
+                        |view: &mut SelectView<ClientCertificate>| view.selection(),
+                    )
+                    .unwrap();
+                if let Some(cc) = selected {
+                    app.pop_layer();
+                    let controller = app.user_data::<Controller>().expect("controller missing");
+                    let mut guard = controller.client_certificates.lock().unwrap();
+                    guard.use_current_site(&url, &cc.fingerprint);
+                    drop(guard);
+                    controller.fetch_gemini_url(url.clone(), 0);
+                };
+            })
+            .button("Cancel", |app| {
+                app.pop_layer();
+            }),
+    );
+}
+
+pub enum UrlOriginType {
+    DecideLater,
+    CurrentHost,
+    CurrentUrl,
+    SpecifiedUrl,
+}
+
+pub fn add_client_certificate(app: &mut Cursive, url: Option<Url>) {
+    /*
+    - New certificate -
+    | Common name:              |
+    | _________________         |
+    |---------------------------|
+    | Use on:                   |
+    | [Not used]                |
+    | [Current host]            |
+    | [Current URL]             |
+    | [This URL:]               |
+    | Enter URL:                |
+    | _________________         |
+    |---------------------------|
+    | Valid until (YYYY-MM-DD): |
+    | _________________         |
+    |---------------------------|
+    | Notes:                    |
+    | _________________         |
+    | _________________         |
+    | <Cancel> <Save>           |
+    |                           |
+     */
+
+    let mut valid_for_group: RadioGroup<UrlOriginType> = RadioGroup::new();
+    valid_for_group.set_on_change(|app, selected| {
+        let mut specified_url = app.find_name::<EditView>("specified_url").unwrap();
+        let controller = app.user_data::<Controller>().expect("controller missing");
+        let current_url = controller.current_url.lock().unwrap().clone();
+
+        // For current urls: drop URL parameters
+        let u = Url::parse(&current_url[..Position::AfterPath]).unwrap();
+        let mut current_host = Url::parse("gemini://example.com").expect("Unable to parse url");
+        current_host.set_host(current_url.host_str()).ok();
+        current_host.set_port(current_url.port()).ok();
+        current_host.set_scheme("gemini").ok();
+        match selected {
+            UrlOriginType::DecideLater => specified_url.set_content(""),
+            UrlOriginType::CurrentUrl => specified_url.set_content(u),
+            UrlOriginType::CurrentHost => specified_url.set_content(current_host),
+            UrlOriginType::SpecifiedUrl => specified_url.set_content("gemini://host"),
+        };
+    });
+
+    // Calculate default expiry date:
+    let odt: OffsetDateTime = SystemTime::now().into();
+    let mut date: Date = odt.date();
+    date = date
+        .replace_year(date.year() + 1)
+        .expect("Cannot create expiry date");
+    let format =
+        format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+    let expiry_date = date.format(&format).unwrap();
+    let original_url = url.clone();
+
+    app.add_layer(
+        Dialog::new()
+            .title("New identity")
+            .content(
+                LinearLayout::vertical()
+                    .child(TextView::new("Name:"))
+                    .child(
+                        EditView::new()
+                            .with_name("common_name")
+                            .fixed_width(40),
+                    )
+                    .child(DummyView)
+                    .child(TextView::new("Use on:"))
+                    .child(
+                        LinearLayout::vertical()
+                            .child(valid_for_group.button(UrlOriginType::DecideLater, "Decide later"))
+                            .child(valid_for_group.button(UrlOriginType::CurrentHost, "Current host"))
+                            .child(valid_for_group.button(UrlOriginType::CurrentUrl, "Current URL").with_name("current_url_button"))
+                            .child(valid_for_group.button(UrlOriginType::SpecifiedUrl, "Specified URL:").with_name("specified_url_button"))
+                            .child(EditView::new()
+                                   .on_edit(move |app, _text, _cursor| {
+                                       app.find_name::<RadioButton<UrlOriginType>>("specified_url_button").unwrap().select();
+                                   })
+                                   .with_name("specified_url")
+                                   .fixed_width(40)
+                                )
+                    )
+                    .child(DummyView)
+                    .child(TextView::new("Valid until (YYYY-MM-DD):"))
+                    .child(
+                        EditView::new()
+                            .content(expiry_date.as_str())
+                            .with_name("valid_until")
+                            .fixed_width(40),
+                    )
+                    .child(DummyView)
+                    .child(TextView::new("Notes:"))
+                    .child(TextArea::new()
+                           .with_name("notes")
+                           .fixed_width(40)
+                           .min_height(2)
+                           )
+                    )
+            .button("Ok", move |app| {
+                let common_name = app.find_name::<EditView>("common_name").unwrap().get_content();
+                let notes = app.find_name::<TextArea>("notes").unwrap().get_content().to_string();
+                let valid_until = app.find_name::<EditView>("valid_until").unwrap().get_content();
+                let specified_url = app.find_name::<EditView>("specified_url").unwrap().get_content();
+
+                let mut parse_error: bool = false;
+
+                // Check if common_name is not empty (Maybe: if common_name is unique)
+                if common_name.is_empty() {
+                    app.add_layer(Dialog::info("You have to provide a name. The name cannon be changed after\nthe identity has been created."));
+                    return;
+                }
+
+                // Validate date
+                let format = format_description::parse(
+                    "[year]-[month]-[day]"
+                ).expect("Could not parse date format");
+                let valid_until_date : Date = date;
+                if let Ok(valid_until_date) = Date::parse(&valid_until, &format) {
+                    info!("Parsed client certificate date: {:?}", valid_until_date);
+                } else {
+                    info!("Could not parse date {}", valid_until);
+                    app.add_layer(Dialog::info("Invalid date format. Must be YYYY-MM-DD."));
+                    return;
+                }
+
+                // validate url if not empty
+                let parsed_url : Option<Url>= if specified_url.is_empty() { None } else {
+                    match Url::parse(&specified_url) {
+                        Ok(url) => {
+                            if let Ok(u) = Url::parse(&url[..Position::AfterPath]) {
+                                Some(u)
+                            } else {
+                                parse_error = true;
+                                None
+                            }
+                        },
+                        Err(_err) => {
+                            parse_error = true;
+                            None
+                        }
+                    }
+                };
+                if parse_error {
+                    app.add_layer(Dialog::info("Provided URL is invalid."));
+                    return;
+                }
+                if let Some(ref pu) = parsed_url {
+                    if pu.scheme() != "gemini" {
+                        app.add_layer(Dialog::info("The specified URL is not a gemini URL."));
+                        return;
+                    }
+                }
+
+                let controller = app.user_data::<Controller>().expect("controller missing");
+                controller.create_client_certificate(common_name.to_string(), notes, valid_until_date, parsed_url);
+                app.pop_layer();
+                if let Some(original_url) = &original_url {
+                    let controller = app.user_data::<Controller>().expect("controller missing");
+                    controller.fetch_gemini_url(original_url.clone(), 0);
+                }
+            })
+            .button("Cancel", |app| {
+                app.pop_layer(); // Close dialog
+            }),
+    );
+
+    // If a URL is given, we're about to open this URL from fetch_gemini_url()
+    // So we set the URL as the specified URL (since the default would be
+    // "decide later")
+    if let Some(url) = &url {
+        // Strip URL parameters:
+        let u = Url::parse(&url[..Position::AfterPath]).unwrap();
+        let mut specified_url = app.find_name::<EditView>("specified_url").unwrap();
+        specified_url.set_content(u);
+        app.find_name::<RadioButton<UrlOriginType>>("current_url_button")
+            .unwrap()
+            .select();
+    }
+}
+
+/*
+| Common name:                                           |
+| _________________ (read only)                          |
+|--------------------------------------------------------|
+| Use on URLs:                                           |
+| [gemini://jan.bio/glog/]                               |
+| [gemini://astrobotany.mozz.us]                         |
+| <Add uri> <Remove uri>                                 |
+|--------------------------------------------------------|
+| Notes:                                                 |
+| _________________                                      |
+| _________________                                      |
+| <Delete Identity> <Use on current site> <Save> <Close> |
+*/
+pub fn edit_client_certificate(app: &mut Cursive, cc: ClientCertificate) {
+    let client_certificate_to_delete = cc.clone();
+    let client_certificate_to_url = cc.clone();
+    let client_certificate = cc.clone();
+    let note = cc.note.clone();
+    let mut view: SelectView<Url> = SelectView::new();
+
+    let urls = app
+        .user_data::<Controller>()
+        .expect("controller missing")
+        .client_certificates
+        .lock()
+        .unwrap()
+        .get_urls_for_certificate(&cc.fingerprint);
+    for url_str in urls.iter() {
+        view.add_item(url_str, Url::parse(url_str).unwrap());
+    }
+    app.add_layer(
+        Dialog::new()
+            .title("Edit identity")
+            .content(
+                LinearLayout::vertical()
+                    .child(TextView::new("Common name:"))
+                    .child(
+                        EditView::new()
+                            .content(cc.common_name.as_str())
+                            .with_enabled(false)
+                            .with_name("common_name"),
+                    )
+                    .child(DummyView)
+                    .child(TextView::new("Use on URLs:"))
+                    .child(view.with_name("urls"))
+                    .child(
+                        LinearLayout::horizontal()
+                            .child(Button::new("Add URL", |app| {
+                                add_url_to_client_certificate(app);
+                            }))
+                            .child(DummyView)
+                            .child(Button::new("Remove URL", |app| {
+                                let selected = app
+                                    .call_on_name("urls", |view: &mut SelectView<Url>| {
+                                        view.selection()
+                                    })
+                                    .unwrap();
+                                match selected {
+                                    None => (),
+                                    Some(_) => {
+                                        app.call_on_name("urls", |view: &mut SelectView<Url>| {
+                                            view.remove_item(view.selected_id().unwrap());
+                                        })
+                                        .unwrap();
+                                    }
+                                }
+                            })),
+                    )
+                    .child(DummyView)
+                    .child(TextView::new("Notes:"))
+                    .child(
+                        TextArea::new()
+                            .content(note)
+                            .with_name("notes")
+                            .min_height(2),
+                    ),
+            )
+            .button("Delete identity", move |app| {
+                let cc = client_certificate_to_delete.clone();
+                app.add_layer(
+                    Dialog::around(TextView::new("Do you really want to delete this identity?"))
+                        .button("Delete", move |app| {
+                            Controller::remove_client_certificate_action(app, &cc);
+                            app.pop_layer(); // Confirm dialog
+                            app.pop_layer(); // Edit client certificate dialog
+                            manage_client_certificates(app);
+                        })
+                        .dismiss_button("Cancel"),
+                );
+            })
+            .button("Use on current site", move |app| {
+                if Controller::use_current_site_client_certificate_action(
+                    app,
+                    client_certificate_to_url.clone(),
+                ) {
+                    app.pop_layer();
+                    manage_client_certificates(app);
+                } else {
+                    app.add_layer(Dialog::info("The current URL is not a gemini URL."));
+                }
+            })
+            .button("Save", move |app| {
+                let note = app
+                    .find_name::<TextArea>("notes")
+                    .expect("Could not find notes")
+                    .get_content()
+                    .to_string();
+                let mut urls: Vec<Url> = Vec::<Url>::new();
+                for (_label, item) in app
+                    .find_name::<SelectView<Url>>("urls")
+                    .expect("Could not find urls")
+                    .iter()
+                {
+                    urls.push(item.clone());
+                }
+                let controller = app.user_data::<Controller>().expect("controller missing");
+                let mut client_certificate = client_certificate.clone();
+                client_certificate.note = note;
+                controller.update_client_certificate(&client_certificate, urls);
+
+                app.pop_layer();
+                manage_client_certificates(app);
+            })
+            .button("Cancel", |app| {
+                app.pop_layer();
+                manage_client_certificates(app);
+            }),
+    );
+}
+
+/// Dialog that adds a URL to a client certificate (called from edit_client_Certificate).
+/// Should maybe generalized.
+pub fn add_url_to_client_certificate(app: &mut Cursive) {
+    app.add_layer(
+        Dialog::new()
+            .title("Edit client certificate")
+            .content(
+                LinearLayout::vertical().child(TextView::new("URL:")).child(
+                    EditView::new()
+                        .content("gemini://")
+                        .with_name("url")
+                        .fixed_width(30),
+                ),
+            )
+            .button("Add", move |app| {
+                let url = app.find_name::<EditView>("url").unwrap().get_content();
+                if let Ok(parsed_url) = Url::parse(&url.to_string()) {
+                    app.pop_layer();
+                    app.call_on_name("urls", |view: &mut SelectView<Url>| {
+                        view.add_item(url.to_string(), parsed_url);
+                    })
+                    .unwrap();
+                } else {
+                    app.add_layer(Dialog::info("Invalid URL"));
+                }
+            })
+            .button("Cancel", move |app| {
+                app.pop_layer();
             }),
     );
 }
