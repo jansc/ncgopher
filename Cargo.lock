@@ -50,7 +50,7 @@ dependencies = [
  "num-traits",
  "rusticata-macros",
  "thiserror",
- "time 0.3.9",
+ "time 0.3.11",
 ]
 
 [[package]]
@@ -261,7 +261,7 @@ dependencies = [
  "log",
  "num",
  "owning_ref",
- "time 0.3.9",
+ "time 0.3.11",
  "toml",
  "unicode-segmentation",
  "unicode-width",
@@ -667,7 +667,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_derive",
- "time 0.3.9",
+ "time 0.3.11",
  "toml",
  "unicode-width",
  "url",
@@ -957,7 +957,7 @@ checksum = "d7fa2d386df8533b02184941c76ae2e0d0c1d053f5d43339169d80f21275fc5e"
 dependencies = [
  "pem",
  "ring",
- "time 0.3.9",
+ "time 0.3.11",
  "yasna",
 ]
 
@@ -1245,9 +1245,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.9"
+version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2702e08a7a860f005826c6815dcac101b19b5eb330c27fe4a5928fec1d20ddd"
+checksum = "72c91f41dcb2f096c05f0873d667dceec1087ce5bcf984ec8ffb19acddbb3217"
 dependencies = [
  "itoa",
  "libc",
@@ -1481,7 +1481,7 @@ dependencies = [
  "oid-registry",
  "rusticata-macros",
  "thiserror",
- "time 0.3.9",
+ "time 0.3.11",
 ]
 
 [[package]]
@@ -1496,5 +1496,5 @@ version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "346d34a236c9d3e5f3b9b74563f238f955bbd05fa0b8b4efa53c130c43982f4c"
 dependencies = [
- "time 0.3.9",
+ "time 0.3.11",
 ]
