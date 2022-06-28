@@ -1,6 +1,6 @@
 use ::pem;
 use ::time::{Date, OffsetDateTime};
-use chrono::{DateTime, Local, Utc};
+use ::time::format_description::well_known::Rfc3339;
 use cursive::{
     theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
@@ -19,7 +19,6 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
-use std::time::SystemTime;
 use url::{Position, Url};
 use urlencoding::decode_binary;
 use x509_parser::prelude::*;
@@ -384,10 +383,10 @@ impl Controller {
                         info!("Successfully parsed certificate");
                         match cert.tbs_certificate.validity.time_to_expiration() {
                             Some(duration) => {
-                                let now = SystemTime::now();
+                                let now: OffsetDateTime = OffsetDateTime::now_utc();
                                 let expires = now + duration;
-                                let expires: DateTime<Utc> = expires.into();
-                                info!("Certificate expires {}", expires.to_rfc3339());
+                                let expires: OffsetDateTime = expires.into();
+                                info!("Certificate expires {}", expires.format(&Rfc3339).unwrap());
                                 info!("Certificate valid {:?}", duration);
                             }
                             None => {
@@ -1467,7 +1466,7 @@ impl Controller {
                 let h = HistoryEntry {
                     title: url.to_string(),
                     url: url.clone(),
-                    timestamp: Local::now(),
+                    timestamp: OffsetDateTime::now_local().unwrap_or(OffsetDateTime::now_utc()),
                     visited_count: 1,
                     position: 0,
                 };

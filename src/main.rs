@@ -15,6 +15,8 @@ extern crate serde_derive;
 extern crate toml;
 extern crate x509_parser;
 
+use ::time::OffsetDateTime;
+use ::time::format_description::well_known::Rfc3339;
 use clap::Parser;
 use controller::Controller;
 use lazy_static::lazy_static;
@@ -56,13 +58,15 @@ impl log::Log for Logger {
         true
     }
     fn log(&self, record: &log::Record) {
+        let timestr = OffsetDateTime::now_local()
+            .unwrap_or_else(|_| OffsetDateTime::now_utc()).format(&Rfc3339).unwrap();
         self.file
             .write()
             .unwrap()
             .write_all(
                 format!(
                     "{} [{:5}] {}\n",
-                    chrono::Local::now(),
+                    timestr,
                     record.level(),
                     record.args()
                 )

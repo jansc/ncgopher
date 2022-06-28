@@ -183,6 +183,10 @@ pub(super) fn edit_history(app: &mut Cursive) {
         .get_latest_history(500)
         .expect("could not get latest history");
     let mut view: SelectView<HistoryEntry> = SelectView::new();
+
+    let format = format_description::parse(
+        "[year]-[month]-[day] [hour]:[minute]:[second]"
+    ).expect("Could not parse timestamp format");
     for e in entries {
         let mut url = e.url.to_string();
         url.truncate(50);
@@ -190,7 +194,7 @@ pub(super) fn edit_history(app: &mut Cursive) {
             format!(
                 "{:>4}|{:<20}|{}",
                 e.visited_count,
-                e.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                e.timestamp.format(&format).expect("Invalid timestamp from database"),
                 url
             ),
             e,

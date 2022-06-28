@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local};
+use ::time::OffsetDateTime;
 use rusqlite::{params, Connection, Result};
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use url::Url;
 pub struct HistoryEntry {
     pub title: String,
     pub url: Url,
-    pub timestamp: DateTime<Local>,
+    pub timestamp: OffsetDateTime,
     pub visited_count: u16,
 
     pub position: usize,

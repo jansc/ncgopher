@@ -11,6 +11,7 @@
 
   Changes:
    - Use ring instead of sha2 crate to calculate certificate fingerprints
+   - Removed chrono as a dependency. Use time 0.3 instead.
 
   Bugfixes:
    - Got rid of screen flickering on redraw
