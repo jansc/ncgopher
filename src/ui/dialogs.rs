@@ -147,6 +147,7 @@ pub(super) fn edit_bookmarks(app: &mut Cursive) {
                             .open_url(b.url.clone(), true, 0);
                     }
                 }
+                app.pop_layer();
             })
             .button("Edit", |app| {
                 let selected = app
