@@ -44,3 +44,4 @@ cursive = { version = "0.18.0", default-features = false, features = ["pancurses
 crossbeam-channel = "0.5.5"
 regex = "1"
 mime = "0.3.16"
+linkify = "0.8.1"

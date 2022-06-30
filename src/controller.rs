@@ -8,6 +8,7 @@ use cursive::{
     views::{Dialog, EditView, NamedView, ResizedView, ScrollView, SelectView},
     Cursive, CursiveRunnable,
 };
+use linkify::{LinkFinder, LinkKind};
 use mime::Mime;
 use native_tls::{Identity, Protocol, TlsConnector};
 use rcgen::{date_time_ymd, Certificate, CertificateParams, DistinguishedName, DnType};
@@ -1273,6 +1274,7 @@ impl Controller {
                         }
                     } else {
                         let mut formatted = StyledString::new();
+                        info!("{}", entry.clone().label());
                         let label =
                             format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
                         formatted.append(label);
@@ -1330,11 +1332,34 @@ impl Controller {
                         controller
                             .open_command("telnet_command", entry.url.clone())
                             .unwrap();
+                    } else if entry.item_type.is_inline() {
+                        // Check if current line is text only. If yes, try to find
+                        // URL in text and open with appropriate function
+                        controller
+                            .open_link_in_label(entry.clone().label());
                     }
                 });
                 view.set_selection(index);
             }))
             .unwrap();
+    }
+
+    fn open_link_in_label(&mut self, label: String) {
+        self.sender
+            .send(Box::new(move |app| {
+                let finder = LinkFinder::new();
+                let links: Vec<_> = finder.links(&label).collect();
+                if links.len() == 1 && links[0].kind() == &LinkKind::Url {
+                    let link = &links[0];
+                    if let Ok(url) = Url::parse(link.as_str()) {
+                        app.user_data::<Controller>()
+                            .expect("controller missing")
+                            .open_url(url, true, 0);
+                    }
+                } else if links.len() > 1 {
+                    app.add_layer(Dialog::info("Found several links, not sure which one to open.\nDialog not implemented"));
+                }
+            })).unwrap();
     }
 
     fn open_gemini_address(&mut self, url: Url, index: usize) {
@@ -1420,11 +1445,23 @@ impl Controller {
                 } else {
                     view.add_all(crate::gemini::parse(&content, &url, viewport_width));
                 }
-                view.set_on_submit(|app, entry| {
-                    if let Some(url) = entry {
-                        app.user_data::<Controller>()
-                            .expect("controller missing")
-                            .open_url(url.clone(), true, 0)
+                view.set_on_submit(|app, _entry| {
+                    let view = app
+                        .find_name::<SelectView<Option<Url>>>("gemini_content")
+                        .expect("gemini content view missing");
+                    if let Some(selected_id) = view.selected_id() {
+                        if let Some((label, entry)) = view.get_item(selected_id) {
+                            if let Some(url) = entry {
+                                app.user_data::<Controller>()
+                                    .expect("controller missing")
+                                    .open_url(url.clone(), true, 0)
+                            } else {
+                                let controller =
+                                    app.user_data::<Controller>().expect("controller missing");
+                                controller
+                                    .open_link_in_label(label.to_string());
+                            }
+                        }
                     }
                 });
                 view.set_selection(index);

@@ -14,6 +14,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 extern crate x509_parser;
+extern crate linkify;
 
 use ::time::OffsetDateTime;
 use ::time::format_description::well_known::Rfc3339;
