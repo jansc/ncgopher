@@ -32,7 +32,7 @@ toml = "0.5.9"
 rusqlite = { version = "0.27.0", features = ["url", "time"] }
 gemtext = "0.2.1"
 native-tls = "0.2.7"
-x509-parser = "0.13.1"
+x509-parser = "0.14.0"
 ring = "0.16.20"
 time = { version = "0.3.11", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"
