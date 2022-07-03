@@ -34,9 +34,9 @@ impl GopherMapEntry {
                 url: Url::parse("about:blank").unwrap(),
             });
         }
-        if l.len() <= 3 {
+        if l.len() == 0 {
             // Happens e.g. if a text file is parsed as a gophermap
-            return Err("Invalid gophermap entry");
+            return Err("Invalid gophermap entry (2)");
         }
         if l[0].is_empty() {
             return Err("Invalid gophermap entry, no item type");
@@ -50,14 +50,35 @@ impl GopherMapEntry {
         let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
         name = ansi_sequences.replace_all(name.as_str(), "").to_string();
 
-        let selector = l[1].to_string();
-        let host = l[2].to_string();
-        // Parse port, ignore invalid values
-        let port = l[3].parse().unwrap_or(70);
-        let mut path = selector.clone();
-        path.insert(0, ch);
 
         let mut url = Url::parse("gopher://example.com").unwrap();
+        let mut selector = String::from("");
+        let mut host = String::from("");
+        let mut port = 70;
+        let mut path;
+        if item_type == ItemType::Inline && l.len() == 1 {
+            // Add support for item type inline without selector and host
+            return Ok(GopherMapEntry {
+                item_type,
+                name,
+                selector,
+                host,
+                port,
+                url,
+            })
+        } else {
+            if l.len() <= 3 {
+                // Happens e.g. if a text file is parsed as a gophermap
+                return Err("Invalid gophermap entry (4)");
+            }
+            selector = l[1].to_string();
+            host = l[2].to_string();
+            // Parse port, ignore invalid values
+            port = l[3].parse().unwrap_or(70);
+            path = selector.clone();
+            path.insert(0, ch);
+        }
+
         if item_type == ItemType::Telnet {
             // Telnet URLs have no selector
             url.set_scheme("telnet").unwrap();
