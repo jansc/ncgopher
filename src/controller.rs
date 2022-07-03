@@ -120,7 +120,8 @@ impl Controller {
             .menubar()
             .find_subtree("Bookmarks")
             .expect("bookmarks menu missing");
-        let entries = controller.bookmarks.lock().unwrap().get_bookmarks();
+        let mut entries = controller.bookmarks.lock().unwrap().get_bookmarks();
+        entries.reverse();
         for entry in entries {
             let url = entry.url.clone();
             menutree.insert_leaf(3, &entry.title, move |app| {
