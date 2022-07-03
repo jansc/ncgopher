@@ -1274,7 +1274,6 @@ impl Controller {
                         }
                     } else {
                         let mut formatted = StyledString::new();
-                        info!("{}", entry.clone().label());
                         let label =
                             format!("{}  {}", ItemType::as_str(entry.item_type), entry.label());
                         formatted.append(label);
