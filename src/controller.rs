@@ -94,42 +94,18 @@ impl Controller {
             current_search_results: Vec::new(),
         };
 
-        // Add old entries to history on start-up
-        let menutree = app
-            .menubar()
-            .find_subtree("History")
-            .expect("history menu missing");
-        let entries = controller
+        let mut entries = controller
             .history
             .lock()
             .unwrap()
             .get_latest_history(HISTORY_LEN)
             .expect("Could not get latest history");
-        for entry in entries {
-            let title = entry.title.clone();
-            menutree.insert_leaf(3, title, move |app| {
-                app.user_data::<Controller>()
-                    .expect("controller missing")
-                    .open_url(entry.url.clone(), true, 0);
-            });
-        }
+        entries.reverse();
+        crate::ui::setup::setup_history_menu(app, &entries);
 
-        // Add bookmarks to bookmark menu on startup
-        info!("Adding existing bookmarks to menu");
-        let menutree = app
-            .menubar()
-            .find_subtree("Bookmarks")
-            .expect("bookmarks menu missing");
         let mut entries = controller.bookmarks.lock().unwrap().get_bookmarks();
         entries.reverse();
-        for entry in entries {
-            let url = entry.url.clone();
-            menutree.insert_leaf(3, &entry.title, move |app| {
-                app.user_data::<Controller>()
-                    .expect("controller missing")
-                    .open_url(url.clone(), true, 0);
-            });
-        }
+        crate::ui::setup::setup_bookmark_menu(app, &entries);
 
         // open initial page
         controller.open_url(url, true, 0);
@@ -1517,6 +1493,11 @@ impl Controller {
                     .menubar()
                     .find_subtree("History")
                     .expect("history menu missing");
+                if let Some(idx) = menu.find_position(&url.to_string()) {
+                    if idx >= 3 {
+                        menu.remove(idx);
+                    }
+                }
                 // Add 3 for the two first menuitems + separator
                 if menu.len() > HISTORY_LEN + 3 {
                     menu.remove(menu.len() - 1);

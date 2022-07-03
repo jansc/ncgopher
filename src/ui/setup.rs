@@ -9,6 +9,8 @@ use cursive::{
     Cursive, View,
 };
 use url::Url;
+use crate::bookmarks::Bookmark;
+use crate::history::HistoryEntry;
 
 const HELP: &str = include_str!("../help.txt");
 
@@ -285,6 +287,41 @@ fn setup_ui(app: &mut Cursive) {
         });
     })
     .expect("main layout missing");
+}
+
+
+pub fn setup_bookmark_menu(app: &mut Cursive, bookmarks: &Vec<Bookmark>) {
+    // Add bookmarks to bookmark menu on startup
+    info!("Adding existing bookmarks to menu");
+    let menutree = app
+        .menubar()
+        .find_subtree("Bookmarks")
+        .expect("bookmarks menu missing");
+    for entry in bookmarks {
+        let url = entry.url.clone();
+        menutree.insert_leaf(3, &entry.title, move |app| {
+            app.user_data::<Controller>()
+                .expect("controller missing")
+                .open_url(url.clone(), true, 0);
+        });
+    }
+}
+
+pub fn setup_history_menu(app: &mut Cursive, entries: &Vec<HistoryEntry>) {
+    // Add old entries to history on start-up
+    let menutree = app
+        .menubar()
+        .find_subtree("History")
+        .expect("history menu missing");
+    for entry in entries {
+        let title = entry.title.clone();
+        let url = entry.url.clone();
+        menutree.insert_leaf(3, &title, move |app| {
+            app.user_data::<Controller>()
+                .expect("controller missing")
+                .open_url(url.clone(), true, 0);
+        });
+    }
 }
 
 //--------- interface manipulation functions ---------------------------
