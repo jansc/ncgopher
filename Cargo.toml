@@ -29,7 +29,7 @@ rcgen = "0.9"
 serde_derive = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.5.9"
-rusqlite = { version = "0.27.0", features = ["url", "time"] }
+rusqlite = { version = "0.28.0", features = ["url", "time"] }
 gemtext = "0.2.1"
 native-tls = "0.2.7"
 x509-parser = "0.14.0"
