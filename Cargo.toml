@@ -36,7 +36,7 @@ x509-parser = "0.14.0"
 ring = "0.16.20"
 time = { version = "0.3.11", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"
-pem = "1.0"
+pem = "1.1"
 base64 = "0.13"
 percent-encoding = "2.1"
 idna = "0.2"
