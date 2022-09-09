@@ -39,7 +39,7 @@ pancurses = "0.17.0"
 pem = "1.1"
 base64 = "0.13"
 percent-encoding = "2.1"
-idna = "0.2"
+idna = "0.3"
 cursive = { version = "0.19.0", default-features = false, features = ["pancurses-backend", "toml"] }
 crossbeam-channel = "0.5.6"
 regex = "1"
