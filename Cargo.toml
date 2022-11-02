@@ -31,7 +31,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.5.9"
 rusqlite = { version = "0.28.0", features = ["url", "time"] }
 gemtext = "0.2.1"
-native-tls = "0.2.7"
+native-tls = "0.2.11"
 x509-parser = "0.14.0"
 ring = "0.16.20"
 time = { version = "0.3.16", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
