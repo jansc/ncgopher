@@ -33,6 +33,7 @@ fn setup_keys(app: &mut Cursive) {
     });
     app.add_global_callback('q', Cursive::quit);
     app.add_global_callback('g', dialogs::open_url);
+    app.add_global_callback('G', dialogs::open_current_url);
     app.add_global_callback('b', |app| {
         // step back history
         app.user_data::<Controller>()

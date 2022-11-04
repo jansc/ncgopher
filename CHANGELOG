@@ -2,6 +2,7 @@
 
 ** [Unreleased]
   New features:
+  - New shortcut: 'G' to edit current URL
   - Gemini TLS client certificate support
   - Added finger support
   - Setting for disabling history recording. NB. ncgopher will still save

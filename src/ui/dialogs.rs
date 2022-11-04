@@ -280,6 +280,22 @@ pub(crate) fn gemini_query(app: &mut Cursive, url: Url, query: String, secret: b
 }
 
 pub(super) fn open_url(app: &mut Cursive) {
+    open_given_url(app, None);
+}
+
+pub(super) fn open_current_url(app: &mut Cursive) {
+    let current_url = app
+        .user_data::<Controller>()
+        .expect("controller missing")
+        .current_url
+        .lock()
+        .unwrap()
+        .clone();
+
+    open_given_url(app, Some(current_url));
+}
+
+fn open_given_url(app: &mut Cursive, url: Option<Url>) {
     app.add_layer(
         Dialog::new()
             .title("Enter gopher or gemini URL:")
@@ -289,6 +305,7 @@ pub(super) fn open_url(app: &mut Cursive) {
                         app.pop_layer();
                         Controller::open_url_action(app, goto_url);
                     })
+                    .content(match url { Some(url) => url.to_string(), None => "".to_string() })
                     .with_name("goto_url")
                     .fixed_width(50),
             )

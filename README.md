@@ -110,6 +110,7 @@ are still not implemented.
 | Esc        | Go to menubar                  |
 | Space      | Scroll down one page           |
 | g          | Open new URL                   |
+| G          | Edit current URL               |
 | b          | Navigate back                  |
 | q          | Close application              |
 | s          | Save current page              |
