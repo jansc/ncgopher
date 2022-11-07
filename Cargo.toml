@@ -1,6 +1,6 @@
 [package]
 name = "ncgopher"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Jan Schreiber <jan@mecinus.com>"]
 edition = "2018"
 license = "BSD-2-Clause"

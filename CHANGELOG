@@ -1,6 +1,6 @@
 * NcGopher Changelog
 
-** [Unreleased]
+** 0.5.0
   New features:
   - New shortcut: 'G' to edit current URL
   - Gemini TLS client certificate support
