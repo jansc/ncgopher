@@ -63,9 +63,6 @@ config-auto Ignore config-filechanges while running for now
  - [X] Persistent history
  - [X] Show info about link under cursor
  - [X] Implement reload of page
-
-## beta, etc
-
  - Gemini support [6/9]
    - [X] Binary downloads
    - [X] Automatic text wrapping
@@ -74,10 +71,13 @@ config-auto Ignore config-filechanges while running for now
    - [X] Implement save as text for gemini
    - [X] Limit number of redirects to 5
    - [ ] Warning when redirecting to external server
-   - [ ] Client certificates, see [Alex\' gemini wiki](https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl))
+   - [X] Client certificates, see [Alex\' gemini wiki](https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl))
    - [X] TOFU certificate pinning
 
  - [ ] Open local file (gophermap/textfile)
  - [ ] Auto moka pona (rss-like?), maybe rss support
+ - [ ] Subscribing to Gemini pages: https://gemini.circumlunar.space/docs/companion/subscription.gmi
+ - [ ] ANSI colour rendering
  - [ ] Download gopherhole for offline reading
  - [ ] Setting for encoding
+ - [ ] Bug: do not add non finger/gemini/gopher-url's to history. Do not add binary-download-urls to history. Do not add query item type to history
