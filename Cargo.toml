@@ -22,7 +22,7 @@ unicode-width = "0.1.10"
 url = { version = "2.3", features = ["serde"] }
 urlencoding = "2.1.2"
 lazy_static = "1.4.0"
-clap = { version = "4.0.22", features = ["derive"] }
+clap = { version = "4.0.23", features = ["derive"] }
 log = { version = "0.4.17", features = ["std"] }
 dirs = "4.0.0"
 rcgen = "0.10"
