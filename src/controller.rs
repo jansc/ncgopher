@@ -1,6 +1,7 @@
 use ::pem;
 use ::time::{Date, OffsetDateTime};
 use ::time::format_description::well_known::Rfc3339;
+use base64::{Engine as _, engine::{general_purpose}};
 use cursive::{
     theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
@@ -307,7 +308,7 @@ impl Controller {
                 // TOFU: Check if we already have a certificate fingerprint for a given host
                 let cert_fingerprint = cert.to_der().unwrap();
                 let hash = ring::digest::digest(&ring::digest::SHA256, &cert_fingerprint);
-                let cert_fingerprint = base64::encode(hash);
+                let cert_fingerprint = general_purpose::STANDARD.encode(hash);
                 info!("Peer certificate: {:?}", &cert_fingerprint);
 
                 match fingerprint {
