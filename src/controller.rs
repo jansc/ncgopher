@@ -1164,10 +1164,22 @@ impl Controller {
         if item_type.is_text() {
             self.clear_search();
             let human_url = human_readable_url(&self.current_url.lock().unwrap());
+
+            // Issue #210: Note: Lines beginning with periods must be
+            // prepended with an extra period to ensure that the
+            // transmission is not terminated early. The client should
+            // strip extra periods at the beginning of the line.
+            let content_without_dots = content.lines().map(|line| {
+                if line.len() > 0 && line.chars().next().unwrap() == '.' {
+                    line[1..].to_string()
+                } else {
+                    line[0..].to_string()
+                }
+            }).into_iter().collect::<Vec<String>>().join("\n");
             self.set_gemini_content(
                 Url::parse(&human_url).unwrap(),
                 GeminiType::Text,
-                content,
+                content_without_dots,
                 index,
                 None,
             );
