@@ -50,14 +50,6 @@ impl GopherMapEntry {
         let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
         name = ansi_sequences.replace_all(name.as_str(), "").to_string();
 
-        // Issue #210: Note: Lines beginning with periods must be
-        // prepended with an extra period to ensure that the
-        // transmission is not terminated early. The client should
-        // strip extra periods at the beginning of the line.
-        if name.len() > 0 && name.chars().next().unwrap() == '.' {
-            name = name[1..].to_string();
-        }
-
         let mut url = Url::parse("gopher://example.com").unwrap();
         let mut selector = String::from("");
         let mut host = String::from("");
