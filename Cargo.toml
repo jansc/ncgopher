@@ -43,5 +43,5 @@ idna = "0.3"
 cursive = { version = "0.20.0", default-features = false, features = ["pancurses-backend", "toml"] }
 crossbeam-channel = "0.5.7"
 regex = "1"
-mime = "0.3.16"
+mime = "0.3.17"
 linkify = "0.9.0"
