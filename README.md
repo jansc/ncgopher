@@ -82,7 +82,6 @@ you will most likely be able to tell what is missing.
 ### OpenBSD
 
     doas pkg_add sqlite3 rust
----
 
 ### MSYS2 (Windows, MINGW64 terminal)
 
