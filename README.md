@@ -84,6 +84,12 @@ you will most likely be able to tell what is missing.
     doas pkg_add sqlite3 rust
 ---
 
+### MSYS2 (Windows, MINGW64 terminal)
+
+    pacman -S base-devel mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rust mingw-w64-x86_64-ncurses mingw-w64-x86_64-openssl mingw-w64-x86_64-sqlite3
+
+---
+
 If you know how to install the listed dependencies on your operating system and it is
 not listed, please make a pull request to add it.
 
