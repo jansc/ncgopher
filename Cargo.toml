@@ -38,7 +38,7 @@ time = { version = "0.3.22", features = ["serde", "serde-human-readable", "std",
 pancurses = "0.17.0"
 pem = "1.1"
 base64 = "0.21"
-percent-encoding = "2.2"
+percent-encoding = "2.3"
 idna = "0.4"
 cursive = { version = "0.20.0", default-features = false, features = ["pancurses-backend", "toml"] }
 crossbeam-channel = "0.5.8"
