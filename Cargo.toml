@@ -19,7 +19,7 @@ repository = "jansc/ncgopher"
 [dependencies]
 backtrace = "0.3"
 unicode-width = "0.1.10"
-url = { version = "2.3", features = ["serde"] }
+url = { version = "2.4", features = ["serde"] }
 urlencoding = "2.1.2"
 lazy_static = "1.4.0"
 clap = { version = "4.1.11", features = ["derive"] }
