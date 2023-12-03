@@ -1,17 +1,18 @@
-# some pointers
+# Some pointers
+
 Here are some sites you might find interesting for a start. Remember you can use the i key to inspect any selected link. The URL which is linked will then be shown in the status bar at the bottom.
 
-## gopher
+## Gopher
 
-=> gopher://gopher.floodgap.com:70/7/v2/vs Floodgap, also hosting Veronica/2 search
-=> gopher://gopherpedia.com:70/ search Gopherpedia
-=> gopher://perso.pw:70/ search OpenBSD man pages
-=> gopher://me0w.net:70/ some nice services like pastebin, web search with searx etc.
-=> gopher://jan.bio:70/ Jan's Gopherhole with the NCGOPHER USER GUIDE and Gopher Movie Database
+=> gopher://gopher.floodgap.com/7/v2/vs Floodgap, also hosting Veronica/2 search
+=> gopher://gopherpedia.com/ Search Gopherpedia
+=> gopher://perso.pw/ Search OpenBSD man pages
+=> gopher://me0w.net/ Some nice services like pastebin, web search with searx etc.
+=> gopher://jan.bio/ Jan's Gopherhole with the NCGOPHER USER GUIDE and Gopher Movie Database
 
-## gemini
+## Gemini
 
-=> gemini://gus.guru/search search with GUS
+=> gemini://gemini.circumlunar.space/ More authoritative about Gemini (also has a list of known Gemini servers!)
+=> gemini://gus.guru/search Search with GUS
 => gemini://houston.coder.town/search Search with Houston
-=> gemini://gemini.circumlunar.space/ more authoritative about Gemini (also has a list of known Gemini servers!)
 => gemini://jan.bio Jan's gemini site
