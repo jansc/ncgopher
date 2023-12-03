@@ -16,6 +16,7 @@
    - Use ring instead of sha2 crate to calculate certificate fingerprints
    - Removed chrono as a dependency. Use time 0.3 instead.
    - Allow Gophermap entries without selector/host/port (type "i")
+   - Use time instead of chrono crate
 
   Bugfixes:
    - Got rid of screen flickering on redraw
