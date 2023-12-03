@@ -63,7 +63,7 @@ config-auto Ignore config-filechanges while running for now
  - [X] Persistent history
  - [X] Show info about link under cursor
  - [X] Implement reload of page
- - Gemini support [6/9]
+ - Gemini support [8/9]
    - [X] Binary downloads
    - [X] Automatic text wrapping
    - [X] Handle prefomatting toggle lines
@@ -74,6 +74,7 @@ config-auto Ignore config-filechanges while running for now
    - [X] Client certificates, see [Alex\' gemini wiki](https://alexschroeder.ch/wiki/2020-07-13_Client_Certificates_and_IO%3a%3aSocket%3a%3aSSL_(Perl))
    - [X] TOFU certificate pinning
 
+ - [ ] Use rusttls instead of native-tls (Issue #219)
  - [ ] Open local file (gophermap/textfile)
  - [ ] Auto moka pona (rss-like?), maybe rss support
  - [ ] Subscribing to Gemini pages: https://gemini.circumlunar.space/docs/companion/subscription.gmi
@@ -81,3 +82,12 @@ config-auto Ignore config-filechanges while running for now
  - [ ] Download gopherhole for offline reading
  - [ ] Setting for encoding
  - [ ] Bug: do not add non finger/gemini/gopher-url's to history. Do not add binary-download-urls to history. Do not add query item type to history
+ - [ ] Caching
+
+ - [ ] Subscribe to Atom feeds
+ - [ ] Function for copy link to page (See e.g. https://github.com/robatipoor/cbs)
+ - [ ] Spartan protocol support
+ - [ ] Titan protocol support
+
+# Bugs
+ - [ ] Reload does not work on internal about sites (or maybe it does - need to recompile to integrate changes)

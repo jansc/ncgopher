@@ -1,7 +1,7 @@
 use ::pem;
 use ::time::{Date, OffsetDateTime};
 use ::time::format_description::well_known::Rfc3339;
-use base64::{Engine as _, engine::{general_purpose}};
+use base64::{Engine as _, engine::general_purpose};
 use cursive::{
     theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
@@ -43,6 +43,7 @@ pub enum Direction {
 }
 
 const HISTORY_LEN: usize = 10;
+
 
 #[derive(Clone)]
 pub struct Controller {
@@ -252,7 +253,7 @@ impl Controller {
                 }
             };
 
-            let stream = match TcpStream::connect(&server_details) {
+            let stream = match TcpStream::connect(server_details) {
                 Ok(stream) => stream,
                 Err(err) => {
                     sender
@@ -364,7 +365,7 @@ impl Controller {
                             Some(duration) => {
                                 let now: OffsetDateTime = OffsetDateTime::now_utc();
                                 let expires = now + duration;
-                                let expires: OffsetDateTime = expires.into();
+                                let expires: OffsetDateTime = expires;
                                 info!("Certificate expires {}", expires.format(&Rfc3339).unwrap());
                                 info!("Certificate valid {:?}", duration);
                             }
@@ -399,6 +400,7 @@ impl Controller {
             if !SETTINGS.read().unwrap().config.disable_history {
                 info!("Writing url '{}'", url.as_str());
             }
+
             stream.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
 
             let mut bufr = BufReader::new(stream);
@@ -1127,6 +1129,7 @@ impl Controller {
         let content = match url.path() {
             "blank" => String::new(),
             "help" => include_str!("about/help.gmi").into(),
+            "release-notes" => include_str!("about/release-notes.gmi").into(),
             "sites" => include_str!("about/sites.gmi").into(),
             "error" => "An error occured.".into(),
             "license" => concat!(
@@ -1170,12 +1173,12 @@ impl Controller {
             // transmission is not terminated early. The client should
             // strip extra periods at the beginning of the line.
             let content_without_dots = content.lines().map(|line| {
-                if line.len() > 0 && line.chars().next().unwrap() == '.' {
+                if !line.is_empty() && line.starts_with('.') {
                     line[1..].to_string()
                 } else {
                     line[0..].to_string()
                 }
-            }).into_iter().collect::<Vec<String>>().join("\n");
+            }).collect::<Vec<String>>().join("\n");
             self.set_gemini_content(
                 Url::parse(&human_url).unwrap(),
                 GeminiType::Text,
@@ -1299,7 +1302,7 @@ impl Controller {
                                         app.find_name::<EditView>("query").unwrap().get_content();
                                     let mut path = url.path().to_string();
                                     path.push_str("%09");
-                                    path.push_str(&*name);
+                                    path.push_str(&name);
                                     url.set_path(path.as_str());
 
                                     app.pop_layer(); // Close search dialog
@@ -1506,7 +1509,7 @@ impl Controller {
                     .menubar()
                     .find_subtree("History")
                     .expect("history menu missing");
-                if let Some(idx) = menu.find_position(&url.to_string()) {
+                if let Some(idx) = menu.find_position(url.as_ref()) {
                     if idx >= 3 {
                         menu.remove(idx);
                     }
@@ -1607,7 +1610,7 @@ impl Controller {
             .write(true)
             // make sure to not clobber downloaded files
             .create_new(true)
-            .open(&path);
+            .open(path);
         match open {
             Ok(mut file) => {
                 if let Err(why) = file.write_all(content.as_bytes()) {

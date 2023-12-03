@@ -34,7 +34,7 @@ impl GopherMapEntry {
                 url: Url::parse("about:blank").unwrap(),
             });
         }
-        if l.len() == 0 {
+        if l.is_empty() {
             // Happens e.g. if a text file is parsed as a gophermap
             return Err("Invalid gophermap entry (2)");
         }

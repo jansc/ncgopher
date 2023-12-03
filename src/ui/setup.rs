@@ -207,6 +207,11 @@ fn setup_menu(app: &mut Cursive) {
                         app.user_data::<Controller>()
                             .expect("controller missing")
                             .open_url(Url::parse("about:help").unwrap(), false, 0);
+                    })
+                    .leaf("Release notes", |app| {
+                        app.user_data::<Controller>()
+                            .expect("controller missing")
+                            .open_url(Url::parse("about:release-notes").unwrap(), false, 0);
                     }),
             )
             .leaf("About", |s| {

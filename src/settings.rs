@@ -160,7 +160,7 @@ impl Settings {
         // Create a path to the desired file
         let path = Path::new(&filename);
 
-        let mut file = match FsFile::create(&path) {
+        let mut file = match FsFile::create(path) {
             Err(why) => return Err(why),
             Ok(file) => file,
         };

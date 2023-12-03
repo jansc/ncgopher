@@ -72,7 +72,7 @@ impl History {
             trace!("History::add(): Adding entry");
             self.sql.execute(
                 "INSERT INTO history (url) values (?1)",
-                &[&entry.url.to_string()],
+                [&entry.url.to_string()],
             )?;
         }
         Ok(())

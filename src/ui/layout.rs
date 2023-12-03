@@ -54,7 +54,7 @@ impl Layout {
     }
 
     pub fn view<S: Into<String>, T: IntoBoxedView>(mut self, id: S, view: T, title: S) -> Self {
-        (&mut self).add_view(id, view, title);
+        self.add_view(id, view, title);
         self
     }
 

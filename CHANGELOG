@@ -1,5 +1,37 @@
 * NcGopher Changelog
 
+** 0.6.0
+  Changes:
+  - #234: Add MSYS2 MINGW64 terminal packages for Windows (pull request by Ari)
+  - Made release-notes accessible from menu
+  - Upgraded rusqlite to 0.30.0
+  - Upgraded regex to 1.10.2
+  - Upgraded serde to 1.0.193
+  - Upgraded toml to 0.8.8
+  - Upgraded clap to 4.4.8
+  - Upgraded urlencoding to 2.1.3
+  - Upgraded rcgen to 0.11.3
+  - Upgraded unicode-width to 0.1.11
+  - Upgraded time to 0.3.29
+  - Upgraded base64 to 0.21.4
+  - Upgraded url to 2.4.1
+  - Upgraded backtrace to 0.3.69
+  - Upgraded log to 0.4.19
+  - Upgraded percent-encoding to 2.3.0
+  - Upgraded idna to 0.4.0
+  - Upgraded linkify to 0.10.0
+  - Upgraded openssl to 0.10.55
+  - Upgraded dirs to 5.0.1
+  - Upgraded crossbeam-channel to 0.5.8
+  - Upgraded mime to 0.3.17
+  - Upgraded pem to 1.1.1
+  - Upgraded bumpalo to 3.12.0
+
+  Bugfixes:
+  - Fixes #305 Added 'vendored' feature to native-tls
+  - Fixes #210. Remove double dot in gopher content
+
+
 ** 0.5.0
   New features:
   - New shortcut: 'G' to edit current URL

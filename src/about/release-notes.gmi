@@ -1,0 +1,32 @@
+# Release notes
+
+## 0.6.0
+
+Changes:
+
+* Add MSYS2 MINGW64 terminal packages for Windows (pull request by Ari)
+* Made release-notes accessible from menu
+* Upgraded dependencies
+
+Bugfixes:
+
+* Fixes #305 Added 'vendored' feature to native-tls
+* Fixes #210. Remove double dot in gopher content
+
+
+## 0.5.0
+
+New features:
+
+* Gemini TLS client certificate support
+* Added finger support
+* Setting for disabling history recording. NB. ncgopher will still save
+  gemini certificate fingerprints and log some url info to the debug log
+  if --debug switch is activated. Already recorded history will not be
+  deleted.
+
+Bugfixes:
+
+* Got rid of screen flickering on redraw
+
+## See CHANGELOG for changes before 0.5.0
