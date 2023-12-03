@@ -1,5 +1,5 @@
 # Welcome
-Welcome to ncgopher, a ncurses client for gemini and gopher. You can use the following key commands:
+Welcome to ncgopher, an ncurses client for gemini, gopher and finger. You can use the following key commands:
 
 ```
 |------------+--------------------------------|
