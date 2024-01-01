@@ -1,6 +1,8 @@
 use crate::controller::{Controller, Direction};
 use crate::gophermap::{GopherMapEntry, ItemType};
+use crate::settings::{KeyBindings, default_keybindings};
 use crate::ui::{dialogs, layout::Layout, statusbar::StatusBar};
+use crate::SETTINGS;
 use cursive::{
     event::Key,
     menu::Tree,
@@ -26,29 +28,40 @@ fn setup_keys(app: &mut Cursive) {
     app.set_autohide_menu(false);
 
     // TODO: Make keys configurable
+    log::info!("keybindings: {:?}", SETTINGS.read().unwrap().config);
+    let mut keybindings = SETTINGS.read().expect("Could not get keybindings!").config.keybindings.clone();
+
+    // The KeyBindings section of SETTINGS might be None if it was from an older version of
+    // ncgopher
+    if keybindings.is_none() {
+        keybindings.insert(default_keybindings());
+    }
+    let keybindings = keybindings.unwrap();
+
     app.add_global_callback(Key::Esc, |app| {
         app.call_on_name("main", |v: &mut Layout| v.clear_search())
             .expect("main layout missing");
         app.select_menubar()
     });
-    app.add_global_callback('q', Cursive::quit);
-    app.add_global_callback('g', dialogs::open_url);
-    app.add_global_callback('G', dialogs::open_current_url);
-    app.add_global_callback('b', |app| {
+    app.add_global_callback(keybindings.close, Cursive::quit);
+    app.add_global_callback(keybindings.open_new_url, dialogs::open_url);
+    app.add_global_callback(keybindings.edit_current_url, dialogs::open_current_url);
+
+    app.add_global_callback(keybindings.navigate_back, |app| {
         // step back history
         app.user_data::<Controller>()
             .expect("controller missing")
             .navigate_back();
     });
-    app.add_global_callback('r', |app| {
+    app.add_global_callback(keybindings.reload_page, |app| {
         // reload the current page
         let index = Controller::get_selected_item_index(app);
         let controller = app.user_data::<Controller>().expect("controller missing");
         let current_url = controller.current_url.lock().unwrap().clone();
         controller.open_url(current_url, false, index);
     });
-    app.add_global_callback('s', dialogs::save_as);
-    app.add_global_callback('i', |app| {
+    app.add_global_callback(keybindings.save_page, dialogs::save_as);
+    app.add_global_callback(keybindings.show_link, |app| {
         // show info about currently selected line
         let current_view = app
             .call_on_name("main", |v: &mut Layout| v.get_current_view())
@@ -92,29 +105,29 @@ fn setup_keys(app: &mut Cursive) {
             other => unreachable!("unknown view {} in main layout", other),
         }
     });
-    app.add_global_callback('j', |app| {
+    app.add_global_callback(keybindings.move_down, |app| {
         // go to next line
         move_selection(app, Direction::Next);
     });
-    app.add_global_callback('k', |app| {
+    app.add_global_callback(keybindings.move_up, |app| {
         // go to previous line
         move_selection(app, Direction::Previous);
     });
-    app.add_global_callback('l' /*Key::Tab*/, |app| {
+    app.add_global_callback(keybindings.next_link /*Key::Tab*/, |app| {
         // go to next link
         move_to_link(app, Direction::Next);
     });
-    app.add_global_callback('L' /*Event::Shift(Key::Tab)*/, |app| {
+    app.add_global_callback(keybindings.previous_link /*Event::Shift(Key::Tab)*/, |app| {
         // go to previous link
         move_to_link(app, Direction::Previous);
     });
-    app.add_global_callback('a', dialogs::add_bookmark_current_url);
-    app.add_global_callback('?', |s| s.add_layer(Dialog::info(HELP)));
-    app.add_global_callback('/', move |app| {
+    app.add_global_callback(keybindings.add_bookmark, dialogs::add_bookmark_current_url);
+    app.add_global_callback(keybindings.show_help, |s| s.add_layer(Dialog::info(HELP)));
+    app.add_global_callback(keybindings.search_in_text, move |app| {
         app.call_on_name("main", |v: &mut Layout| v.enable_search())
             .expect("main layout missing");
     });
-    app.add_global_callback('n', |app| {
+    app.add_global_callback(keybindings.next_search_result, |app| {
         let controller = app.user_data::<Controller>().expect("controller missing");
         let hits = controller.current_search_results.clone();
         if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {
@@ -135,7 +148,7 @@ fn setup_keys(app: &mut Cursive) {
             unreachable!("view content and gemini_content missing");
         }
     });
-    app.add_global_callback('N', |app| {
+    app.add_global_callback(keybindings.previous_search_result, |app| {
         let controller = app.user_data::<Controller>().expect("controller missing");
         let hits = controller.current_search_results.clone();
         if let Some(content) = app.find_name::<SelectView<GopherMapEntry>>("content") {

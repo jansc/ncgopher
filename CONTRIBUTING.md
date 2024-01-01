@@ -35,13 +35,13 @@ Tells me the problem that you have found, and the pull request shows me the acti
 
 * There are no spelling mistakes
 * It reads well
-* For english language contributions: Has a good score on [Grammarly](grammarly.com) or [Hemingway App](http://www.hemingwayapp.com/)
+* For English language contributions: Has a good score on [Grammarly](grammarly.com) or [Hemingway App](http://www.hemingwayapp.com/)
 
 ### Does it move this repository closer to my vision for the repository
 
 The aim of this repository is:
 
-* To provide a termina-based client for the slow web.
+* To provide a terminal-based client for the slow web.
 * Make textual information on gopher and gemini easily accessible to users.
 * Foster a culture of respect and gratitude in the open source community.
 

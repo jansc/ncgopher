@@ -16,6 +16,85 @@ pub struct Settings {
     themes: HashMap<String, String>,
 }
 
+// TODO: Split this into another file, I think.
+fn default_open_new_url() -> char              { 'g' }
+fn default_edit_current_url() -> char          { 'G' }
+fn default_navigate_back() -> char             { 'b' }
+fn default_close() -> char                     { 'q' }
+fn default_save_page() -> char                 { 's' }
+fn default_reload_page() -> char               { 'r' }
+fn default_show_link() -> char                 { 'i' }
+fn default_add_bookmark() -> char              { 'a' }
+fn default_next_link() -> char                 { 'l' }
+fn default_previous_link() -> char             { 'L' }
+fn default_move_down() -> char                 { 'j' }
+fn default_move_up() -> char                   { 'k' }
+fn default_search_in_text() -> char            { '/' }
+fn default_next_search_result() -> char        { 'n' }
+fn default_previous_search_result() -> char    { 'N' }
+fn default_show_help() -> char                 { '?' }
+
+pub fn default_keybindings() -> KeyBindings {
+    KeyBindings {
+        open_new_url: default_open_new_url(),
+        edit_current_url: default_edit_current_url(),
+        navigate_back: default_navigate_back(),
+        close: default_close(),
+        save_page: default_save_page(),
+        reload_page: default_reload_page(),
+        show_link: default_show_link(),
+        add_bookmark: default_add_bookmark(),
+        next_link: default_next_link(),
+        previous_link: default_previous_link(),
+        move_up: default_move_up(),
+        move_down: default_move_down(),
+        search_in_text: default_search_in_text(),
+        next_search_result: default_next_search_result(),
+        previous_search_result: default_previous_search_result(),
+        show_help: default_show_help(),
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default = "default_keybindings")]
+pub struct KeyBindings {
+    #[serde(default = "default_open_new_url", deserialize_with = "ok_or_default")]
+    pub open_new_url: char,
+
+    #[serde(default = "default_edit_current_url", deserialize_with = "ok_or_default")]
+    pub edit_current_url: char,
+
+    #[serde(default = "default_navigate_back", deserialize_with = "ok_or_default")]
+    pub navigate_back: char,
+
+    #[serde(default = "default_close", deserialize_with = "ok_or_default")]
+    pub close: char,
+    #[serde(default = "default_save_page", deserialize_with = "ok_or_default")]
+    pub save_page: char,
+    #[serde(default = "default_reload_page", deserialize_with = "ok_or_default")]
+    pub reload_page: char,
+    #[serde(default = "default_show_link", deserialize_with = "ok_or_default")]
+    pub show_link: char,
+    #[serde(default = "default_add_bookmark", deserialize_with = "ok_or_default")]
+    pub add_bookmark: char,
+    #[serde(default = "default_next_link", deserialize_with = "ok_or_default")]
+    pub next_link: char,
+    #[serde(default = "default_previous_link", deserialize_with = "ok_or_default")]
+    pub previous_link: char,
+    #[serde(default = "default_move_down", deserialize_with = "ok_or_default")]
+    pub move_down: char,
+    #[serde(default = "default_move_up", deserialize_with = "ok_or_default")]
+    pub move_up: char,
+    #[serde(default = "default_search_in_text", deserialize_with = "ok_or_default")]
+    pub search_in_text: char,
+    #[serde(default = "default_next_search_result", deserialize_with = "ok_or_default")]
+    pub next_search_result: char,
+    #[serde(default = "default_previous_search_result", deserialize_with = "ok_or_default")]
+    pub previous_search_result: char,
+    #[serde(default = "default_show_help", deserialize_with = "ok_or_default")]
+    pub show_help: char,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NewConfig {
     #[serde(default = "default_download_path", deserialize_with = "ok_or_default")]
@@ -44,6 +123,10 @@ pub struct NewConfig {
         deserialize_with = "ok_or_default"
     )]
     pub disable_identities: bool,
+
+    // Option<> supports older config files that don't have this.
+    pub keybindings: Option<KeyBindings>,
+
 }
 
 fn ok_or_default<'a, T, D>(deserializer: D) -> Result<T, D::Error>
