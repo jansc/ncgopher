@@ -14,7 +14,58 @@ use url::Url;
 use crate::bookmarks::Bookmark;
 use crate::history::HistoryEntry;
 
-const HELP: &str = include_str!("../help.txt");
+fn render_help_text() -> String {
+    let keybindings = SETTINGS
+        .read()
+        .expect("Could not get keybindings!")
+        .config
+        .keybindings
+        .clone()
+        .unwrap();
+
+    format!(r#"
+|------------+--------------------------------|
+| Key        | Command                        |
+|------------+--------------------------------|
+| Arrow keys | Move around in text            |
+| Enter      | Open the link under the cursor |
+| Esc        | Go to menubar                  |
+| Space      | Scroll down one page           |
+| {}          | Open new URL                   |
+| {}          | Edit current URL               |
+| {}          | Navigate back                  |
+| {}          | Close application              |
+| {}          | Save current page              |
+| {}          | Reload current page            |
+| {}          | Show link under cursor         |
+| {}          | Add bookmark for current page  |
+| {}          | Go to next link                |
+| {}          | Go to previous link            |
+| {}          | Move one line down             |
+| {}          | Move one line up               |
+| {}          | Search in text                 |
+| {}          | Move to next search result     |
+| {}          | Move to previous search result |
+| {}          | Display this help text         |
+|------------+--------------------------------|"#,
+        keybindings.open_new_url,
+        keybindings.edit_current_url,
+        keybindings.navigate_back,
+        keybindings.close,
+        keybindings.save_page,
+        keybindings.reload_page,
+        keybindings.show_link,
+        keybindings.add_bookmark,
+        keybindings.next_link,
+        keybindings.previous_link,
+        keybindings.move_down,
+        keybindings.move_up,
+        keybindings.search_in_text,
+        keybindings.next_search_result,
+        keybindings.previous_search_result,
+        keybindings.show_help,
+    )
+}
 
 pub fn setup(app: &mut Cursive) {
     trace!("ui::setup");
@@ -27,16 +78,13 @@ pub fn setup(app: &mut Cursive) {
 fn setup_keys(app: &mut Cursive) {
     app.set_autohide_menu(false);
 
-    // TODO: Make keys configurable
-    log::info!("keybindings: {:?}", SETTINGS.read().unwrap().config);
-    let mut keybindings = SETTINGS.read().expect("Could not get keybindings!").config.keybindings.clone();
-
-    // The KeyBindings section of SETTINGS might be None if it was from an older version of
-    // ncgopher
-    if keybindings.is_none() {
-        keybindings.insert(default_keybindings());
-    }
-    let keybindings = keybindings.unwrap();
+    let keybindings = SETTINGS
+        .read()
+        .expect("Could not get keybindings!")
+        .config
+        .keybindings
+        .clone()
+        .unwrap();
 
     app.add_global_callback(Key::Esc, |app| {
         app.call_on_name("main", |v: &mut Layout| v.clear_search())
@@ -122,7 +170,7 @@ fn setup_keys(app: &mut Cursive) {
         move_to_link(app, Direction::Previous);
     });
     app.add_global_callback(keybindings.add_bookmark, dialogs::add_bookmark_current_url);
-    app.add_global_callback(keybindings.show_help, |s| s.add_layer(Dialog::info(HELP)));
+    app.add_global_callback(keybindings.show_help, |s| s.add_layer(Dialog::info(render_help_text().as_str())));
     app.add_global_callback(keybindings.search_in_text, move |app| {
         app.call_on_name("main", |v: &mut Layout| v.enable_search())
             .expect("main layout missing");
@@ -215,7 +263,7 @@ fn setup_menu(app: &mut Cursive) {
             .subtree(
                 "Help",
                 Tree::new()
-                    .leaf("Keys", |s| s.add_layer(Dialog::info(HELP)))
+                    .leaf("Keys", |s| s.add_layer(Dialog::info(render_help_text().as_str())))
                     .leaf("Extended", |app| {
                         app.user_data::<Controller>()
                             .expect("controller missing")

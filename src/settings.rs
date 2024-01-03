@@ -16,7 +16,6 @@ pub struct Settings {
     themes: HashMap<String, String>,
 }
 
-// TODO: Split this into another file, I think.
 fn default_open_new_url() -> char              { 'g' }
 fn default_edit_current_url() -> char          { 'G' }
 fn default_navigate_back() -> char             { 'b' }
@@ -60,13 +59,10 @@ pub fn default_keybindings() -> KeyBindings {
 pub struct KeyBindings {
     #[serde(default = "default_open_new_url", deserialize_with = "ok_or_default")]
     pub open_new_url: char,
-
     #[serde(default = "default_edit_current_url", deserialize_with = "ok_or_default")]
     pub edit_current_url: char,
-
     #[serde(default = "default_navigate_back", deserialize_with = "ok_or_default")]
     pub navigate_back: char,
-
     #[serde(default = "default_close", deserialize_with = "ok_or_default")]
     pub close: char,
     #[serde(default = "default_save_page", deserialize_with = "ok_or_default")]

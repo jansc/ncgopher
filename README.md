@@ -105,8 +105,9 @@ To install the latest development version:
 
 ## Key bindings
 
-During alpha, the keybindings are not configurable and many operations
-are still not implemented.
+During alpha, many operations are still not implemented. Key bindings can be
+changed by adding a `keybindings` section in your `config.toml`, if you want to
+change them from the defaults below:
 
 | Key        | Command                        |
 | :--------- | :----------------------------- |
@@ -129,6 +130,27 @@ are still not implemented.
 | /          | Search in text                 |
 | n          | Move to next search result     |
 | N          | Move to previous search result |
+
+Here is an example `config.toml` with all the keybindings defined:
+```toml
+[keybindings]
+open_new_url = 'o'
+edit_current_url = 'e'
+navigate_back = 'h'
+close = 'q'
+save_page = 's'
+reload_page = 'r'
+show_link = 'i'
+add_bookmark = 'b'
+next_link = 'l'
+previous_link = 'L'
+move_down = 'j'
+move_up = 'k'
+search_in_text = '/'
+next_search_result = 'n'
+previous_search_result = 'N'
+show_help = '?'
+```
 
 ## Mouse support
 
