@@ -56,6 +56,10 @@ NixOS users can install ncgopher using nix-env:
 
     nix-env -iA nixos.ncgopher
 
+### FreeBSD
+
+    doas pkg install ncgopher
+
 ### NetBSD
 
 NetBSD users can install ncgopher using pkgin:
