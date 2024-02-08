@@ -31,7 +31,7 @@ Welcome to ncgopher, an ncurses client for gemini, gopher and finger. You can us
 # What is this?
 ncgopher is a browser for the gemini and the gopher protocols, sometimes also collectively known as the "small internet".
 
-=> about:sites See some pages to start of from.
+=> about:sites See some pages to start off.
 
 ## Gopher
 Gopher was deveolped in 1991 at the University of Minnesota, and named after the school's mascot. Gopher is a menu-driven interface that allows a user to browse for text information served off of various gopher servers.
