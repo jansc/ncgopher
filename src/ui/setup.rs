@@ -1,6 +1,8 @@
+use crate::bookmarks::Bookmark;
 use crate::controller::{Controller, Direction};
 use crate::gophermap::{GopherMapEntry, ItemType};
-use crate::settings::{KeyBindings, default_keybindings};
+use crate::history::HistoryEntry;
+use crate::settings::{default_keybindings, KeyBindings};
 use crate::ui::{dialogs, layout::Layout, statusbar::StatusBar};
 use crate::SETTINGS;
 use cursive::{
@@ -11,8 +13,6 @@ use cursive::{
     Cursive, View,
 };
 use url::Url;
-use crate::bookmarks::Bookmark;
-use crate::history::HistoryEntry;
 
 fn render_help_text() -> String {
     let keybindings = SETTINGS
@@ -23,7 +23,8 @@ fn render_help_text() -> String {
         .clone()
         .unwrap();
 
-    format!(r#"
+    format!(
+        r#"
 |------------+--------------------------------|
 | Key        | Command                        |
 |------------+--------------------------------|
@@ -84,7 +85,7 @@ fn setup_keys(app: &mut Cursive) {
         .config
         .keybindings
         .clone()
-        .unwrap();
+        .unwrap_or(default_keybindings());
 
     app.add_global_callback(Key::Esc, |app| {
         app.call_on_name("main", |v: &mut Layout| v.clear_search())
@@ -165,12 +166,17 @@ fn setup_keys(app: &mut Cursive) {
         // go to next link
         move_to_link(app, Direction::Next);
     });
-    app.add_global_callback(keybindings.previous_link /*Event::Shift(Key::Tab)*/, |app| {
-        // go to previous link
-        move_to_link(app, Direction::Previous);
-    });
+    app.add_global_callback(
+        keybindings.previous_link, /*Event::Shift(Key::Tab)*/
+        |app| {
+            // go to previous link
+            move_to_link(app, Direction::Previous);
+        },
+    );
     app.add_global_callback(keybindings.add_bookmark, dialogs::add_bookmark_current_url);
-    app.add_global_callback(keybindings.show_help, |s| s.add_layer(Dialog::info(render_help_text().as_str())));
+    app.add_global_callback(keybindings.show_help, |s| {
+        s.add_layer(Dialog::info(render_help_text().as_str()))
+    });
     app.add_global_callback(keybindings.search_in_text, move |app| {
         app.call_on_name("main", |v: &mut Layout| v.enable_search())
             .expect("main layout missing");
@@ -263,7 +269,9 @@ fn setup_menu(app: &mut Cursive) {
             .subtree(
                 "Help",
                 Tree::new()
-                    .leaf("Keys", |s| s.add_layer(Dialog::info(render_help_text().as_str())))
+                    .leaf("Keys", |s| {
+                        s.add_layer(Dialog::info(render_help_text().as_str()))
+                    })
                     .leaf("Extended", |app| {
                         app.user_data::<Controller>()
                             .expect("controller missing")
@@ -355,7 +363,6 @@ fn setup_ui(app: &mut Cursive) {
     })
     .expect("main layout missing");
 }
-
 
 pub fn setup_bookmark_menu(app: &mut Cursive, bookmarks: &Vec<Bookmark>) {
     // Add bookmarks to bookmark menu on startup
