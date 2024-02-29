@@ -41,7 +41,7 @@ base64 = "0.21"
 percent-encoding = "2.3"
 idna = "0.4"
 cursive = { version = "0.20.0", default-features = false, features = ["pancurses-backend", "toml"] }
-crossbeam-channel = "0.5.11"
+crossbeam-channel = "0.5.12"
 regex = "1"
 mime = "0.3.17"
 linkify = "0.10.0"
