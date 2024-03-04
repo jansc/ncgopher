@@ -37,7 +37,7 @@ ring = "0.16.20"
 time = { version = "0.3.34", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"
 pem = "1.1"
-base64 = "0.21"
+base64 = "0.22"
 percent-encoding = "2.3"
 idna = "0.4"
 cursive = { version = "0.20.0", default-features = false, features = ["pancurses-backend", "toml"] }
