@@ -2,7 +2,7 @@ use crate::bookmarks::Bookmark;
 use crate::controller::{Controller, Direction};
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::HistoryEntry;
-use crate::settings::{default_keybindings, KeyBindings};
+use crate::settings::{default_keybindings};
 use crate::ui::{dialogs, layout::Layout, statusbar::StatusBar};
 use crate::SETTINGS;
 use cursive::{
@@ -21,7 +21,7 @@ fn render_help_text() -> String {
         .config
         .keybindings
         .clone()
-        .unwrap();
+        .unwrap_or(default_keybindings());
 
     format!(
         r#"
