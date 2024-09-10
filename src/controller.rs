@@ -1,30 +1,3 @@
-use ::pem;
-use ::time::{Date, OffsetDateTime};
-use ::time::format_description::well_known::Rfc3339;
-use base64::{Engine as _, engine::general_purpose};
-use cursive::{
-    theme::ColorStyle,
-    utils::{lines::simple::LinesIterator, markup::StyledString},
-    view::{Nameable, Resizable},
-    views::{Dialog, EditView, NamedView, ResizedView, ScrollView, SelectView},
-    Cursive, CursiveRunnable,
-};
-use linkify::{LinkFinder, LinkKind};
-use mime::Mime;
-use native_tls::{Identity, Protocol, TlsConnector};
-use rcgen::{date_time_ymd, Certificate, CertificateParams, DistinguishedName, DnType};
-use std::error::Error;
-use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
-use std::net::TcpStream;
-use std::path::Path;
-use std::process::Command;
-use std::sync::{Arc, Mutex, RwLock};
-use std::thread;
-use url::{Position, Url};
-use urlencoding::decode_binary;
-use x509_parser::prelude::*;
-
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::Certificates;
 use crate::clientcertificates::{ClientCertificate, ClientCertificates};
@@ -35,6 +8,36 @@ use crate::ui::layout::Layout;
 use crate::ui::setup::move_to_next_item;
 use crate::url_tools::{download_filename_from_url, human_readable_url, normalize_domain};
 use crate::SETTINGS;
+use ::pem;
+use ::time::{Date, OffsetDateTime};
+use cursive::{
+    theme::ColorStyle,
+    utils::{lines::simple::LinesIterator, markup::StyledString},
+    view::{Nameable, Resizable},
+    views::{Dialog, EditView, NamedView, ResizedView, ScrollView, SelectView},
+    Cursive, CursiveRunnable,
+};
+use linkify::{LinkFinder, LinkKind};
+use mime::Mime;
+use native_tls::TlsConnector;
+use rcgen::{date_time_ymd, Certificate, CertificateParams, DistinguishedName, DnType};
+use rustls;
+use rustls::crypto::{ring as provider, CryptoProvider};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer};
+use rustls_pemfile::{read_one, Item};
+use std::convert::TryInto;
+use std::error::Error;
+use std::fs::OpenOptions;
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::iter;
+use std::net::TcpStream;
+use std::path::Path;
+use std::process::Command;
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread;
+use stringreader::StringReader;
+use url::{Position, Url};
+use urlencoding::decode_binary;
 
 #[derive(Clone, Debug)]
 pub enum Direction {
@@ -44,6 +47,74 @@ pub enum Direction {
 
 const HISTORY_LEN: usize = 10;
 
+mod danger {
+    use super::rustls;
+    use rustls::client::danger::HandshakeSignatureValid;
+    use rustls::client::danger::ServerCertVerified;
+    use rustls::client::danger::ServerCertVerifier;
+    use rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
+    use rustls::pki_types::CertificateDer;
+    use rustls::pki_types::ServerName;
+    use rustls::pki_types::UnixTime;
+    use rustls::DigitallySignedStruct;
+    use rustls::SignatureScheme;
+
+    #[derive(Debug)]
+    pub struct NoCertificateVerification(CryptoProvider);
+
+    impl NoCertificateVerification {
+        pub fn new(provider: CryptoProvider) -> Self {
+            Self(provider)
+        }
+    }
+
+    impl ServerCertVerifier for NoCertificateVerification {
+        fn verify_server_cert(
+            &self,
+            _end_entity: &CertificateDer<'_>,
+            _intermediates: &[CertificateDer<'_>],
+            _server_name: &ServerName<'_>,
+            _ocsp_response: &[u8],
+            _now: UnixTime,
+        ) -> Result<ServerCertVerified, rustls::Error> {
+            Ok(ServerCertVerified::assertion())
+        }
+
+        fn verify_tls12_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            verify_tls12_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+            //    Ok(HandshakeSignatureValid::assertion())
+        }
+
+        fn verify_tls13_signature(
+            &self,
+            message: &[u8],
+            cert: &CertificateDer<'_>,
+            dss: &DigitallySignedStruct,
+        ) -> Result<HandshakeSignatureValid, rustls::Error> {
+            verify_tls13_signature(
+                message,
+                cert,
+                dss,
+                &self.0.signature_verification_algorithms,
+            )
+            //Ok(HandshakeSignatureValid::assertion())
+        }
+
+        fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
+            self.0.signature_verification_algorithms.supported_schemes()
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct Controller {
@@ -149,9 +220,11 @@ impl Controller {
         let sender = self.sender.clone();
 
         // Check if a client certificate exists for this host.
-        let mut identity: Option<Identity> = None;
-        let mut client_cert_fingerprint: Option<String> = None;
+        //let mut identity: Option<Identity> = None;
+        let client_cert_fingerprint: Option<String> = None;
 
+        let mut client_cert: Option<CertificateDer<'static>> = None;
+        let mut client_key_pem: Option<PrivateKeyDer<'static>> = None;
         if !SETTINGS.read().unwrap().config.disable_identities {
             // Based on 'url' generate a list of URLs like so:
             // url = gemini://host/a/b/c?foo=bar =>
@@ -183,13 +256,70 @@ impl Controller {
                         url.as_str(),
                         fingerprint
                     );
-                    client_cert_fingerprint = Some(fingerprint.clone());
+                    let client_cert_fingerprint = Some(fingerprint.clone());
                     let key_pem = client_certificates.get_cert_by_fingerprint(&fingerprint);
+                    if let Some(key_pem) = key_pem {
+                        let streader = StringReader::new(&key_pem.as_str());
+                        let mut bufreader = BufReader::new(streader);
+                        for item in iter::from_fn(|| read_one(&mut bufreader).transpose()) {
+                            match item.unwrap() {
+                                Item::X509Certificate(cert) => {
+                                    info!("certificate {:?}", cert);
+                                    client_cert = Some(cert);
+                                }
+                                //Item::RSAKey(key) => println!("rsa pkcs1 key {:?}", key),
+                                //Item::PKCS8Key(key) => println!("pkcs8 key {:?}", key),
+                                //Item::ECKey(key) => println!("sec1 ec key {:?}", key),
+                                _ => info!("unhandled item"),
+                            }
+                        }
+                    }
                     let private_key_pem =
                         client_certificates.get_private_key_by_fingerprint(&fingerprint);
 
-                    if let Some(key_pem) = key_pem {
-                        if let Some(private_key_pem) = private_key_pem {
+                    if let Some(pk_pem) = private_key_pem {
+                        let reader = StringReader::new(&pk_pem.as_str());
+                        let mut bufreader = BufReader::new(reader);
+                        for item in iter::from_fn(|| read_one(&mut bufreader).transpose()) {
+                            match item.unwrap() {
+                                Item::X509Certificate(key) => {
+                                    info!("certificate {:?}", key);
+                                    //client_key_pem = Some(key.into());
+                                    //return key.into();
+                                }
+                                Item::Pkcs1Key(key) => {
+                                    info!("pkcs1 key {:?}", key);
+                                    client_key_pem = Some(key.into())
+                                    //return key.into();
+                                }
+                                Item::Pkcs8Key(key) => {
+                                    info!("pkcs8 key {:?}", key);
+                                    client_key_pem = Some(key.into())
+                                    //return key.into();
+                                }
+                                Item::Sec1Key(key) => {
+                                    info!("sec1 key {:?}", key);
+                                    client_key_pem = Some(key.into())
+                                    //return key.into();
+                                }
+                                Item::Crl(key) => {
+                                    info!("crl key {:?}", key);
+                                    //client_key_pem = Some(key.into())
+                                    //return key.into();
+                                }
+                                Item::Csr(key) => {
+                                    info!("Csr key {:?}", key);
+                                    //client_key_pem = Some(key.into())
+                                    //return key.into();
+                                }
+                                _ => {
+                                    info!("unhandled item");
+                                    //return None;
+                                }
+                            }
+                        }
+                    }
+                    /*
                             identity = match Identity::from_pkcs8(
                                 &key_pem.into_bytes(),
                                 &private_key_pem.into_bytes(),
@@ -213,47 +343,47 @@ impl Controller {
                             }
                         }
                     }
-                    return Some(url);
+                    */
+                    Some(url)
+                } else {
+                    None
                 }
-                None
             });
             drop(client_certificates);
         }
 
         thread::spawn(move || {
             let mut buf = String::new();
-            let mut builder = TlsConnector::builder();
-
-            // Self-signed certificates are considered invalid, but they are quite
-            // common for gemini servers. Therefore, we accept invalid certs,
-            // but check for expiration later
-            builder.danger_accept_invalid_certs(true);
-
-            // Rust's native-tls does not yet provide Tlsv13 :(
-            // Alternative implementation: rusttls
-            builder.min_protocol_version(Some(Protocol::Tlsv12));
-
-            if let Some(id) = identity {
-                info!("Using identity for request");
-                builder.identity(id);
-            }
-
-            let connector = match builder.build() {
-                Ok(connector) => connector,
-                Err(err) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller
-                                .set_message(&format!("Could not establish connection: {}", err));
-                        }))
-                        .unwrap();
-                    return;
+            let suites = provider::DEFAULT_CIPHER_SUITES.to_vec();
+            let versions = rustls::DEFAULT_VERSIONS.to_vec();
+            let config = rustls::ClientConfig::builder_with_provider(
+                CryptoProvider {
+                    cipher_suites: suites,
+                    ..provider::default_provider()
                 }
+                .into(),
+            )
+            .with_protocol_versions(&versions)
+            .expect("inconsistent cipher-suite/versions selected");
+
+            let builder = config
+                .dangerous()
+                .with_custom_certificate_verifier(Arc::new(
+                    danger::NoCertificateVerification::new(provider::default_provider()),
+                ));
+            let config = if client_cert.is_some() && client_key_pem.is_some() {
+                builder
+                    //.with_root_certificates(RootCertStore::empty())
+                    .with_client_auth_cert(vec![client_cert.unwrap()], client_key_pem.unwrap())
+                    .unwrap()
+            } else {
+                builder.with_no_client_auth()
             };
 
-            let stream = match TcpStream::connect(server_details) {
+            let server_name = host.try_into().unwrap();
+            let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
+
+            let mut stream = match TcpStream::connect(server_details) {
                 Ok(stream) => stream,
                 Err(err) => {
                     sender
@@ -268,6 +398,20 @@ impl Controller {
                 }
             };
 
+            let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+
+            // pub fn peer_certificates(&self) -> Option<&[CertificateDer<'static>]>
+            if let Some(peer_certificates) = tls.conn.peer_certificates() {
+                if let Some(cert) = peer_certificates.first() {
+                    // Found peer certificate
+                    debug!("##################Found peercertiicate");
+                }
+            } else {
+                // Something went wrong, could not get peer certificates
+                debug!("##################Did not find peer certificate");
+            };
+
+            /*
             let mut stream = match connector.connect(&host, stream) {
                 Ok(stream) => stream,
                 Err(err) => {
@@ -285,10 +429,12 @@ impl Controller {
                     return;
                 }
             };
+            */
 
             info!("Connected with TLS");
 
             // try to get peer certificate
+            /* FIXME
             let cert_opt = match stream.peer_certificate() {
                 Ok(cert_opt) => cert_opt,
                 Err(err) => {
@@ -395,15 +541,16 @@ impl Controller {
                     }
                 }
             }
+            */
 
             // Handshake done, request URL from gemini server
             if !SETTINGS.read().unwrap().config.disable_history {
                 info!("Writing url '{}'", url.as_str());
             }
 
-            stream.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
+            tls.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
 
-            let mut bufr = BufReader::new(stream);
+            let mut bufr = BufReader::new(tls);
             info!("Reading from gemini stream");
             // Read Gemini Header
             match bufr.read_line(&mut buf) {
@@ -1172,13 +1319,17 @@ impl Controller {
             // prepended with an extra period to ensure that the
             // transmission is not terminated early. The client should
             // strip extra periods at the beginning of the line.
-            let content_without_dots = content.lines().map(|line| {
-                if !line.is_empty() && line.starts_with('.') {
-                    line[1..].to_string()
-                } else {
-                    line[0..].to_string()
-                }
-            }).collect::<Vec<String>>().join("\n");
+            let content_without_dots = content
+                .lines()
+                .map(|line| {
+                    if !line.is_empty() && line.starts_with('.') {
+                        line[1..].to_string()
+                    } else {
+                        line[0..].to_string()
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join("\n");
             self.set_gemini_content(
                 Url::parse(&human_url).unwrap(),
                 GeminiType::Text,
@@ -1327,8 +1478,7 @@ impl Controller {
                     } else if entry.item_type.is_inline() {
                         // Check if current line is text only. If yes, try to find
                         // URL in text and open with appropriate function
-                        controller
-                            .open_link_in_label(entry.clone().label());
+                        controller.open_link_in_label(entry.clone().label());
                     }
                 });
                 view.set_selection(index);
@@ -1349,9 +1499,12 @@ impl Controller {
                             .open_url(url, true, 0);
                     }
                 } else if links.len() > 1 {
-                    app.add_layer(Dialog::info("Found several links, not sure which one to open.\nDialog not implemented"));
+                    app.add_layer(Dialog::info(
+                        "Found several links, not sure which one to open.\nDialog not implemented",
+                    ));
                 }
-            })).unwrap();
+            }))
+            .unwrap();
     }
 
     fn open_gemini_address(&mut self, url: Url, index: usize) {
@@ -1450,8 +1603,7 @@ impl Controller {
                             } else {
                                 let controller =
                                     app.user_data::<Controller>().expect("controller missing");
-                                controller
-                                    .open_link_in_label(label.to_string());
+                                controller.open_link_in_label(label.to_string());
                             }
                         }
                     }

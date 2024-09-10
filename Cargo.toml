@@ -32,6 +32,7 @@ toml = "0.8.11"
 rusqlite = { version = "0.30.0", features = ["url", "time"] }
 gemtext = "0.2.1"
 native-tls = { version = "0.2.11", features = ["vendored"] }
+rustls = { version = "0.23.2", features = ["ring"] }
 x509-parser = "0.14.0"
 ring = "0.16.20"
 time = { version = "0.3.34", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
@@ -45,3 +46,5 @@ crossbeam-channel = "0.5.12"
 regex = "1"
 mime = "0.3.17"
 linkify = "0.10.0"
+stringreader = "0.1.1"
+rustls-pemfile = "2.1.1"
