@@ -25,7 +25,7 @@ lazy_static = "1.5.0"
 clap = { version = "4.5.20", features = ["derive"] }
 log = { version = "0.4.22", features = ["std"] }
 dirs = "5.0.1"
-rcgen = "0.11"
+rcgen = "0.13"
 serde_derive = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8.19"
