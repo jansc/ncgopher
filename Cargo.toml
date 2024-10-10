@@ -18,7 +18,7 @@ repository = "jansc/ncgopher"
 
 [dependencies]
 backtrace = "0.3"
-unicode-width = "0.1.13"
+unicode-width = "0.2.0"
 url = { version = "2.5", features = ["serde"] }
 urlencoding = "2.1.3"
 lazy_static = "1.5.0"
