@@ -88,7 +88,7 @@ impl ClientCertificates {
     }
 
     pub fn get_client_certificate_fingerprint(&mut self, url: &Url) -> Option<String> {
-        if let Some(fingerprint) = self.urls.get(&url.as_str().to_string()) {
+        if let Some(fingerprint) = self.urls.get(url.as_str()) {
             if self.certificates.contains_key(fingerprint) {
                 return Some(fingerprint.to_string());
             }

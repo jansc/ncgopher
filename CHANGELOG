@@ -1,5 +1,13 @@
 * NcGopher Changelog
 
+** 0.7.0
+  Maintenance release to fix #219
+  Changes:
+  - Upgraded various dependencies
+
+  New features:
+  - Support for custom keybindings
+
 ** 0.6.0
   Changes:
   - #234: Add MSYS2 MINGW64 terminal packages for Windows (pull request by Ari)

@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.7.0
+
+ Changes:
+ * Upgraded dependecies
+
+ New features:
+ * Support for custom keybindings
+
 ## 0.6.0
 
 Changes:

@@ -2,7 +2,7 @@ use crate::bookmarks::Bookmark;
 use crate::controller::{Controller, Direction};
 use crate::gophermap::{GopherMapEntry, ItemType};
 use crate::history::HistoryEntry;
-use crate::settings::{default_keybindings};
+use crate::settings::default_keybindings;
 use crate::ui::{dialogs, layout::Layout, statusbar::StatusBar};
 use crate::SETTINGS;
 use cursive::{
@@ -579,7 +579,11 @@ pub(crate) fn move_to_next_item<T>(
     mut scroll_view: ViewRef<ScrollView<ResizedView<NamedView<SelectView<T>>>>>,
     dir: Direction,
     hits: Vec<usize>,
-) -> usize {
+) -> usize
+where
+    T: Send,
+    T: Sync,
+{
     if hits.is_empty() {
         // Not hits - don't move
         return 0;

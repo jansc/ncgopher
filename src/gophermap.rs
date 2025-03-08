@@ -3,6 +3,7 @@ use url::Url;
 
 /// An menu item in a directory of Gopher resources.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct GopherMapEntry {
     /// The type of the resource
     pub item_type: ItemType,

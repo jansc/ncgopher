@@ -187,7 +187,7 @@ impl View for Layout {
         }
     }
 
-    fn call_on_any<'a>(&mut self, s: &Selector, c: AnyCb<'a>) {
+    fn call_on_any(&mut self, s: &Selector, c: AnyCb<'_>) {
         if let Selector::Name("statusbar") = s {
             self.statusbar.call_on_any(s, c);
         } else {
