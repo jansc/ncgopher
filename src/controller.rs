@@ -1,3 +1,4 @@
+use crate::base64::Engine;
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::Certificates;
 use crate::clientcertificates::{ClientCertificate, ClientCertificates};
@@ -8,8 +9,7 @@ use crate::ui::layout::Layout;
 use crate::ui::setup::move_to_next_item;
 use crate::url_tools::{download_filename_from_url, human_readable_url, normalize_domain};
 use crate::SETTINGS;
-use ::pem;
-use ::time::{Date, OffsetDateTime};
+use base64::engine::general_purpose;
 use cursive::{
     theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
@@ -36,8 +36,11 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use stringreader::StringReader;
+use time::format_description::well_known::Rfc3339;
+use time::{Date, OffsetDateTime};
 use url::{Position, Url};
 use urlencoding::decode_binary;
+use x509_parser::prelude::{FromDer, X509Certificate};
 
 #[derive(Clone, Debug)]
 pub enum Direction {
@@ -221,7 +224,7 @@ impl Controller {
 
         // Check if a client certificate exists for this host.
         //let mut identity: Option<Identity> = None;
-        let client_cert_fingerprint: Option<String> = None;
+        let mut client_cert_fingerprint: Option<String> = None;
 
         let mut client_cert: Option<CertificateDer<'static>> = None;
         let mut client_key_pem: Option<PrivateKeyDer<'static>> = None;
@@ -256,7 +259,7 @@ impl Controller {
                         url.as_str(),
                         fingerprint
                     );
-                    let client_cert_fingerprint = Some(fingerprint.clone());
+                    client_cert_fingerprint = Some(fingerprint.clone());
                     let key_pem = client_certificates.get_cert_by_fingerprint(&fingerprint);
                     if let Some(key_pem) = key_pem {
                         let streader = StringReader::new(&key_pem.as_str());
@@ -319,31 +322,6 @@ impl Controller {
                             }
                         }
                     }
-                    /*
-                            identity = match Identity::from_pkcs8(
-                                &key_pem.into_bytes(),
-                                &private_key_pem.into_bytes(),
-                            ) {
-                                Ok(id) => Some(id),
-                                Err(error) => {
-                                    error!("Could not create client certificate: {:?}", error);
-                                    sender
-                                        .send(Box::new(move |app| {
-                                            let controller = app
-                                                .user_data::<Controller>()
-                                                .expect("controller missing");
-                                            controller.set_message(&format!(
-                                                "Could not create client certificate: {}",
-                                                error
-                                            ));
-                                        }))
-                                        .unwrap();
-                                    None
-                                }
-                            }
-                        }
-                    }
-                    */
                     Some(url)
                 } else {
                     None
@@ -399,16 +377,30 @@ impl Controller {
             };
 
             let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+            let mut cert_opt: Option<&CertificateDer> = None;
+
+            if !SETTINGS.read().unwrap().config.disable_history {
+                info!("Writing url '{}'", url.as_str());
+            }
+
+            tls.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
 
             // pub fn peer_certificates(&self) -> Option<&[CertificateDer<'static>]>
             if let Some(peer_certificates) = tls.conn.peer_certificates() {
                 if let Some(cert) = peer_certificates.first() {
                     // Found peer certificate
-                    debug!("##################Found peercertiicate");
+                    cert_opt = Some(cert);
                 }
             } else {
                 // Something went wrong, could not get peer certificates
-                debug!("##################Did not find peer certificate");
+                warn!("Could not get peer certificates for {}", server_details);
+                sender
+                    .send(Box::new(move |app| {
+                        let controller = app.user_data::<Controller>().expect("controller missing");
+                        controller.set_message(&format!("Could not get peer certificate."));
+                    }))
+                    .unwrap();
+                return;
             };
 
             /*
@@ -432,29 +424,10 @@ impl Controller {
             */
 
             info!("Connected with TLS");
-
-            // try to get peer certificate
-            /* FIXME
-            let cert_opt = match stream.peer_certificate() {
-                Ok(cert_opt) => cert_opt,
-                Err(err) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller
-                                .set_message(&format!("Could not get peer certificate: {:?}", err));
-                        }))
-                        .unwrap();
-                    return;
-                }
-            };
-
             // check certificate
             if let Some(cert) = cert_opt {
                 // TOFU: Check if we already have a certificate fingerprint for a given host
-                let cert_fingerprint = cert.to_der().unwrap();
-                let hash = ring::digest::digest(&ring::digest::SHA256, &cert_fingerprint);
+                let hash = ring::digest::digest(&ring::digest::SHA256, &cert);
                 let cert_fingerprint = general_purpose::STANDARD.encode(hash);
                 info!("Peer certificate: {:?}", &cert_fingerprint);
 
@@ -503,53 +476,31 @@ impl Controller {
                     }
                 }
 
-                // Check certificate expiration date
-                match parse_x509_certificate(&cert.to_der().unwrap()) {
-                    Ok((_rem, cert)) => {
-                        info!("Successfully parsed certificate");
-                        match cert.tbs_certificate.validity.time_to_expiration() {
-                            Some(duration) => {
-                                let now: OffsetDateTime = OffsetDateTime::now_utc();
-                                let expires = now + duration;
-                                let expires: OffsetDateTime = expires;
-                                info!("Certificate expires {}", expires.format(&Rfc3339).unwrap());
-                                info!("Certificate valid {:?}", duration);
-                            }
-                            None => {
-                                sender
-                                    .send(Box::new(move |app| {
-                                        let controller = app
-                                            .user_data::<Controller>()
-                                            .expect("controller missing");
-                                        controller.set_message("Server certificate expired.");
-                                    }))
-                                    .unwrap();
-                            }
+                if let Ok((_, cert)) = X509Certificate::from_der(cert) {
+                    // Check certificate expiration date
+                    info!("Successfully parsed certificate");
+                    match cert.tbs_certificate.validity.time_to_expiration() {
+                        Some(duration) => {
+                            let now: OffsetDateTime = OffsetDateTime::now_utc();
+                            let expires = now + duration;
+                            let expires: OffsetDateTime = expires;
+                            info!("Certificate expires {}", expires.format(&Rfc3339).unwrap());
+                            info!("Certificate valid {:?}", duration);
                         }
-                    }
-                    Err(err) => {
-                        sender
-                            .send(Box::new(move |app| {
-                                let controller =
-                                    app.user_data::<Controller>().expect("controller missing");
-                                controller.set_message(&format!(
-                                    "Could not parse peer certificate: {:?}",
-                                    err
-                                ));
-                            }))
-                            .unwrap();
+                        None => {
+                            sender
+                                .send(Box::new(move |app| {
+                                    let controller =
+                                        app.user_data::<Controller>().expect("controller missing");
+                                    controller.set_message("Server certificate expired.");
+                                }))
+                                .unwrap();
+                        }
                     }
                 }
             }
-            */
 
             // Handshake done, request URL from gemini server
-            if !SETTINGS.read().unwrap().config.disable_history {
-                info!("Writing url '{}'", url.as_str());
-            }
-
-            tls.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
-
             let mut bufr = BufReader::new(tls);
             info!("Reading from gemini stream");
             // Read Gemini Header
@@ -2056,12 +2007,11 @@ impl Controller {
             .distinguished_name
             .push(DnType::CommonName, common_name.as_str());
         if let Ok(cert) = Certificate::from_params(params) {
-            if let (Ok(cert), private_key) =
+            if let (Ok(cert_pem), private_key) =
                 (cert.serialize_pem(), cert.serialize_private_key_pem())
             {
-                if let Ok(parsed) = pem::parse(&cert) {
-                    // Create fingerprint:
-                    let der_serialized = parsed.contents;
+                // Create fingerprint:
+                if let Ok(der_serialized) = cert.serialize_der() {
                     let hash = ring::digest::digest(&ring::digest::SHA256, &der_serialized);
                     let fingerprint: String = hash
                         .as_ref()
@@ -2074,7 +2024,7 @@ impl Controller {
                         common_name,
                         note,
                         fingerprint,
-                        cert,
+                        cert: cert_pem,
                         private_key,
                         expiration_date,
                     };

@@ -5,7 +5,6 @@ extern crate log;
 extern crate base64;
 extern crate dirs;
 extern crate idna;
-extern crate pem;
 extern crate percent_encoding;
 extern crate rcgen;
 extern crate ring;
