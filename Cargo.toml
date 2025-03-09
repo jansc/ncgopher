@@ -25,15 +25,14 @@ lazy_static = "1.5.0"
 clap = { version = "4.5.27", features = ["derive"] }
 log = { version = "0.4.22", features = ["std"] }
 dirs = "6.0.0"
-rcgen = "0.11"
+rcgen = "0.13"
 serde_derive = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8.19"
-rusqlite = { version = "0.32.1", features = ["url", "time"] }
+rusqlite = { version = "0.34.0", features = ["url", "time"] }
 gemtext = "0.2.1"
-native-tls = { version = "0.2.12", features = ["vendored"] }
-rustls = { version = "0.23.2", features = ["ring"] }
-x509-parser = "0.16.0"
+rustls = { version = "0.23.2", default-features = false, features = ["ring", "std"] }
+x509-parser = "0.17.0"
 ring = "0.17.8"
 time = { version = "0.3.36", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"

@@ -1,4 +1,3 @@
-use crate::base64::Engine;
 use crate::bookmarks::{Bookmark, Bookmarks};
 use crate::certificates::Certificates;
 use crate::clientcertificates::{ClientCertificate, ClientCertificates};
@@ -10,6 +9,7 @@ use crate::ui::setup::move_to_next_item;
 use crate::url_tools::{download_filename_from_url, human_readable_url, normalize_domain};
 use crate::SETTINGS;
 use base64::engine::general_purpose;
+use base64::Engine;
 use cursive::{
     theme::ColorStyle,
     utils::{lines::simple::LinesIterator, markup::StyledString},
@@ -19,8 +19,7 @@ use cursive::{
 };
 use linkify::{LinkFinder, LinkKind};
 use mime::Mime;
-use native_tls::TlsConnector;
-use rcgen::{date_time_ymd, Certificate, CertificateParams, DistinguishedName, DnType};
+use rcgen::{date_time_ymd, CertificateParams, DistinguishedName, DnType, KeyPair};
 use rustls;
 use rustls::crypto::{ring as provider, CryptoProvider};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -193,6 +192,42 @@ impl Controller {
         Ok(())
     }
 
+    fn get_tls_client_config<'a, 'b>(
+        client_cert: &Option<CertificateDer<'a>>,
+        client_key_pem: &Option<PrivateKeyDer<'b>>,
+    ) -> rustls::ClientConfig {
+        let suites = provider::DEFAULT_CIPHER_SUITES.to_vec();
+        let versions = rustls::DEFAULT_VERSIONS.to_vec();
+        let config = rustls::ClientConfig::builder_with_provider(
+            CryptoProvider {
+                cipher_suites: suites,
+                ..provider::default_provider()
+            }
+            .into(),
+        )
+        .with_protocol_versions(&versions)
+        .expect("inconsistent cipher-suite/versions selected");
+
+        let builder = config
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(danger::NoCertificateVerification::new(
+                provider::default_provider(),
+            )));
+        let config = if client_cert.is_some() && client_key_pem.is_some() {
+            let client_cert = client_cert.as_ref().unwrap().clone().into_owned();
+            builder
+                //.with_root_certificates(RootCertStore::empty())
+                .with_client_auth_cert(
+                    vec![client_cert],
+                    client_key_pem.as_ref().unwrap().clone_key(),
+                )
+                .unwrap()
+        } else {
+            builder.with_no_client_auth()
+        };
+        config
+    }
+
     pub fn fetch_gemini_url(&self, mut url: Url, index: usize) {
         if !SETTINGS.read().unwrap().config.disable_history {
             trace!("Controller::fetch_gemini_url({})", url);
@@ -273,7 +308,7 @@ impl Controller {
                                 //Item::RSAKey(key) => println!("rsa pkcs1 key {:?}", key),
                                 //Item::PKCS8Key(key) => println!("pkcs8 key {:?}", key),
                                 //Item::ECKey(key) => println!("sec1 ec key {:?}", key),
-                                _ => info!("unhandled item"),
+                                _ => info!("Client cert not found"),
                             }
                         }
                     }
@@ -285,39 +320,16 @@ impl Controller {
                         let mut bufreader = BufReader::new(reader);
                         for item in iter::from_fn(|| read_one(&mut bufreader).transpose()) {
                             match item.unwrap() {
-                                Item::X509Certificate(key) => {
-                                    info!("certificate {:?}", key);
-                                    //client_key_pem = Some(key.into());
-                                    //return key.into();
-                                }
                                 Item::Pkcs1Key(key) => {
                                     info!("pkcs1 key {:?}", key);
                                     client_key_pem = Some(key.into())
-                                    //return key.into();
                                 }
                                 Item::Pkcs8Key(key) => {
                                     info!("pkcs8 key {:?}", key);
                                     client_key_pem = Some(key.into())
-                                    //return key.into();
-                                }
-                                Item::Sec1Key(key) => {
-                                    info!("sec1 key {:?}", key);
-                                    client_key_pem = Some(key.into())
-                                    //return key.into();
-                                }
-                                Item::Crl(key) => {
-                                    info!("crl key {:?}", key);
-                                    //client_key_pem = Some(key.into())
-                                    //return key.into();
-                                }
-                                Item::Csr(key) => {
-                                    info!("Csr key {:?}", key);
-                                    //client_key_pem = Some(key.into())
-                                    //return key.into();
                                 }
                                 _ => {
                                     info!("unhandled item");
-                                    //return None;
                                 }
                             }
                         }
@@ -330,34 +342,9 @@ impl Controller {
             drop(client_certificates);
         }
 
+        let config = Controller::get_tls_client_config(&client_cert, &client_key_pem);
         thread::spawn(move || {
             let mut buf = String::new();
-            let suites = provider::DEFAULT_CIPHER_SUITES.to_vec();
-            let versions = rustls::DEFAULT_VERSIONS.to_vec();
-            let config = rustls::ClientConfig::builder_with_provider(
-                CryptoProvider {
-                    cipher_suites: suites,
-                    ..provider::default_provider()
-                }
-                .into(),
-            )
-            .with_protocol_versions(&versions)
-            .expect("inconsistent cipher-suite/versions selected");
-
-            let builder = config
-                .dangerous()
-                .with_custom_certificate_verifier(Arc::new(
-                    danger::NoCertificateVerification::new(provider::default_provider()),
-                ));
-            let config = if client_cert.is_some() && client_key_pem.is_some() {
-                builder
-                    //.with_root_certificates(RootCertStore::empty())
-                    .with_client_auth_cert(vec![client_cert.unwrap()], client_key_pem.unwrap())
-                    .unwrap()
-            } else {
-                builder.with_no_client_auth()
-            };
-
             let server_name = host.try_into().unwrap();
             let mut conn = rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
 
@@ -383,9 +370,22 @@ impl Controller {
                 info!("Writing url '{}'", url.as_str());
             }
 
-            tls.write_all(format!("{}\r\n", url).as_bytes()).unwrap();
+            if let Err(err) = tls.write_all(format!("{}\r\n", url).as_bytes()) {
+                // Something went wrong, could not write write request URL
+                warn!(
+                    "Could not write request URL for address {}: {:?}",
+                    server_details, err
+                );
+                sender
+                    .send(Box::new(move |app| {
+                        let controller = app.user_data::<Controller>().expect("controller missing");
+                        controller
+                            .set_message(&format!("Could not write request address to server."));
+                    }))
+                    .unwrap();
+                return;
+            }
 
-            // pub fn peer_certificates(&self) -> Option<&[CertificateDer<'static>]>
             if let Some(peer_certificates) = tls.conn.peer_certificates() {
                 if let Some(cert) = peer_certificates.first() {
                     // Found peer certificate
@@ -403,27 +403,8 @@ impl Controller {
                 return;
             };
 
-            /*
-            let mut stream = match connector.connect(&host, stream) {
-                Ok(stream) => stream,
-                Err(err) => {
-                    warn!("Could not open tls stream: {} to {}", err, server_details);
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!(
-                                "Could not open tls stream to {}: {}",
-                                server_details, err
-                            ));
-                        }))
-                        .unwrap();
-                    return;
-                }
-            };
-            */
-
             info!("Connected with TLS");
+
             // check certificate
             if let Some(cert) = cert_opt {
                 // TOFU: Check if we already have a certificate fingerprint for a given host
@@ -910,46 +891,65 @@ impl Controller {
         let request_id_ref = self.last_request_id.clone();
         let sender = self.sender.clone();
 
+        let config = Controller::get_tls_client_config(&None, &None);
         thread::spawn(move || {
-            let mut tls = false;
+            let mut use_tls = false;
             let mut buf = vec![];
             // TLS-support. If non-standard-port, try to connect with TLS
             if port != 70 {
-                if let Ok(connector) = TlsConnector::new() {
-                    let stream = TcpStream::connect(server_details.clone())
-                        .expect("Couldn't connect to the server...");
-                    match connector.connect(&server, stream) {
-                        Ok(mut stream) => {
-                            tls = true;
-                            info!("Connected with TLS");
-                            write!(stream, "{}\r\n", path).unwrap();
+                let server_name = server.clone().try_into().unwrap();
+                let mut conn =
+                    rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
 
-                            loop {
-                                match stream.read_to_end(&mut buf) {
-                                    Ok(_) => break,
-                                    Err(e) => {
-                                        sender
-                                            .send(Box::new(move |app| {
-                                                let controller = app
-                                                    .user_data::<Controller>()
-                                                    .expect("controller missing");
-                                                controller
-                                                    .set_message(&format!("I/O error: {}", e));
-                                            }))
-                                            .unwrap();
-                                    }
-                                };
-                            }
+                let stream = TcpStream::connect(server_details.clone());
+                if stream.is_ok() {
+                    let mut stream = stream.unwrap();
+                    match conn.complete_io(&mut stream) {
+                        Err(err) => {
+                            error!("Could not complete TLS handshake: {:?}", err);
+                            use_tls = false;
                         }
-                        Err(e) => {
-                            warn!("Could not open tls stream: {} to {}", e, server_details);
+                        Ok(_) => {
+                            info!("Now connected with tls");
+                            use_tls = true;
+                        }
+                    }
+                    let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+                    if use_tls {
+                        if let Err(err) = tls.write_all(format!("{}\r\n", path).as_bytes()) {
+                            // Something went wrong, could not write write request URL
+                            use_tls = false;
+                            warn!(
+                                "Could not write request URL for address {}: {:?}",
+                                server_details.clone(),
+                                err
+                            );
+                        }
+                    }
+                    if use_tls {
+                        let mut bufr = BufReader::new(tls);
+                        loop {
+                            match bufr.read_to_end(&mut buf) {
+                                Ok(_) => break,
+                                Err(e) => {
+                                    sender
+                                        .send(Box::new(move |app| {
+                                            let controller = app
+                                                .user_data::<Controller>()
+                                                .expect("controller missing");
+                                            controller.set_message(&format!("I/O error: {}", e));
+                                        }))
+                                        .unwrap();
+                                }
+                            };
                         }
                     }
                 } else {
-                    info!("Could not establish tls connection");
+                    use_tls = false;
                 }
             }
-            if !tls {
+            // TLS connection failed or still on port 70
+            if !use_tls {
                 match TcpStream::connect(server_details.clone()) {
                     Ok(mut stream) => {
                         write!(stream, "{}\r\n", path).unwrap();
@@ -1017,10 +1017,10 @@ impl Controller {
 
         let server_details = format!("{}:{}", server, port);
         let sender = self.sender.clone();
-
+        let config = Controller::get_tls_client_config(&None, &None);
         thread::spawn(move || {
             // FIXME: Error handling!
-            let mut tls = false;
+            let mut use_tls = false;
             let open = OpenOptions::new()
                 .write(true)
                 // make sure to not clobber downloaded files
@@ -1033,48 +1033,66 @@ impl Controller {
                     let mut buf = [0u8; 1024];
                     let mut total_written = 0;
                     if port != 70 {
-                        if let Ok(connector) = TlsConnector::new() {
-                            let stream =
-                                TcpStream::connect(server_details.clone()).unwrap_or_else(|_| {
-                                    panic!("Couldn't connect to the server {}", server_details)
-                                });
-                            match connector.connect(&server, stream) {
-                                Ok(mut stream) => {
-                                    tls = true;
-                                    info!("Connected with TLS");
-                                    writeln!(stream, "{}", path).unwrap();
-                                    loop {
-                                        let bytes_read =
-                                            stream.read(&mut buf).expect("Could not read from TCP");
-                                        if bytes_read == 0 {
-                                            break;
-                                        }
-                                        let bytes_written = bw
-                                            .write(&buf[..bytes_read])
-                                            .expect("Could not write to file");
-                                        total_written += bytes_written;
-                                        sender
-                                            .send(Box::new(move |app| {
-                                                let controller = app
-                                                    .user_data::<Controller>()
-                                                    .expect("controller missing");
-                                                controller.set_message(&format!(
-                                                    "{} bytes read",
-                                                    total_written
-                                                ));
-                                            }))
-                                            .unwrap();
+                        let server_name = server.clone().try_into().unwrap();
+                        let mut conn =
+                            rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
+
+                        let stream = TcpStream::connect(server_details.clone());
+                        if stream.is_ok() {
+                            let mut stream = stream.unwrap();
+                            match conn.complete_io(&mut stream) {
+                                Err(err) => {
+                                    error!("Could not complete TLS handshake: {:?}", err);
+                                    use_tls = false;
+                                }
+                                Ok(_) => {
+                                    info!("Now connected with tls");
+                                    use_tls = true;
+                                }
+                            }
+                            let mut tls = rustls::Stream::new(&mut conn, &mut stream);
+                            if use_tls {
+                                if let Err(err) = tls.write_all(format!("{}\r\n", path).as_bytes())
+                                {
+                                    // Something went wrong, could not write write request URL
+                                    use_tls = false;
+                                    warn!(
+                                        "Could not write request URL for address {}: {:?}",
+                                        server_details.clone(),
+                                        err
+                                    );
+                                }
+                            }
+                            if use_tls {
+                                let mut bufr = BufReader::new(tls);
+                                loop {
+                                    let bytes_read =
+                                        bufr.read(&mut buf).expect("Could not read from TCP");
+                                    if bytes_read == 0 {
+                                        break;
                                     }
+                                    let bytes_written = bw
+                                        .write(&buf[..bytes_read])
+                                        .expect("Could not write to file");
+                                    total_written += bytes_written;
+                                    sender
+                                        .send(Box::new(move |app| {
+                                            let controller = app
+                                                .user_data::<Controller>()
+                                                .expect("controller missing");
+                                            controller.set_message(&format!(
+                                                "{} bytes read",
+                                                total_written
+                                            ));
+                                        }))
+                                        .unwrap();
                                 }
-                                Err(e) => {
-                                    warn!("Could not open tls stream: {} to {}", e, server_details);
-                                }
-                            };
+                            }
                         } else {
-                            info!("Could not establish tls connection");
+                            use_tls = false;
                         }
                     }
-                    if !tls {
+                    if !use_tls {
                         let mut stream = TcpStream::connect(server_details.clone())
                             .expect("Couldn't connect to the server...");
                         writeln!(stream, "{}", path).unwrap();
@@ -2006,33 +2024,31 @@ impl Controller {
         params
             .distinguished_name
             .push(DnType::CommonName, common_name.as_str());
-        if let Ok(cert) = Certificate::from_params(params) {
-            if let (Ok(cert_pem), private_key) =
-                (cert.serialize_pem(), cert.serialize_private_key_pem())
-            {
+        if let Ok(key_pair) = KeyPair::generate() {
+            if let Ok(cert) = params.self_signed(&key_pair) {
+                let (cert_pem, private_key) = (cert.pem(), key_pair.serialize_pem());
                 // Create fingerprint:
-                if let Ok(der_serialized) = cert.serialize_der() {
-                    let hash = ring::digest::digest(&ring::digest::SHA256, &der_serialized);
-                    let fingerprint: String = hash
-                        .as_ref()
-                        .iter()
-                        .map(|b| format!("{:02X}", b))
-                        .collect::<Vec<String>>()
-                        .join(":");
+                let der_serialized = cert.der();
+                let hash = ring::digest::digest(&ring::digest::SHA256, &der_serialized);
+                let fingerprint: String = hash
+                    .as_ref()
+                    .iter()
+                    .map(|b| format!("{:02X}", b))
+                    .collect::<Vec<String>>()
+                    .join(":");
 
-                    let client_certificate = ClientCertificate {
-                        common_name,
-                        note,
-                        fingerprint,
-                        cert: cert_pem,
-                        private_key,
-                        expiration_date,
-                    };
-                    self.client_certificates
-                        .lock()
-                        .unwrap()
-                        .insert(client_certificate, &specified_url);
-                }
+                let client_certificate = ClientCertificate {
+                    common_name,
+                    note,
+                    fingerprint,
+                    cert: cert_pem,
+                    private_key,
+                    expiration_date,
+                };
+                self.client_certificates
+                    .lock()
+                    .unwrap()
+                    .insert(client_certificate, &specified_url);
             }
         }
     }

@@ -5,6 +5,7 @@ extern crate log;
 extern crate base64;
 extern crate dirs;
 extern crate idna;
+extern crate linkify;
 extern crate percent_encoding;
 extern crate rcgen;
 extern crate ring;
@@ -13,10 +14,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 extern crate x509_parser;
-extern crate linkify;
 
-use ::time::OffsetDateTime;
-use ::time::format_description::well_known::Rfc3339;
 use clap::Parser;
 use controller::Controller;
 use lazy_static::lazy_static;
@@ -24,6 +22,8 @@ use settings::Settings;
 use std::fs::File;
 use std::io::{stdout, Write};
 use std::sync::RwLock;
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use url::Url;
 
 mod bookmarks;
@@ -59,19 +59,13 @@ impl log::Log for Logger {
     }
     fn log(&self, record: &log::Record) {
         let timestr = OffsetDateTime::now_local()
-            .unwrap_or_else(|_| OffsetDateTime::now_utc()).format(&Rfc3339).unwrap();
+            .unwrap_or_else(|_| OffsetDateTime::now_utc())
+            .format(&Rfc3339)
+            .unwrap();
         self.file
             .write()
             .unwrap()
-            .write_all(
-                format!(
-                    "{} [{:5}] {}\n",
-                    timestr,
-                    record.level(),
-                    record.args()
-                )
-                .as_bytes(),
-            )
+            .write_all(format!("{} [{:5}] {}\n", timestr, record.level(), record.args()).as_bytes())
             .unwrap_or(());
     }
     fn flush(&self) {
