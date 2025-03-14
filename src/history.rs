@@ -1,7 +1,7 @@
 use ::time::OffsetDateTime;
 use rusqlite::{params, Connection, Result};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::rc::Rc;
 use url::Url;
 
 #[derive(Clone, Debug)]
@@ -19,13 +19,13 @@ pub struct History {
     /// Navigational stack, used for back-functionality
     pub stack: Vec<HistoryEntry>,
     /// Log of all visited gopherholes
-    sql: Arc<Connection>,
+    sql: Rc<Connection>,
 }
 
 impl History {
     pub fn new() -> Result<Self> {
         info!("Creating history object");
-        let connection = Arc::new(Connection::open(History::get_history_filename())?);
+        let connection = Rc::new(Connection::open(History::get_history_filename())?);
         connection.execute(
             "CREATE TABLE IF NOT EXISTS history (
              id INTEGER PRIMARY KEY,

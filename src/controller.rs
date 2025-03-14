@@ -20,7 +20,6 @@ use cursive::{
 use linkify::{LinkFinder, LinkKind};
 use mime::Mime;
 use rcgen::{date_time_ymd, CertificateParams, DistinguishedName, DnType, KeyPair};
-use rustls;
 use rustls::crypto::{ring as provider, CryptoProvider};
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
 use rustls_pemfile::{read_one, Item};
@@ -32,6 +31,7 @@ use std::iter;
 use std::net::TcpStream;
 use std::path::Path;
 use std::process::Command;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use stringreader::StringReader;
@@ -50,7 +50,6 @@ pub enum Direction {
 const HISTORY_LEN: usize = 10;
 
 mod danger {
-    use super::rustls;
     use rustls::client::danger::HandshakeSignatureValid;
     use rustls::client::danger::ServerCertVerified;
     use rustls::client::danger::ServerCertVerifier;
@@ -118,11 +117,24 @@ mod danger {
     }
 }
 
+macro_rules! client_msg {
+    ($sender:ident, $($arg:tt)+) => {
+        $sender
+            .send(Box::new(move |app| {
+                let controller = app.user_data::<Controller>().expect("controller missing");
+                controller.set_message(&format!($($arg)+));
+            }))
+            .unwrap();
+    };
+}
+
+type SenderCursive = crossbeam_channel::Sender<Box<dyn FnOnce(&mut Cursive) + 'static + Send>>;
+
 #[derive(Clone)]
 pub struct Controller {
-    sender: crossbeam_channel::Sender<Box<dyn FnOnce(&mut Cursive) + 'static + Send>>,
+    sender: SenderCursive,
     /// The browsing history
-    pub(crate) history: Arc<Mutex<History>>,
+    pub(crate) history: Rc<Mutex<History>>,
     /// Bookmarks
     pub(crate) bookmarks: Arc<Mutex<Bookmarks>>,
     /// ClientCertificates (gemini)
@@ -153,7 +165,7 @@ impl Controller {
 
         let mut controller = Controller {
             sender: app.cb_sink().clone(),
-            history: Arc::new(Mutex::new(History::new()?)),
+            history: Rc::new(Mutex::new(History::new()?)),
             bookmarks: Arc::new(Mutex::new(Bookmarks::new())),
             client_certificates: Arc::new(Mutex::new(ClientCertificates::new())),
             certificates: Arc::new(Mutex::new(Certificates::new())),
@@ -192,9 +204,9 @@ impl Controller {
         Ok(())
     }
 
-    fn get_tls_client_config<'a, 'b>(
-        client_cert: &Option<CertificateDer<'a>>,
-        client_key_pem: &Option<PrivateKeyDer<'b>>,
+    fn get_tls_client_config(
+        client_cert: &Option<CertificateDer>,
+        client_key_pem: &Option<PrivateKeyDer>,
     ) -> rustls::ClientConfig {
         let suites = provider::DEFAULT_CIPHER_SUITES.to_vec();
         let versions = rustls::DEFAULT_VERSIONS.to_vec();
@@ -297,7 +309,7 @@ impl Controller {
                     client_cert_fingerprint = Some(fingerprint.clone());
                     let key_pem = client_certificates.get_cert_by_fingerprint(&fingerprint);
                     if let Some(key_pem) = key_pem {
-                        let streader = StringReader::new(&key_pem.as_str());
+                        let streader = StringReader::new(key_pem.as_str());
                         let mut bufreader = BufReader::new(streader);
                         for item in iter::from_fn(|| read_one(&mut bufreader).transpose()) {
                             match item.unwrap() {
@@ -316,7 +328,7 @@ impl Controller {
                         client_certificates.get_private_key_by_fingerprint(&fingerprint);
 
                     if let Some(pk_pem) = private_key_pem {
-                        let reader = StringReader::new(&pk_pem.as_str());
+                        let reader = StringReader::new(pk_pem.as_str());
                         let mut bufreader = BufReader::new(reader);
                         for item in iter::from_fn(|| read_one(&mut bufreader).transpose()) {
                             match item.unwrap() {
@@ -351,14 +363,7 @@ impl Controller {
             let mut stream = match TcpStream::connect(server_details) {
                 Ok(stream) => stream,
                 Err(err) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller
-                                .set_message(&format!("Could not connect to server: {}", err));
-                        }))
-                        .unwrap();
+                    client_msg!(sender, "Could not connect to server: {}", err);
                     return;
                 }
             };
@@ -376,13 +381,7 @@ impl Controller {
                     "Could not write request URL for address {}: {:?}",
                     server_details, err
                 );
-                sender
-                    .send(Box::new(move |app| {
-                        let controller = app.user_data::<Controller>().expect("controller missing");
-                        controller
-                            .set_message(&format!("Could not write request address to server."));
-                    }))
-                    .unwrap();
+                client_msg!(sender, "Could not write request address to server.");
                 return;
             }
 
@@ -394,12 +393,7 @@ impl Controller {
             } else {
                 // Something went wrong, could not get peer certificates
                 warn!("Could not get peer certificates for {}", server_details);
-                sender
-                    .send(Box::new(move |app| {
-                        let controller = app.user_data::<Controller>().expect("controller missing");
-                        controller.set_message(&format!("Could not get peer certificate."));
-                    }))
-                    .unwrap();
+                client_msg!(sender, "Could not get peer certificate.");
                 return;
             };
 
@@ -408,7 +402,7 @@ impl Controller {
             // check certificate
             if let Some(cert) = cert_opt {
                 // TOFU: Check if we already have a certificate fingerprint for a given host
-                let hash = ring::digest::digest(&ring::digest::SHA256, &cert);
+                let hash = ring::digest::digest(&ring::digest::SHA256, cert);
                 let cert_fingerprint = general_purpose::STANDARD.encode(hash);
                 info!("Peer certificate: {:?}", &cert_fingerprint);
 
@@ -434,16 +428,11 @@ impl Controller {
                             return;
                         } else {
                             let targeturl = url.clone();
-                            sender
-                                .send(Box::new(move |app| {
-                                    let controller =
-                                        app.user_data::<Controller>().expect("controller missing");
-                                    controller.set_message(&format!(
-                                        "Certificate fingerprint matches for {}",
-                                        targeturl
-                                    ));
-                                }))
-                                .unwrap();
+                            client_msg!(
+                                sender,
+                                "Certificate fingerprint matches for {}",
+                                targeturl
+                            );
                         }
                     }
                     None => {
@@ -469,13 +458,7 @@ impl Controller {
                             info!("Certificate valid {:?}", duration);
                         }
                         None => {
-                            sender
-                                .send(Box::new(move |app| {
-                                    let controller =
-                                        app.user_data::<Controller>().expect("controller missing");
-                                    controller.set_message("Server certificate expired.");
-                                }))
-                                .unwrap();
+                            client_msg!(sender, "Server certificate expired.");
                         }
                     }
                 }
@@ -488,19 +471,13 @@ impl Controller {
             match bufr.read_line(&mut buf) {
                 Ok(_) => (),
                 Err(e) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!("I/O error: {}", e));
-                        }))
-                        .unwrap();
+                    client_msg!(sender, "I/O error: {}", e);
                     return;
                 }
             }
-            let buf = buf.trim();
+            let trimmed_buf = buf.trim();
             // "text/gemini; charset=utf-8"
-            info!("Got gemini header: {}:  {}", buf.len(), buf);
+            info!("Got gemini header: {}:  {}", trimmed_buf.len(), trimmed_buf);
 
             {
                 // Abort request, if user triggered a newer request
@@ -511,12 +488,7 @@ impl Controller {
             }
 
             if buf.is_empty() {
-                sender
-                    .send(Box::new(move |app| {
-                        let controller = app.user_data::<Controller>().expect("controller missing");
-                        controller.set_message("Could not read from stream");
-                    }))
-                    .unwrap();
+                client_msg!(sender, "Could not read from stream");
                 return;
             }
 
@@ -525,12 +497,7 @@ impl Controller {
             let meta = buf.chars().skip(3).collect::<String>();
             // <META> has a maximum size
             if meta.len() > 1024 {
-                sender
-                    .send(Box::new(move |app| {
-                        let controller = app.user_data::<Controller>().expect("controller missing");
-                        controller.set_message("Invalid header from server: <META> too large");
-                    }))
-                    .unwrap();
+                client_msg!(sender, "Invalid header from server: <META> too large");
                 return;
             }
 
@@ -545,27 +512,16 @@ impl Controller {
                 } else if matches!(other, Some(c) if c.is_ascii_digit()) {
                     // the second char is an ASCII digit, but this code is not handled
                     let char = buf.chars().take(2).collect::<String>();
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!("unknown status code {}", char));
-                        }))
-                        .unwrap();
+                    client_msg!(sender, "Unknown status code {}", char);
                 } else {
                     // either the second char is not an ASCII digit
                     // or does not exist at all
                     let buf_str = buf.to_string();
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!(
-                                "invalid header from server: invalid status code: {}",
-                                buf_str
-                            ));
-                        }))
-                        .unwrap();
+                    client_msg!(
+                        sender,
+                        "Invalid header from server: invalid status code: {}",
+                        buf_str
+                    );
                     // the header is already invalid, no need to check further
                     return false;
                 }
@@ -578,16 +534,11 @@ impl Controller {
                     } else {
                         // really no idea what this is
                         let buf_str = buf.to_string();
-                        sender
-                            .send(Box::new(move |app| {
-                                let controller =
-                                    app.user_data::<Controller>().expect("controller missing");
-                                controller.set_message(&format!(
-                                    "invalid header from server: malformed: {}",
-                                    buf_str
-                                ));
-                            }))
-                            .unwrap();
+                        client_msg!(
+                            sender,
+                            "Invalid header from server: malformed: {}",
+                            &buf_str
+                        );
                         return false;
                     }
                 }
@@ -658,16 +609,7 @@ impl Controller {
 
                         let mut buf = vec![];
                         bufr.read_to_end(&mut buf).unwrap_or_else(|err| {
-                            sender
-                                .send(Box::new(move |app| {
-                                    let controller =
-                                        app.user_data::<Controller>().expect("controller missing");
-                                    controller.set_message(&format!(
-                                        "I/O error: {}",
-                                        err
-                                    ));
-                                }))
-                                .unwrap();
+                            client_msg!(sender, "I/O error: {}", err);
                             0
                         });
 
@@ -709,16 +651,7 @@ impl Controller {
                                         .write(&buf[..bytes_read])
                                         .expect("Could not write to file");
                                     total_written += bytes_written;
-                                    sender
-                                        .send(Box::new(move |app| {
-                                            let controller =
-                                                app.user_data::<Controller>().expect("controller missing");
-                                            controller.set_message(&format!(
-                                                "{} bytes read",
-                                                total_written
-                                            ));
-                                        }))
-                                        .unwrap();
+                                    client_msg!(sender, "{} bytes read", total_written);
                                 }
                                 sender
                                     .send(Box::new(move |app| {
@@ -838,18 +771,11 @@ impl Controller {
                     }
                 }
                 other => {
-                    let message = if other.is_some() {
-                        format!("invalid header from server: invalid status code: {}", buf)
+                    if other.is_some() {
+                        client_msg!(sender, "invalid header from server: invalid status code: {}", buf);
                     } else {
-                        format!("invalid header from server: missing status code: {}", buf)
+                        client_msg!(sender, "invalid header from server: missing status code: {}", buf);
                     };
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&message);
-                        }))
-                        .unwrap();
                 }
             }
             info!("finished reading from gemini stream");
@@ -932,14 +858,7 @@ impl Controller {
                             match bufr.read_to_end(&mut buf) {
                                 Ok(_) => break,
                                 Err(e) => {
-                                    sender
-                                        .send(Box::new(move |app| {
-                                            let controller = app
-                                                .user_data::<Controller>()
-                                                .expect("controller missing");
-                                            controller.set_message(&format!("I/O error: {}", e));
-                                        }))
-                                        .unwrap();
+                                    client_msg!(sender, "I/O error: {}", e);
                                 }
                             };
                         }
@@ -957,27 +876,13 @@ impl Controller {
                             match stream.read_to_end(&mut buf) {
                                 Ok(_) => break,
                                 Err(e) => {
-                                    sender
-                                        .send(Box::new(move |app| {
-                                            let controller = app
-                                                .user_data::<Controller>()
-                                                .expect("controller missing");
-                                            controller.set_message(&format!("I/O error: {}", e));
-                                        }))
-                                        .unwrap();
+                                    client_msg!(sender, "I/O error: {}", e);
                                 }
                             }
                         }
                     }
                     Err(e) => {
-                        sender
-                            .send(Box::new(move |app| {
-                                let controller =
-                                    app.user_data::<Controller>().expect("controller missing");
-                                controller
-                                    .set_message(&format!("Couldn't connect to server: {}", e));
-                            }))
-                            .unwrap();
+                        client_msg!(sender, "Couldn't connect to server: {}", e);
                         return;
                     }
                 };
@@ -1075,17 +980,7 @@ impl Controller {
                                         .write(&buf[..bytes_read])
                                         .expect("Could not write to file");
                                     total_written += bytes_written;
-                                    sender
-                                        .send(Box::new(move |app| {
-                                            let controller = app
-                                                .user_data::<Controller>()
-                                                .expect("controller missing");
-                                            controller.set_message(&format!(
-                                                "{} bytes read",
-                                                total_written
-                                            ));
-                                        }))
-                                        .unwrap();
+                                    client_msg!(sender, "{} bytes written", total_written);
                                 }
                             }
                         } else {
@@ -1106,14 +1001,7 @@ impl Controller {
                                 .write(&buf[..bytes_read])
                                 .expect("Could not write to file");
                             total_written += bytes_written;
-                            sender
-                                .send(Box::new(move |app| {
-                                    let controller =
-                                        app.user_data::<Controller>().expect("controller missing");
-                                    controller
-                                        .set_message(&format!("{} bytes read", total_written));
-                                }))
-                                .unwrap();
+                            client_msg!(sender, "{} bytes written", total_written);
                         }
                     }
                     sender
@@ -1132,16 +1020,7 @@ impl Controller {
                         .unwrap();
                 }
                 Err(err) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!(
-                                "Unable to open file: '{}' {}",
-                                local_filename, err
-                            ));
-                        }))
-                        .unwrap();
+                    client_msg!(sender, "Unable to open file: '{}' {}", local_filename, err);
                 }
             }
         });
@@ -1197,26 +1076,13 @@ impl Controller {
                         match stream.read_to_end(&mut buf) {
                             Ok(_) => break,
                             Err(e) => {
-                                sender
-                                    .send(Box::new(move |app| {
-                                        let controller = app
-                                            .user_data::<Controller>()
-                                            .expect("controller missing");
-                                        controller.set_message(&format!("I/O error: {}", e));
-                                    }))
-                                    .unwrap();
+                                client_msg!(sender, "I/O error: {}", e);
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    sender
-                        .send(Box::new(move |app| {
-                            let controller =
-                                app.user_data::<Controller>().expect("controller missing");
-                            controller.set_message(&format!("Couldn't connect to server: {}", e));
-                        }))
-                        .unwrap();
+                    client_msg!(sender, "Couldn't connect to server: {}", e);
                     return;
                 }
             };
@@ -2029,7 +1895,7 @@ impl Controller {
                 let (cert_pem, private_key) = (cert.pem(), key_pair.serialize_pem());
                 // Create fingerprint:
                 let der_serialized = cert.der();
-                let hash = ring::digest::digest(&ring::digest::SHA256, &der_serialized);
+                let hash = ring::digest::digest(&ring::digest::SHA256, der_serialized);
                 let fingerprint: String = hash
                     .as_ref()
                     .iter()
