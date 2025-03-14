@@ -33,7 +33,7 @@ rusqlite = { version = "0.34.0", features = ["url", "time"] }
 gemtext = "0.2.1"
 rustls = { version = "0.23.2", default-features = false, features = ["ring", "std"] }
 x509-parser = "0.17.0"
-ring = "0.17.8"
+ring = "0.17.14"
 time = { version = "0.3.36", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"
 base64 = "0.22"
