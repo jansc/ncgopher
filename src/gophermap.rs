@@ -50,6 +50,9 @@ impl GopherMapEntry {
         // Remove ANSI sequences. baud.baby, I'm looking at you
         let ansi_sequences = Regex::new(r"(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]").unwrap();
         name = ansi_sequences.replace_all(name.as_str(), "").to_string();
+        if name.ends_with("\r") {
+            name.pop();
+        }
 
         let mut url = Url::parse("gopher://example.com").unwrap();
         let mut selector = String::from("");
@@ -65,7 +68,7 @@ impl GopherMapEntry {
                 host,
                 port,
                 url,
-            })
+            });
         } else {
             if l.len() <= 3 {
                 // Happens e.g. if a text file is parsed as a gophermap
