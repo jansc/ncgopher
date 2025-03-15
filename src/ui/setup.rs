@@ -9,7 +9,9 @@ use cursive::{
     event::Key,
     menu::Tree,
     view::{Nameable, Resizable, Scrollable},
-    views::{Dialog, NamedView, OnEventView, ResizedView, ScrollView, SelectView, ViewRef},
+    views::{
+        Dialog, NamedView, OnEventView, ResizedView, ScrollView, SelectView, TextView, ViewRef,
+    },
     Cursive, View,
 };
 use url::Url;
@@ -175,7 +177,10 @@ fn setup_keys(app: &mut Cursive) {
     );
     app.add_global_callback(keybindings.add_bookmark, dialogs::add_bookmark_current_url);
     app.add_global_callback(keybindings.show_help, |s| {
-        s.add_layer(Dialog::info(render_help_text().as_str()))
+        s.add_layer(
+            Dialog::around(TextView::new(render_help_text().as_str()).scrollable())
+                .dismiss_button("Ok"),
+        );
     });
     app.add_global_callback(keybindings.search_in_text, move |app| {
         app.call_on_name("main", |v: &mut Layout| v.enable_search())
@@ -270,7 +275,10 @@ fn setup_menu(app: &mut Cursive) {
                 "Help",
                 Tree::new()
                     .leaf("Keys", |s| {
-                        s.add_layer(Dialog::info(render_help_text().as_str()))
+                        s.add_layer(
+                            Dialog::around(TextView::new(render_help_text().as_str()).scrollable())
+                                .dismiss_button("Ok"),
+                        )
                     })
                     .leaf("Extended", |app| {
                         app.user_data::<Controller>()
