@@ -87,6 +87,10 @@ you will most likely be able to tell what is missing.
 
     doas pkg_add sqlite3 rust
 
+### Void Linux
+
+    sudo xbps-install -S base-devel ncurses-devel openssl-devel sqlite-devel
+
 ### MSYS2 (Windows, MINGW64 terminal)
 
     pacman -S base-devel mingw-w64-x86_64-pkgconf mingw-w64-x86_64-rust mingw-w64-x86_64-ncurses mingw-w64-x86_64-openssl mingw-w64-x86_64-sqlite3
