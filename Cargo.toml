@@ -31,7 +31,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.8.19"
 rusqlite = { version = "0.34.0", features = ["url", "time"] }
 gemtext = "0.2.1"
-rustls = { version = "0.23.29", default-features = false, features = ["ring", "std"] }
+rustls = { version = "0.23.31", default-features = false, features = ["ring", "std"] }
 x509-parser = "0.17.0"
 ring = "0.17.8"
 time = { version = "0.3.41", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
