@@ -828,8 +828,7 @@ impl Controller {
                     rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
 
                 let stream = TcpStream::connect(server_details.clone());
-                if stream.is_ok() {
-                    let mut stream = stream.unwrap();
+                if let Ok(mut stream) = stream {
                     match conn.complete_io(&mut stream) {
                         Err(err) => {
                             error!("Could not complete TLS handshake: {:?}", err);
@@ -943,8 +942,7 @@ impl Controller {
                             rustls::ClientConnection::new(Arc::new(config), server_name).unwrap();
 
                         let stream = TcpStream::connect(server_details.clone());
-                        if stream.is_ok() {
-                            let mut stream = stream.unwrap();
+                        if let Ok(mut stream) = stream {
                             match conn.complete_io(&mut stream) {
                                 Err(err) => {
                                     error!("Could not complete TLS handshake: {:?}", err);

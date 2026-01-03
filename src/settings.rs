@@ -180,10 +180,8 @@ fn default_download_path() -> String {
         Some([&home, "Downloads"].iter().collect::<PathBuf>())
     } else if let Ok(tmp) = env::var("TMP") {
         Some(PathBuf::from(tmp))
-    } else if let Ok(cwd) = env::current_exe() {
-        Some(cwd)
     } else {
-        None
+        env::current_exe().ok()
     };
 
     if let Some(dl_dir) = dl_dir {

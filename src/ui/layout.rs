@@ -116,7 +116,7 @@ impl Layout {
 
 impl View for Layout {
     fn draw(&self, printer: &Printer<'_, '_>) {
-        let search_visible = self.search.get_content().len() > 0;
+        let search_visible = !self.search.get_content().is_empty();
         let screen = self.get_current_screen();
         // screen title
         printer.with_color(ColorStyle::title_primary(), |printer| {
@@ -167,7 +167,7 @@ impl View for Layout {
     }
 
     fn on_event(&mut self, event: Event) -> EventResult {
-        let search_visible = self.search.get_content().len() > 0;
+        let search_visible = !self.search.get_content().is_empty();
         if let Event::Mouse { position, .. } = event {
             if position.y < self.last_size.y.saturating_sub(2) {
                 if let Some(ref id) = self.focus {
