@@ -1,5 +1,18 @@
 # Release notes
 
+## 0.8.0
+
+  Changes:
+  * Upgraded dependencies
+
+  New features:
+  * Use rustls instead of native-tls
+  * Made key bindings dialog scrollable
+
+  Bugfixes:
+  * Fixed TOFO
+  * Remove trailing carriage feed characters from gopher content
+
 ## 0.7.0
 
  Changes:
