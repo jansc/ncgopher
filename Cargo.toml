@@ -18,23 +18,23 @@ repository = "jansc/ncgopher"
 
 [dependencies]
 backtrace = "0.3"
-unicode-width = "0.2.1"
+unicode-width = "0.2.2"
 url = { version = "2.5", features = ["serde"] }
 urlencoding = "2.1.3"
 lazy_static = "1.5.0"
-clap = { version = "4.5.45", features = ["derive"] }
-log = { version = "0.4.28", features = ["std"] }
+clap = { version = "4.5.54", features = ["derive"] }
+log = { version = "0.4.29", features = ["std"] }
 dirs = "6.0.0"
 rcgen = "0.14"
 serde_derive = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8.19"
-rusqlite = { version = "0.37.0", features = ["url", "time"] }
+toml = "0.9.10"
+rusqlite = { version = "0.38.0", features = ["url", "time"] }
 gemtext = "0.2.1"
-rustls = { version = "0.23.34", default-features = false, features = ["ring", "std"] }
-x509-parser = "0.17.0"
-ring = "0.17.8"
-time = { version = "0.3.41", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
+rustls = { version = "0.23.35", default-features = false, features = ["ring", "std"] }
+x509-parser = "0.18.0"
+ring = "0.17.14"
+time = { version = "0.3.44", features = ["serde", "serde-human-readable", "std", "formatting", "parsing"] }
 pancurses = "0.17.0"
 base64 = "0.22"
 percent-encoding = "2.3"
@@ -45,4 +45,4 @@ regex = "1"
 mime = "0.3.17"
 linkify = "0.10.0"
 stringreader = "0.1.1"
-rustls-pemfile = "2.1.1"
+rustls-pemfile = "2.2.0"
