@@ -28,7 +28,7 @@ dirs = "6.0.0"
 rcgen = "0.14"
 serde_derive = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.9.10"
+toml = "0.9.11"
 rusqlite = { version = "0.38.0", features = ["url", "time"] }
 gemtext = "0.2.1"
 rustls = { version = "0.23.36", default-features = false, features = ["ring", "std"] }
