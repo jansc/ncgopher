@@ -1778,7 +1778,8 @@ impl Controller {
         // respecting the order so add_bookmark_action works correctly
         for entry in bookmarks.iter().rev() {
             let url = entry.url.clone();
-            menutree.insert_leaf(3, &b.title, move |app| {
+            let title = entry.title.clone();
+            menutree.insert_leaf(3, &title, move |app| {
                 app.user_data::<Controller>()
                     .expect("controller missing")
                     .open_url(url.clone(), true, 0);
