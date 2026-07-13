@@ -58,8 +58,7 @@ impl log::Log for Logger {
         true
     }
     fn log(&self, record: &log::Record) {
-        let timestr = OffsetDateTime::now_local()
-            .unwrap_or_else(|_| OffsetDateTime::now_utc())
+        let timestr = OffsetDateTime::now_utc()
             .format(&Rfc3339)
             .unwrap();
         self.file

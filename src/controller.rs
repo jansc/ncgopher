@@ -1480,7 +1480,7 @@ impl Controller {
                 let h = HistoryEntry {
                     title: url.to_string(),
                     url: url.clone(),
-                    timestamp: OffsetDateTime::now_local().unwrap_or(OffsetDateTime::now_utc()),
+                    timestamp: OffsetDateTime::now_utc(),
                     visited_count: 1,
                     position: 0,
                 };
@@ -1778,7 +1778,8 @@ impl Controller {
         // respecting the order so add_bookmark_action works correctly
         for entry in bookmarks.iter().rev() {
             let url = entry.url.clone();
-            menutree.insert_leaf(3, &b.title, move |app| {
+            let title = entry.title.clone();
+            menutree.insert_leaf(3, &title, move |app| {
                 app.user_data::<Controller>()
                     .expect("controller missing")
                     .open_url(url.clone(), true, 0);
