@@ -1480,7 +1480,7 @@ impl Controller {
                 let h = HistoryEntry {
                     title: url.to_string(),
                     url: url.clone(),
-                    timestamp: OffsetDateTime::now_local().unwrap_or(OffsetDateTime::now_utc()),
+                    timestamp: OffsetDateTime::now_utc(),
                     visited_count: 1,
                     position: 0,
                 };
