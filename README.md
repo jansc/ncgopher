@@ -56,6 +56,12 @@ NixOS users can install ncgopher using nix-env:
 
     nix-env -iA nixos.ncgopher
 
+### Void Linux
+
+Void Linux users can install ncgopher using xbps-install:
+
+    sudo xbps-install -S ncgopher
+
 ### FreeBSD
 
     doas pkg install ncgopher
