@@ -185,9 +185,9 @@ pub(super) fn edit_history(app: &mut Cursive) {
         .expect("could not get latest history");
     let mut view: SelectView<HistoryEntry> = SelectView::new();
 
-    let format = format_description::parse(
-        "[year]-[month]-[day] [hour]:[minute]:[second]"
-    ).expect("Could not parse timestamp format");
+    let format =
+        format_description::parse_borrowed::<1>("[year]-[month]-[day] [hour]:[minute]:[second]")
+            .expect("Could not parse timestamp format");
     for e in entries {
         let mut url = e.url.to_string();
         url.truncate(50);
@@ -453,8 +453,8 @@ pub(crate) fn manage_client_certificates(app: &mut Cursive) {
     let mut view: SelectView<ClientCertificate> = SelectView::new();
     for cc in client_certificates {
         let mut common_name = format!("{:<30}", cc.common_name.clone().as_str());
-        let format =
-            format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+        let format = format_description::parse_borrowed::<1>("[year]-[month]-[day]")
+            .expect("Could not parse date format");
         let now = OffsetDateTime::now_utc().date();
         let expiration_date = format!("{:<10}", cc.expiration_date.format(&format).unwrap());
         let warning = if now > cc.expiration_date { "!" } else { " " };
@@ -551,8 +551,8 @@ pub(crate) fn choose_client_certificate(app: &mut Cursive, url: Url) {
     let mut view: SelectView<ClientCertificate> = SelectView::new();
     for cc in client_certificates {
         let mut common_name = format!("{:<30}", cc.common_name.clone().as_str());
-        let format =
-            format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+        let format = format_description::parse_borrowed::<1>("[year]-[month]-[day]")
+            .expect("Could not parse date format");
         let now = OffsetDateTime::now_utc().date();
         let expiration_date = format!("{:<10}", cc.expiration_date.format(&format).unwrap());
         let warning = if now > cc.expiration_date { "!" } else { " " };
@@ -675,8 +675,8 @@ pub fn add_client_certificate(app: &mut Cursive, url: Option<Url>) {
     date = date
         .replace_year(date.year() + 1)
         .expect("Cannot create expiry date");
-    let format =
-        format_description::parse("[year]-[month]-[day]").expect("Could not parse date format");
+    let format = format_description::parse_borrowed::<1>("[year]-[month]-[day]")
+        .expect("Could not parse date format");
     let expiry_date = date.format(&format).unwrap();
     let original_url = url.clone();
 
@@ -738,7 +738,7 @@ pub fn add_client_certificate(app: &mut Cursive, url: Option<Url>) {
                 }
 
                 // Validate date
-                let format = format_description::parse(
+                let format = format_description::parse_borrowed::<1>(
                     "[year]-[month]-[day]"
                 ).expect("Could not parse date format");
                 let valid_until_date : Date = date;

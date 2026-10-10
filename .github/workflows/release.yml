@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate tag and package version; create source archive
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          package_version="$(cargo metadata --no-deps --locked --format-version 1 | jq -r '.packages[] | select(.name == "ncgopher") | .version')"
+          if [[ "$tag_version" != "$package_version" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match Cargo package version ${package_version}" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          archive="dist/ncgopher-${package_version}-source.tar.gz"
+          git archive --format=tar.gz --prefix="ncgopher-${package_version}/" "$GITHUB_SHA" > "$archive"
+          echo "path=$archive" >> "$GITHUB_OUTPUT"
+      - name: Attest source archive
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.archive.outputs.path }}
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "${{ steps.archive.outputs.path }}" --repo "$GITHUB_REPOSITORY" --generate-notes --verify-tag

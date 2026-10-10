@@ -21,4 +21,6 @@ jobs:
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: cargo check
-        run: cargo check
+        run: cargo check --locked
+      - name: cargo test
+        run: cargo test --locked

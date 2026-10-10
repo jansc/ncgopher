@@ -1,5 +1,13 @@
 * NcGopher Changelog
 
+** 0.8.2
+
+  Changes:
+  * Corrected the crate version to match the release tag
+
+  Bugfixes:
+  * Replaced deprecated time format parser calls
+
 ** 0.8.0
 
   Changes:
