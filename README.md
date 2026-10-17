@@ -44,6 +44,32 @@ Obligatory screenshot:
 ## Installation
 
 
+### macOS (Homebrew)
+
+macOS users can install ncgopher using Homebrew. The formula lives in this
+repository, so tap it by URL first:
+
+    brew tap jansc/ncgopher https://github.com/jansc/ncgopher
+    brew install jansc/ncgopher/ncgopher
+
+To build the latest development version instead, add `--HEAD` to the install
+command. The formula builds against Homebrew's ncurses, and Homebrew installs
+Rust as a build dependency.
+
+Do not build against the ncurses that ships with macOS: it defines `mmask_t` as
+a 64-bit type, which the `ncurses` Rust crate does not expect, so ncgopher
+crashes with a segmentation fault on the first mouse click. If you build with
+`cargo` on macOS, use Homebrew's ncurses instead:
+
+    brew install ncurses pkgconf
+    PKG_CONFIG_PATH="$(brew --prefix ncurses)/lib/pkgconfig" cargo install ncgopher
+
+The external commands for HTML, images and Telnet are empty by default. To open
+web links in your browser, set the HTML command to `open` in the settings
+dialog. Gopher servers choose the URLs and file names that are handed to that
+command, and `open` launches whichever macOS application handles them, so only
+enable it if you accept that. The same applies to the image command.
+
 ### Arch Linux
 
 Arch Linux users can install ncgopher using pacman:

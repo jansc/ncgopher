@@ -5,3 +5,17 @@ updates:
   schedule:
     interval: daily
     time: "04:00"
+  groups:
+    cargo-minor-patch:
+      update-types:
+      - minor
+      - patch
+- package-ecosystem: github-actions
+  directory: "/"
+  schedule:
+    interval: weekly
+  groups:
+    actions-minor-patch:
+      update-types:
+      - minor
+      - patch
