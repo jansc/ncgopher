@@ -6,14 +6,17 @@ on:
   pull_request:
     branches: [ master ]
 
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install dependencies
         run: sudo apt update && sudo apt install build-essential pkg-config libncurses-dev libsqlite3-dev
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry
@@ -22,3 +25,27 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: cargo check
         run: cargo check
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install ncurses
+        run: brew install ncurses pkgconf
+      - name: cargo build
+        env:
+          PKG_CONFIG_PATH: /opt/homebrew/opt/ncurses/lib/pkgconfig
+        run: cargo build --locked
+      - name: Check Homebrew formula
+        run: |
+          brew tap-new --no-git ncgopher/ci
+          cp Formula/ncgopher.rb "$(brew --repository ncgopher/ci)/Formula/"
+          brew style ncgopher/ci/ncgopher
+          brew audit --strict ncgopher/ci/ncgopher
