@@ -46,6 +46,7 @@ jobs:
       - name: Check Homebrew formula
         run: |
           brew tap-new --no-git ncgopher/ci
+          brew trust ncgopher/ci
           cp Formula/ncgopher.rb "$(brew --repository ncgopher/ci)/Formula/"
           brew style ncgopher/ci/ncgopher
           brew audit --strict ncgopher/ci/ncgopher
