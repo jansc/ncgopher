@@ -169,17 +169,19 @@ impl View for Layout {
     fn on_event(&mut self, event: Event) -> EventResult {
         let search_visible = !self.search.get_content().is_empty();
         if let Event::Mouse { position, .. } = event {
+            let mut result = EventResult::Consumed(None);
             if position.y < self.last_size.y.saturating_sub(2) {
                 if let Some(ref id) = self.focus {
                     let screen = self.views.get_mut(id).unwrap();
-                    screen.view.on_event(event.relativized(Vec2::new(0, 1)));
+                    result = screen.view.on_event(event.relativized(Vec2::new(0, 1)));
                 }
             } else if position.y < self.last_size.y {
-                self.statusbar
+                result = self
+                    .statusbar
                     .on_event(event.relativized(Vec2::new(0, self.last_size.y - 2)));
             }
 
-            EventResult::Consumed(None)
+            result
         } else if search_visible {
             self.search.on_event(event)
         } else {
