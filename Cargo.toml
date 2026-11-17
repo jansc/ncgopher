@@ -43,6 +43,6 @@ cursive = { version = "0.21.1", default-features = false, features = ["pancurses
 crossbeam-channel = "0.5.15"
 regex = "1"
 mime = "0.3.17"
-linkify = "0.10.0"
+linkify = "0.11.0"
 stringreader = "0.1.1"
 rustls-pemfile = "2.2.0"
